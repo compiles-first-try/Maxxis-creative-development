@@ -7,6 +7,14 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v0.6.5 — deep craters, capsule ship, farther systems
+- 🕳️ Surface craters are now real 3-D bowls with depth, placed via
+  rejection sampling so they never overlap
+- 🚀 Ship remodeled as a Starliner-style gumdrop capsule (white body,
+  domed nose, dark service module, metallic docking ring)
+- 🌌 The three star systems are pushed much farther apart; far plane and
+  starfield grown to match, star points enlarged to stay visible
+
 ## v0.6 — binary star, surface rings, surface craters
 - ⭐⭐ The red system (Ember) is now a **binary star** — two stars orbiting
   the system centre, each casting its own light; the no-land zone wraps both

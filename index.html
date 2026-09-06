@@ -143,7 +143,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v0.6';
+const GAME_VERSION = 'v0.6.5';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -170,7 +170,7 @@ app.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(
-  65, window.innerWidth / window.innerHeight, 1, 2000000  // far plane huge: multiple star systems live far apart
+  65, window.innerWidth / window.innerHeight, 1, 5000000  // far plane huge: star systems live very far apart
 );
 
 /* ---------- Lighting ---------- */
@@ -182,7 +182,7 @@ scene.add(new THREE.AmbientLight(0x445577, 0.55));         // soft fill so dark 
   const N = 4000, pos = new Float32Array(N * 3);
   for (let i = 0; i < N; i++) {
     // scatter points on a big shell around the world
-    const r = 600000 + Math.random() * 400000;   // far shell, beyond every star system
+    const r = 1400000 + Math.random() * 800000;   // far shell, beyond every star system
     const t = Math.acos(2 * Math.random() - 1);
     const p = Math.random() * Math.PI * 2;
     pos[i*3]   = r * Math.sin(t) * Math.cos(p);
@@ -191,7 +191,7 @@ scene.add(new THREE.AmbientLight(0x445577, 0.55));         // soft fill so dark 
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const m = new THREE.PointsMaterial({ color: 0xffffff, size: 700, sizeAttenuation: true });
+  const m = new THREE.PointsMaterial({ color: 0xffffff, size: 1500, sizeAttenuation: true });
   scene.add(new THREE.Points(g, m));
 })();
 
@@ -359,34 +359,40 @@ function makeSystem(center, starColor, opts = {}) {
 }
 
 // THREE star systems, far apart. System 0 sits at the origin (where you spawn).
-makeSystem(new THREE.Vector3(0, 0, 0),               0xffe27a);   // Sol — golden
-makeSystem(new THREE.Vector3(360000, 30000, -120000), 0xff5a3a,   // Ember — RED BINARY (two stars)
+makeSystem(new THREE.Vector3(0, 0, 0),                  0xffe27a);   // Sol — golden
+makeSystem(new THREE.Vector3(780000, 80000, -280000),  0xff5a3a,    // Ember — RED BINARY (two stars)
            { binary: true, starColor2: 0xd83828 });
-makeSystem(new THREE.Vector3(-220000, -60000, 300000), 0x8fb8ff); // Frost — blue-white
+makeSystem(new THREE.Vector3(-520000, -140000, 660000), 0x8fb8ff);  // Frost — blue-white
 
 /* ---------- The Ship ---------- */
 const ship = new THREE.Group();
 (function buildShip() {
-  const body = new THREE.Mesh(
-    new THREE.ConeGeometry(2.2, 8, 16),
-    new THREE.MeshStandardMaterial({ color: 0xe8eefc, metalness: 0.6, roughness: 0.3 })
-  );
-  body.rotation.x = Math.PI / 2;          // point the cone forward (-Z)
-  ship.add(body);
+  // Starliner-style gumdrop capsule, built along +Y (nose up), then tilted to face forward.
+  const cap = new THREE.Group();
+  const white = new THREE.MeshStandardMaterial({ color: 0xeef0f4, metalness: 0.2, roughness: 0.5 });
+  const dark  = new THREE.MeshStandardMaterial({ color: 0x2a3340, metalness: 0.4, roughness: 0.6 });
+  const metal = new THREE.MeshStandardMaterial({ color: 0x9aa4b2, metalness: 0.85, roughness: 0.3 });
 
-  const wingMat = new THREE.MeshStandardMaterial({ color: 0x2ec7ff, metalness: 0.5, roughness: 0.4, emissive: 0x0a3355, emissiveIntensity: 0.4 });
-  const wingGeo = new THREE.BoxGeometry(9, 0.4, 3);
-  const wing = new THREE.Mesh(wingGeo, wingMat);
-  wing.position.z = 2;
-  ship.add(wing);
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 2.7, 5, 32), white);   // gumdrop body
+  body.position.y = 1.0; cap.add(body);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(1.5, 28, 16, 0, Math.PI * 2, 0, Math.PI / 2), white); // dome
+  nose.position.y = 3.5; cap.add(nose);
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(2.72, 2.72, 0.5, 32), dark);  // dark detail band
+  band.position.y = 0.3; cap.add(band);
+  const svc = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.35, 1.6, 32), dark);    // service module
+  svc.position.y = -1.3; cap.add(svc);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.35, 12, 32), metal);      // docking ring on base
+  ring.rotation.x = Math.PI / 2; ring.position.y = -2.15; cap.add(ring);
 
-  // engine glow
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture('#33e0ff'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-  glow.scale.set(10, 10, 1); glow.position.z = 5.5;
-  ship.userData.glow = glow;
-  ship.add(glow);
+  cap.rotation.x = Math.PI / 2;         // nose (+Y) -> +Z = the forward direction
+  ship.add(cap);
+
+  // engine glow at the base (points back, toward the chase camera)
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture('#ffa94a'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  glow.scale.set(9, 9, 1); glow.position.z = -3.4;
+  ship.userData.glow = glow; ship.add(glow);
 })();
-ship.scale.setScalar(0.4);   // way smaller ship
+ship.scale.setScalar(0.5);   // capsule size
 scene.add(ship);
 
 // Ship physics state
@@ -452,26 +458,37 @@ const surfaceCraters = new THREE.Group();
 surfaceCraters.visible = false;
 surfaceScene.add(surfaceCraters);
 const CRATER_POOL = [];
-for (let i = 0; i < 44; i++) {
+for (let i = 0; i < 40; i++) {
   const cr = new THREE.Group();
-  const floor = new THREE.Mesh(new THREE.CircleGeometry(1, 28),
-    new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 1 }));
-  floor.rotation.x = -Math.PI / 2; floor.position.y = 2;
-  const rim = new THREE.Mesh(new THREE.RingGeometry(0.82, 1.0, 28),
+  // bowl: a cone opening UPWARD (wide rim on top, point at the bottom) = a real pit with depth
+  const bowl = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 28, 1, true),
+    new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 1, side: THREE.DoubleSide }));
+  bowl.rotation.x = Math.PI;      // flip so the wide opening faces up
+  bowl.position.y = 0.5;          // apex at ground (y=0), rim at y=1 (before scaling)
+  // raised lip around the rim
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(1, 0.12, 10, 30),
     new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 1 }));
-  rim.rotation.x = -Math.PI / 2; rim.position.y = 4;
-  cr.add(floor); cr.add(rim); cr.userData = { floor, rim };
+  rim.rotation.x = Math.PI / 2; rim.position.y = 1;
+  cr.add(bowl); cr.add(rim); cr.userData = { bowl, rim };
   surfaceCraters.add(cr); CRATER_POOL.push(cr);
 }
-function layoutCraters(base) {   // scatter/scale/recolor the pool for this world
+function layoutCraters(base) {   // scatter (no overlap), size, give depth, recolor
+  const placed = [];
   CRATER_POOL.forEach(cr => {
-    const r = 300 + Math.random() * 1500;
-    cr.scale.set(r, 1, r);
-    cr.position.set((Math.random() - 0.5) * 38000, 0, (Math.random() - 0.5) * 38000);
-    cr.userData.floor.material.color.copy(
-      Math.random() < 0.5 ? new THREE.Color().setHSL(Math.random(), 0.45, 0.3)   // different colors
-                          : new THREE.Color(base).multiplyScalar(0.55));
-    cr.userData.rim.material.color.copy(new THREE.Color(base).lerp(new THREE.Color(0xffffff), 0.3));
+    let x, z, r, ok = false;
+    for (let t = 0; t < 16 && !ok; t++) {           // rejection sampling → craters don't overlap
+      r = 400 + Math.random() * 1000;
+      x = (Math.random() - 0.5) * 17000; z = (Math.random() - 0.5) * 17000;   // clustered near the landing spot
+      ok = placed.every(p => Math.hypot(p.x - x, p.z - z) > (p.r + r) * 1.1);
+    }
+    if (!ok) { cr.visible = false; return; }         // no room found → skip this one
+    cr.visible = true; placed.push({ x, z, r });
+    cr.scale.set(r, r * 0.5, r);                      // y-scale gives the pit real depth
+    cr.position.set(x, 0, z);
+    cr.userData.bowl.material.color.copy(
+      Math.random() < 0.5 ? new THREE.Color().setHSL(Math.random(), 0.45, 0.28)   // different colors
+                          : new THREE.Color(base).multiplyScalar(0.5));
+    cr.userData.rim.material.color.copy(new THREE.Color(base).lerp(new THREE.Color(0xffffff), 0.35));
   });
 }
 
