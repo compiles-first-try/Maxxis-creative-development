@@ -90,6 +90,15 @@
   #sysBanner.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
   #sysBanner .big { font-size: 40px; font-weight: bold; letter-spacing: 2px; color: #9ad0ff; text-shadow: 0 0 20px rgba(90,170,255,0.9); }
 
+  /* ---------- Hyperspeed indicator ---------- */
+  #hyper {
+    top: 64%; left: 50%; transform: translateX(-50%); z-index: 25;
+    font-size: 26px; font-weight: bold; letter-spacing: 5px; color: #8fd0ff;
+    text-shadow: 0 0 18px rgba(90,180,255,0.9); opacity: 0; transition: opacity .2s ease;
+  }
+  #hyper.show { opacity: 1; animation: hyperpulse 0.5s ease-in-out infinite alternate; }
+  @keyframes hyperpulse { from { text-shadow: 0 0 12px rgba(90,180,255,0.7); } to { text-shadow: 0 0 26px rgba(130,220,255,1); } }
+
   /* ---------- Portal hint ---------- */
   #portalHint {
     bottom: 96px; left: 50%; transform: translateX(-50%); z-index: 25;
@@ -155,7 +164,8 @@
   <span class="key">A</span>/<span class="key">D</span> turn<br />
   <span class="key">Space</span> up &nbsp; <span class="key">Ctrl</span> down &nbsp;
   <span class="key">Shift</span> boost<br />
-  <span class="key">Right-drag</span> look around &nbsp; <span class="key">P</span> first-person &nbsp; <span class="key">E</span> portal
+  <span class="key">Right-drag</span> look around &nbsp; <span class="key">P</span> first-person &nbsp; <span class="key">E</span> portal<br />
+  <span class="key">Q</span>+<span class="key">W</span> hyperspeed ⚡
 </div>
 
 <div id="sysName" class="hud">◎ <span id="sysNameText">Sol</span></div>
@@ -166,6 +176,8 @@
 </div>
 
 <div id="sysBanner" class="hud"><div class="big" id="sysBannerText">ENTERING</div></div>
+
+<div id="hyper" class="hud">⚡ HYPERSPEED</div>
 
 <div id="portalHint" class="hud">🌀 At a portal — press <span class="key">E</span> to travel</div>
 
@@ -208,7 +220,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v0.7';
+const GAME_VERSION = 'v0.7.5';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -235,7 +247,7 @@ app.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(
-  65, window.innerWidth / window.innerHeight, 1, 5000000  // far plane huge: star systems live very far apart
+  65, window.innerWidth / window.innerHeight, 1, 120000000  // far plane vast: systems are ~25M units apart
 );
 
 /* ---------- Lighting ---------- */
@@ -247,7 +259,7 @@ scene.add(new THREE.AmbientLight(0x445577, 0.55));         // soft fill so dark 
   const N = 4000, pos = new Float32Array(N * 3);
   for (let i = 0; i < N; i++) {
     // scatter points on a big shell around the world
-    const r = 1400000 + Math.random() * 800000;   // far shell, beyond every star system
+    const r = 45000000 + Math.random() * 25000000;   // far shell, beyond every star system
     const t = Math.acos(2 * Math.random() - 1);
     const p = Math.random() * Math.PI * 2;
     pos[i*3]   = r * Math.sin(t) * Math.cos(p);
@@ -256,7 +268,7 @@ scene.add(new THREE.AmbientLight(0x445577, 0.55));         // soft fill so dark 
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const m = new THREE.PointsMaterial({ color: 0xffffff, size: 1500, sizeAttenuation: true });
+  const m = new THREE.PointsMaterial({ color: 0xffffff, size: 45000, sizeAttenuation: true });
   scene.add(new THREE.Points(g, m));
 })();
 
@@ -465,6 +477,7 @@ function makePortal(color) {
 }
 
 // EIGHT star systems, far apart. System 0 (Sol) is where you spawn.
+const SYSTEM_SPREAD = 30;   // v0.7.5: systems sit this many times farther apart
 const SYSTEM_DEFS = [
   { name: 'Sol',    pos: [0, 0, 0],                  color: 0xffe27a, stars: 1 },
   { name: 'Ember',  pos: [780000, 80000, -280000],   color: 0xff5a3a, stars: 2, starColor2: 0xd83828 },
@@ -475,8 +488,9 @@ const SYSTEM_DEFS = [
   { name: 'Lyra',   pos: [-300000, 300000, 880000],  color: 0x6affc0, stars: 2, starColor2: 0x2ec7a0 },
   { name: 'Pyre',   pos: [900000, -180000, 260000],  color: 0xffd24a, stars: 3, starColor2: 0xff7a3a },
 ];
-SYSTEM_DEFS.forEach(d => makeSystem(new THREE.Vector3(d.pos[0], d.pos[1], d.pos[2]), d.color,
-  { name: d.name, stars: d.stars, starColor2: d.starColor2 }));
+SYSTEM_DEFS.forEach(d => makeSystem(
+  new THREE.Vector3(d.pos[0] * SYSTEM_SPREAD, d.pos[1] * SYSTEM_SPREAD, d.pos[2] * SYSTEM_SPREAD),
+  d.color, { name: d.name, stars: d.stars, starColor2: d.starColor2 }));
 
 /* ---------- The Ship ---------- */
 const ship = new THREE.Group();
@@ -723,7 +737,7 @@ function updateSurface(dt) {
 
 /* ---------- Input ---------- */
 const keys = {};
-const track = ['KeyW','KeyS','KeyA','KeyD','Space','ControlLeft','ControlRight','ShiftLeft','ShiftRight'];
+const track = ['KeyW','KeyS','KeyA','KeyD','KeyQ','Space','ControlLeft','ControlRight','ShiftLeft','ShiftRight'];
 addEventListener('keydown', e => { if (track.includes(e.code)) { keys[e.code] = true; e.preventDefault(); } });
 addEventListener('keyup',   e => { if (track.includes(e.code)) { keys[e.code] = false; e.preventDefault(); } });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
@@ -756,7 +770,7 @@ const ui = {
   nearName: el('nearName'), nearDist: el('nearDist'), barFill: el('barFill'),
   landed: el('landed'), landedName: el('landedName'),
   sysNameText: el('sysNameText'), sysBanner: el('sysBanner'), sysBannerText: el('sysBannerText'),
-  portalHint: el('portalHint')
+  portalHint: el('portalHint'), hyper: el('hyper')
 };
 let visitedCount = 0;
 let running = false;
@@ -846,8 +860,11 @@ function animate() {
     if (s.binaryPivot) s.binaryPivot.rotation.y += s.binarySpeed * MOTION * dt;  // 2–3 stars orbit
     else s.sun.rotation.y += 0.02 * MOTION * dt;
     s.portal.userData.ring.rotation.z += 0.5 * dt;
+    // beacon: constant on-screen size (so it's findable from millions of units), fades when you arrive
     const camDist = camera.position.distanceTo(s.center);
-    s.beacon.material.opacity = Math.max(0, Math.min(1, (camDist - 60000) / 190000)) * 0.5;
+    s.beacon.material.opacity = Math.max(0, Math.min(1, (camDist - 300000) / 3000000)) * 0.6;
+    const bs = Math.max(SUN_RADIUS * 30, camDist * 0.02);
+    s.beacon.scale.set(bs, bs, 1);
   }
 
   // v0.7: which system am I in? which portal am I near?
@@ -867,6 +884,12 @@ function animate() {
   updateCamera(dt);
   updateHUD();
 
+  // v0.7.5: hyperspeed feel — widen the FOV and flash the indicator
+  const hyperOn = hyperActive && mode === 'space' && running && !portalMenuOpen;
+  ui.hyper.classList.toggle('show', hyperOn);
+  const targetFov = hyperOn ? 100 : 65;
+  if (Math.abs(camera.fov - targetFov) > 0.1) { camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 4); camera.updateProjectionMatrix(); }
+
   // banner fades
   if (landedTimer > 0) { landedTimer -= dt; if (landedTimer <= 0) ui.landed.classList.remove('show'); }
   if (sysBannerTimer > 0) { sysBannerTimer -= dt; if (sysBannerTimer <= 0) ui.sysBanner.classList.remove('show'); }
@@ -880,9 +903,12 @@ function animate() {
   renderer.render(mode === 'space' ? scene : surfaceScene, camera);
 }
 
+let hyperActive = false;   // v0.7.5: true while Q+W hyperspeed engaged
+
 function updateShip(dt) {
+  hyperActive = keys.KeyQ && keys.KeyW;                       // Q+W = hyperspeed
   const boost = (keys.ShiftLeft || keys.ShiftRight) ? 2.4 : 1;
-  const accel = 900 * DIST_SCALE * boost;   // thrust scaled to the spread-out world so travel stays snappy
+  const accel = 900 * DIST_SCALE * boost * (hyperActive ? 120 : 1);   // hyperspeed thrust
   const turn  = 1.9;             // radians/sec
 
   // A/D turn (yaw) around world-up

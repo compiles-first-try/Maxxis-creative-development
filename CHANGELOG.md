@@ -7,6 +7,14 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v0.7.5 — 30× galaxy & hyperspeed
+- 🌌 Every star system now sits 30× farther apart (`SYSTEM_SPREAD = 30`);
+  far plane and starfield grown to match
+- 🔦 Beacons now hold a constant on-screen size so distant systems stay
+  findable across millions of units, and fade out once you arrive
+- ⚡ Hold **Q + W** for hyperspeed — a huge thrust multiplier plus a
+  FOV "whoosh" and a HYPERSPEED indicator — to cross the galaxy fast
+
 ## v0.7 — eight systems, portals & multi-star systems
 - 🌌 Eight named star systems (up from three), spread far across space
 - ⭐ Systems can have one, two, or three suns orbiting the centre
