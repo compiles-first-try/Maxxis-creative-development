@@ -73,10 +73,19 @@
   }
   #start button:hover { transform: scale(1.06); }
   #start.hide { opacity: 0; pointer-events: none; }
+
+  /* ---------- Version badge (always visible, top of everything) ---------- */
+  #ver {
+    position: fixed; bottom: 10px; right: 14px; z-index: 30;
+    font-size: 13px; font-weight: bold; letter-spacing: 1px;
+    color: #6d8ec2; pointer-events: none; user-select: none;
+    text-shadow: 0 0 6px rgba(0,80,180,0.5);
+  }
 </style>
 </head>
 <body>
 <div id="app"></div>
+<div id="ver"></div>
 
 <!-- HUD -->
 <div id="topLeft" class="hud">
@@ -140,6 +149,13 @@
      - "Flat but round": planets are HUGE, so at the surface the curve is
        too gentle to see — exactly why Earth looks flat while being a ball.
    ========================================================================= */
+
+/* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
+const GAME_VERSION = 'v0.1';
+document.getElementById('ver').textContent = GAME_VERSION;
+
+/* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
+const MOTION = 0.12;
 
 const THREE_OK = typeof THREE !== 'undefined';
 
@@ -302,6 +318,7 @@ const ship = new THREE.Group();
   ship.userData.glow = glow;
   ship.add(glow);
 })();
+ship.scale.setScalar(0.4);   // way smaller ship
 scene.add(ship);
 
 // Ship physics state
@@ -353,11 +370,11 @@ function animate() {
 
   // --- move the solar system (orbits + spins) ---
   for (const b of bodies) {
-    b.pivot.rotation.y += b.orbitSpeed * dt;
-    b.mesh.rotation.y  += b.spin * dt;
+    b.pivot.rotation.y += b.orbitSpeed * MOTION * dt;
+    b.mesh.rotation.y  += b.spin * MOTION * dt;
     b.mesh.getWorldPosition(b.world);     // cache each body's true world position
   }
-  sun.rotation.y += 0.02 * dt;
+  sun.rotation.y += 0.02 * MOTION * dt;
 
   if (running) updateShip(dt);
   updateCamera(dt);
@@ -437,8 +454,8 @@ function updateCamera(dt) {
   // chase camera: sit behind & above the ship, look at it
   forward.set(Math.sin(state.yaw), 0, Math.cos(state.yaw));
   tmp.copy(ship.position)
-     .addScaledVector(forward, -46)   // behind
-     .add(new THREE.Vector3(0, 18, 0)); // above
+     .addScaledVector(forward, -22)   // behind (closer, since the ship is small now)
+     .add(new THREE.Vector3(0, 8, 0)); // above
   camera.position.lerp(tmp, running ? Math.min(1, dt * 4) : 0.02);
   camera.lookAt(ship.position);
 }
