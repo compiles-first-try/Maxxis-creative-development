@@ -7,6 +7,16 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v0.5 — three star systems, unique planet textures
+- 🎚️ Up/down thrust is now much gentler via a `VERT_SENS = 0.35` dial
+- 🌌 Three separate star systems placed far apart; system 0 is where you spawn
+- 🔦 Each system has a faint glowing beacon halo that fades in from far away
+  (and out as you approach) so you can hunt for systems across the dark
+- 🪐 Each system holds a random 3–7 planets, each with its own procedural
+  texture (bands, rocky, craters, swirl, ice, patches, lava, dunes) and hue
+- 🔢 "Bodies visited" total is now computed from the actual world count
+- 🔭 Far plane, starfield radius, and per-system point lights scaled up to suit
+
 ## v0.4.6 — vertical jerk fix, first-person, tight fast-follow
 - 🎢 Fixed hard jerk when climbing/diving: the chase camera now tracks its
   target much tighter (no lag-then-snap on fast vertical moves)

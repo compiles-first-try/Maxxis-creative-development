@@ -90,7 +90,7 @@
 <!-- HUD -->
 <div id="topLeft" class="hud">
   Speed: <span id="speed">0</span> u/s<br />
-  Bodies visited: <b id="visited">0</b> / 7
+  Bodies visited: <b id="visited">0</b> / <b id="total">0</b>
 </div>
 
 <div id="nearest" class="hud">
@@ -115,7 +115,7 @@
 <!-- Start screen -->
 <div id="start">
   <h1>🚀 SPACE EXPLORER</h1>
-  <p>A glowing star, five scattered planets, and two hidden moons. Fly out, land on every world, and feel how a giant sphere fools your eyes into seeing flat ground.</p>
+  <p>Three star systems drift far apart in the dark — each a glowing beacon you can spot from a distance. Fly out, hunt them down, and land on every uniquely-textured world you find.</p>
   <div class="keys">
     <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> steer &nbsp;•&nbsp;
     <span class="key">Space</span> climb &nbsp;•&nbsp; <span class="key">Ctrl</span> dive &nbsp;•&nbsp; <span class="key">Shift</span> boost
@@ -143,7 +143,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v0.4.6';
+const GAME_VERSION = 'v0.5';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -154,6 +154,9 @@ const MOTION = 0.12;
    DIST_SCALE = how far apart everything sits (v0.4: 20x further out). */
 const BODY_SCALE = 10;
 const DIST_SCALE = 20;
+
+/* v0.5: up/down thrust is this fraction of forward thrust (lower = gentler). */
+const VERT_SENS = 0.35;
 
 const THREE_OK = typeof THREE !== 'undefined';
 
@@ -167,20 +170,19 @@ app.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(
-  65, window.innerWidth / window.innerHeight, 1, 500000  // far plane grown for the 10x-bigger universe
+  65, window.innerWidth / window.innerHeight, 1, 2000000  // far plane huge: multiple star systems live far apart
 );
 
 /* ---------- Lighting ---------- */
-scene.add(new THREE.AmbientLight(0x334466, 0.6));          // soft fill so dark sides aren't pitch black
-const sunLight = new THREE.PointLight(0xfff2c0, 2.4, 0, 0); // decay 0 = reaches planets even in the huge scaled-up world
-scene.add(sunLight);
+scene.add(new THREE.AmbientLight(0x445577, 0.55));         // soft fill so dark sides aren't pitch black
+// Each star system adds its own point light in makeSystem() below.
 
 /* ---------- Starfield (the backdrop) ---------- */
 (function makeStars() {
   const N = 4000, pos = new Float32Array(N * 3);
   for (let i = 0; i < N; i++) {
     // scatter points on a big shell around the world
-    const r = (8000 + Math.random() * 4000) * DIST_SCALE;   // pushed out beyond the spread-out worlds
+    const r = 600000 + Math.random() * 400000;   // far shell, beyond every star system
     const t = Math.acos(2 * Math.random() - 1);
     const p = Math.random() * Math.PI * 2;
     pos[i*3]   = r * Math.sin(t) * Math.cos(p);
@@ -189,7 +191,7 @@ scene.add(sunLight);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const m = new THREE.PointsMaterial({ color: 0xffffff, size: 6 * DIST_SCALE, sizeAttenuation: true });
+  const m = new THREE.PointsMaterial({ color: 0xffffff, size: 700, sizeAttenuation: true });
   scene.add(new THREE.Points(g, m));
 })();
 
@@ -207,96 +209,136 @@ function glowTexture(hex) {
   return new THREE.CanvasTexture(c);
 }
 
-/* ---------- The Sun (always the biggest body) ---------- */
-const SUN_RADIUS = 260 * BODY_SCALE;   // still always the biggest body
-const sun = new THREE.Mesh(
-  new THREE.SphereGeometry(SUN_RADIUS, 48, 48),
-  new THREE.MeshBasicMaterial({ color: 0xffe27a })   // basic = glows on its own, ignores light
-);
-scene.add(sun);
-sunLight.position.set(0, 0, 0);
+/* ---------- Color helpers ---------- */
+function hex(c) { return '#' + ('000000' + (c >>> 0).toString(16)).slice(-6); }
+function shade(c, f) {   // f>0 lightens toward white, f<0 darkens toward black; returns css hex
+  const col = new THREE.Color(c);
+  col.lerp(new THREE.Color(f >= 0 ? 0xffffff : 0x000000), Math.abs(f));
+  return '#' + col.getHexString();
+}
 
-// layered glow sprites so the star has a soft halo
-[SUN_RADIUS * 3.2, SUN_RADIUS * 5.5].forEach((size, i) => {
-  const spr = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: glowTexture('#ffcf40'),
-    transparent: true, blending: THREE.AdditiveBlending,
-    opacity: i === 0 ? 0.85 : 0.4, depthWrite: false
-  }));
-  spr.scale.set(size, size, 1);
-  sun.add(spr);
-});
+/* ---------- Procedural planet textures — every planet gets a different one ---------- */
+const TEX_TYPES = ['bands', 'rocky', 'craters', 'swirl', 'ice', 'patches', 'lava', 'dunes'];
 
-/* ---------- Planets & moons ----------
-   Each planet is far from the others. Radii are LARGE (60–120) so the
-   ground looks flat when you land. Two planets carry moons.            */
-const bodies = [];   // everything you can land on (planets + moons)
+function planetTexture(type, base) {
+  const W = 512, H = 256, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d'); const rnd = (a, b) => a + Math.random() * (b - a);
+  g.fillStyle = hex(base); g.fillRect(0, 0, W, H);
+  if (type === 'bands') {                                   // gas-giant stripes
+    for (let y = 0; y < H; y += rnd(8, 22)) { g.fillStyle = shade(base, rnd(-0.35, 0.35)); g.fillRect(0, y | 0, W, rnd(6, 18)); }
+  } else if (type === 'rocky') {                            // speckled rock
+    for (let i = 0; i < 4500; i++) { g.fillStyle = shade(base, rnd(-0.4, 0.3)); g.fillRect(Math.random()*W, Math.random()*H, 2, 2); }
+  } else if (type === 'craters') {                          // moon-like craters
+    for (let i = 0; i < 80; i++) { const r = rnd(4, 22), x = Math.random()*W, y = Math.random()*H;
+      g.beginPath(); g.arc(x, y, r, 0, 7); g.fillStyle = shade(base, -0.35); g.fill();
+      g.beginPath(); g.arc(x - r*0.3, y - r*0.3, r*0.6, 0, 7); g.fillStyle = shade(base, 0.25); g.fill(); }
+  } else if (type === 'swirl') {                            // stormy swirls
+    for (let i = 0; i < 1100; i++) { const a = rnd(0, 7); const x = W/2 + Math.cos(a)*rnd(0, W/2), y = H/2 + Math.sin(a*1.7)*rnd(0, H/2);
+      g.fillStyle = shade(base, Math.sin(a*3)*0.3); g.fillRect(x, y, rnd(3, 10), rnd(3, 10)); }
+  } else if (type === 'ice') {                              // pale ice with cracks
+    g.fillStyle = shade(base, 0.4); g.fillRect(0, 0, W, H); g.strokeStyle = shade(base, -0.25); g.lineWidth = 2;
+    for (let i = 0; i < 45; i++) { g.beginPath(); g.moveTo(Math.random()*W, Math.random()*H); g.lineTo(Math.random()*W, Math.random()*H); g.stroke(); }
+  } else if (type === 'patches') {                          // continents/patches
+    for (let i = 0; i < 45; i++) { g.beginPath(); g.arc(Math.random()*W, Math.random()*H, rnd(10, 40), 0, 7); g.fillStyle = shade(base, rnd(-0.3, 0.35)); g.fill(); }
+  } else if (type === 'lava') {                             // dark crust, bright veins
+    g.fillStyle = shade(base, -0.5); g.fillRect(0, 0, W, H);
+    for (let i = 0; i < 140; i++) { g.strokeStyle = shade(base, 0.5); g.lineWidth = rnd(1, 4); const x = Math.random()*W, y = Math.random()*H;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x + rnd(-30, 30), y + rnd(-30, 30)); g.stroke(); }
+  } else {                                                  // dunes: wavy sand rows
+    for (let y = 0; y < H; y += rnd(10, 26)) { g.fillStyle = shade(base, rnd(-0.2, 0.25));
+      g.beginPath(); g.moveTo(0, y); for (let x = 0; x <= W; x += 32) g.lineTo(x, y + Math.sin(x*0.05 + y)*6);
+      g.lineTo(W, y + 20); g.lineTo(0, y + 20); g.fill(); }
+  }
+  const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; return t;
+}
 
-function makePlanet(cfg) {
-  cfg.radius   *= BODY_SCALE;   // body size
-  cfg.distance *= DIST_SCALE;   // orbit distance from the star
-  const geo = new THREE.SphereGeometry(cfg.radius, 48, 48);
+/* ---------- Planets, moons & STAR SYSTEMS ---------- */
+const SUN_RADIUS = 260 * BODY_SCALE;     // every star is this big (always bigger than its planets)
+const bodies  = [];                      // everything you can land on (planets + moons)
+const systems = [];                      // { center, sunRadius, sun, beacon }
+let planetCount = 0;                      // cycles TEX_TYPES so every planet differs
+const NAMES = ['Rustar','Verda','Azuria','Cirene','Ferox','Tarno','Vellum','Occa','Brix','Halcyon',
+               'Marrow','Sable','Pyra','Quill','Zenv','Umbra','Drift','Lonn','Krey','Fenn','Wisp','Orrin','Thal','Vasa'];
+let nameIx = 0; const nextName = () => NAMES[(nameIx++) % NAMES.length];
+
+function makePlanet(cfg, center) {
+  cfg.radius   *= BODY_SCALE;
+  cfg.distance *= DIST_SCALE;
+  const type = TEX_TYPES[(planetCount++) % TEX_TYPES.length];   // guarantees variety
   const mat = new THREE.MeshStandardMaterial({
-    color: cfg.color, roughness: 0.9, metalness: 0.1,
-    emissive: cfg.color, emissiveIntensity: 0.06   // faint self-tint so far side isn't black
+    map: planetTexture(type, cfg.color), roughness: 0.92, metalness: 0.05,
+    emissive: cfg.color, emissiveIntensity: 0.10
   });
-  const mesh = new THREE.Mesh(geo, mat);
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(cfg.radius, 48, 48), mat);
 
-  // pivot orbits the sun; planet sits at 'distance' on the pivot
   const pivot = new THREE.Object3D();
+  pivot.position.copy(center);                        // orbit THIS system's centre
   pivot.rotation.y = Math.random() * Math.PI * 2;
-  pivot.rotation.x = (Math.random() - 0.5) * 0.5;   // tilt orbits so worlds sit at different heights
+  pivot.rotation.x = (Math.random() - 0.5) * 0.5;
   scene.add(pivot);
   mesh.position.set(cfg.distance, 0, 0);
   pivot.add(mesh);
 
-  // optional ring for flair
   if (cfg.ring) {
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(cfg.radius * 1.4, cfg.radius * 2.2, 64),
-      new THREE.MeshBasicMaterial({ color: 0xd9c48a, side: THREE.DoubleSide, transparent: true, opacity: 0.55 })
-    );
-    ring.rotation.x = Math.PI / 2.3;
-    mesh.add(ring);
+      new THREE.MeshBasicMaterial({ color: 0xd9c48a, side: THREE.DoubleSide, transparent: true, opacity: 0.55 }));
+    ring.rotation.x = Math.PI / 2.3; mesh.add(ring);
   }
 
-  const body = {
-    name: cfg.name, mesh, pivot, radius: cfg.radius, color: cfg.color,
-    orbitSpeed: cfg.orbitSpeed, spin: cfg.spin || 0.05,
-    world: new THREE.Vector3(), visited: false
-  };
-  bodies.push(body);
+  bodies.push({ name: cfg.name, mesh, pivot, radius: cfg.radius, color: cfg.color, texType: type,
+    orbitSpeed: cfg.orbitSpeed, spin: cfg.spin || 0.05, world: new THREE.Vector3(), visited: false });
 
-  // moons: little spheres orbiting this planet
-  (cfg.moons || []).forEach((mn, k) => {
-    mn.radius   *= BODY_SCALE;   // moon size
-    mn.distance *= DIST_SCALE;   // moon distance from its planet
-    const mgeo = new THREE.SphereGeometry(mn.radius, 32, 32);
-    const mmat = new THREE.MeshStandardMaterial({ color: mn.color, roughness: 1, emissive: mn.color, emissiveIntensity: 0.05 });
-    const mmesh = new THREE.Mesh(mgeo, mmat);
-    const mpivot = new THREE.Object3D();
-    mpivot.rotation.z = (Math.random() - 0.5) * 0.6;
-    mesh.add(mpivot);            // moon pivot rides ON the planet, so it follows it around the sun
-    mmesh.position.set(mn.distance, 0, 0);
-    mpivot.add(mmesh);
-    bodies.push({
-      name: mn.name, mesh: mmesh, pivot: mpivot, radius: mn.radius, color: mn.color,
-      orbitSpeed: mn.orbitSpeed, spin: 0.1, world: new THREE.Vector3(), visited: false
-    });
+  (cfg.moons || []).forEach(mn => {
+    mn.radius *= BODY_SCALE; mn.distance *= DIST_SCALE;
+    const mmesh = new THREE.Mesh(new THREE.SphereGeometry(mn.radius, 32, 32),
+      new THREE.MeshStandardMaterial({ color: mn.color, roughness: 1, emissive: mn.color, emissiveIntensity: 0.06 }));
+    const mpivot = new THREE.Object3D(); mpivot.rotation.z = (Math.random() - 0.5) * 0.6; mesh.add(mpivot);
+    mmesh.position.set(mn.distance, 0, 0); mpivot.add(mmesh);
+    bodies.push({ name: mn.name, mesh: mmesh, pivot: mpivot, radius: mn.radius, color: mn.color,
+      orbitSpeed: mn.orbitSpeed, spin: 0.1, world: new THREE.Vector3(), visited: false });
   });
-
-  return body;
 }
 
-// FIVE planets, well separated; TWO of them (Verda, Cirene) have moons.
-makePlanet({ name: 'Rustar',  color: 0xc0563b, radius: 70,  distance: 900,  orbitSpeed: 0.020, spin: 0.06 });
-makePlanet({ name: 'Verda',   color: 0x3fae6a, radius: 95,  distance: 1500, orbitSpeed: 0.014, spin: 0.05,
-             moons: [{ name: 'Lume', color: 0xcfcfcf, radius: 20, distance: 200, orbitSpeed: 0.9 }] });
-makePlanet({ name: 'Azuria',  color: 0x3d78d6, radius: 110, distance: 2250, orbitSpeed: 0.010, spin: 0.04, ring: true });
-makePlanet({ name: 'Cirene',  color: 0xb28fe0, radius: 85,  distance: 3050, orbitSpeed: 0.008, spin: 0.05,
-             moons: [{ name: 'Vex',  color: 0xd8b48a, radius: 18, distance: 180, orbitSpeed: 1.1 },
-                     { name: 'Nyx',  color: 0x9aa4b0, radius: 14, distance: 300, orbitSpeed: 0.7 }] });
-makePlanet({ name: 'Ferox',   color: 0xd9a441, radius: 78,  distance: 3900, orbitSpeed: 0.006, spin: 0.07 });
+function makeSystem(center, starColor) {
+  const sun = new THREE.Mesh(new THREE.SphereGeometry(SUN_RADIUS, 48, 48), new THREE.MeshBasicMaterial({ color: starColor }));
+  sun.position.copy(center); scene.add(sun);
+  [SUN_RADIUS * 3.2, SUN_RADIUS * 5.5].forEach((size, i) => {
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(hex(starColor)),
+      transparent: true, blending: THREE.AdditiveBlending, opacity: i === 0 ? 0.85 : 0.4, depthWrite: false }));
+    spr.scale.set(size, size, 1); sun.add(spr);
+  });
+  const light = new THREE.PointLight(starColor, 0.8, 0, 0); light.position.copy(center); scene.add(light);
+
+  // faint beacon halo: seen from far away so you can hunt for the system, fades as you approach
+  const beacon = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(hex(starColor)),
+    transparent: true, blending: THREE.AdditiveBlending, opacity: 0, depthWrite: false }));
+  beacon.scale.set(SUN_RADIUS * 45, SUN_RADIUS * 45, 1); beacon.position.copy(center); scene.add(beacon);
+
+  systems.push({ center: center.clone(), sunRadius: SUN_RADIUS, sun, beacon });
+
+  // 3–7 planets, each a different texture + random hue, spaced outward
+  const n = 3 + (Math.random() * 5 | 0);   // 3..7
+  for (let i = 0; i < n; i++) {
+    const baseR = 55 + Math.random() * 60;
+    const cfg = {
+      name: nextName(),
+      color: new THREE.Color().setHSL(Math.random(), 0.55, 0.5).getHex(),
+      radius: baseR,
+      distance: 900 + i * (650 + Math.random() * 250),
+      orbitSpeed: 0.02 / (1 + i * 0.5),
+      spin: 0.04 + Math.random() * 0.05,
+      ring: Math.random() < 0.22
+    };
+    if (Math.random() < 0.3) cfg.moons = [{ name: nextName(), color: 0xcfcfcf, radius: 16, distance: 200, orbitSpeed: 0.8 }];
+    makePlanet(cfg, center);
+  }
+}
+
+// THREE star systems, far apart. System 0 sits at the origin (where you spawn).
+makeSystem(new THREE.Vector3(0, 0, 0),               0xffe27a);   // Sol — golden
+makeSystem(new THREE.Vector3(360000, 30000, -120000), 0xff7a4a);  // Ember — orange
+makeSystem(new THREE.Vector3(-220000, -60000, 300000), 0x8fb8ff); // Frost — blue-white
 
 /* ---------- The Ship ---------- */
 const ship = new THREE.Group();
@@ -488,6 +530,7 @@ const ui = {
 };
 let visitedCount = 0;
 let running = false;
+el('total').textContent = bodies.length;   // total landable worlds across all systems
 
 el('startBtn').addEventListener('click', () => {
   el('start').classList.add('hide');
@@ -521,7 +564,12 @@ function animate() {
     b.mesh.rotation.y  += b.spin * MOTION * dt;
     b.mesh.getWorldPosition(b.world);     // cache each body's true world position
   }
-  sun.rotation.y += 0.02 * MOTION * dt;
+  // spin each star + fade its beacon in from far away (so you can hunt for systems)
+  for (const s of systems) {
+    s.sun.rotation.y += 0.02 * MOTION * dt;
+    const camDist = camera.position.distanceTo(s.center);
+    s.beacon.material.opacity = Math.max(0, Math.min(1, (camDist - 60000) / 190000)) * 0.5;
+  }
 
   if (landCooldown > 0) landCooldown -= dt;
   if (running) { if (mode === 'space') updateShip(dt); else updateSurface(dt); }
@@ -558,8 +606,8 @@ function updateShip(dt) {
 
   if (keys.KeyW) state.vel.addScaledVector(forward, accel * dt);
   if (keys.KeyS) state.vel.addScaledVector(forward, -accel * dt);
-  if (keys.Space) state.vel.y += accel * dt;                 // climb
-  if (keys.ControlLeft || keys.ControlRight) state.vel.y -= accel * dt; // dive
+  if (keys.Space) state.vel.y += accel * VERT_SENS * dt;                 // climb (gentler)
+  if (keys.ControlLeft || keys.ControlRight) state.vel.y -= accel * VERT_SENS * dt; // dive (gentler)
 
   // space drag → arcade feel, easy to control
   state.vel.multiplyScalar(0.985);
@@ -569,7 +617,7 @@ function updateShip(dt) {
 
   // --- collision / landing against every body + the sun ---
   let touched = null;
-  const checkList = bodies.concat([{ name: 'the Sun', world: sun.position, radius: SUN_RADIUS, isSun: true }]);
+  const checkList = bodies.concat(systems.map(s => ({ name: 'a star', world: s.center, radius: s.sunRadius, isSun: true })));
   for (const b of checkList) {
     toShip.copy(state.pos).sub(b.world);
     const dist = toShip.length();
