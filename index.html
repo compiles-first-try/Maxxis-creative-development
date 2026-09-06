@@ -113,7 +113,13 @@
   <button id="startBtn">LAUNCH</button>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<!-- Three.js: bundled locally so the game works fully offline, with a CDN fallback -->
+<script src="vendor/three.min.js"></script>
+<script>
+  if (typeof THREE === 'undefined') {
+    document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');
+  }
+</script>
 <script>
 /* =========================================================================
    Maxxis — 3D Space Explorer
