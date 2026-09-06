@@ -152,7 +152,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v0.6.5';
+const GAME_VERSION = 'v0.6.6';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -442,11 +442,13 @@ const groundTex = (function () {
 
 const GROUND_Y = 0, SHIP_CLEAR = 6, LIFTOFF_HEIGHT = 1500;
 
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(60000, 60000),
-  new THREE.MeshStandardMaterial({ map: groundTex, roughness: 1, metalness: 0 })
-);
-ground.rotation.x = -Math.PI / 2;   // lay it flat
+const GROUND_SEG = 240;   // subdivided so we can sculpt real craters INTO the ground
+const groundGeo = new THREE.PlaneGeometry(60000, 60000, GROUND_SEG, GROUND_SEG);
+groundGeo.setAttribute('color', new THREE.BufferAttribute(
+  new Float32Array(groundGeo.attributes.position.count * 3).fill(1), 3));   // per-vertex color
+const ground = new THREE.Mesh(groundGeo,
+  new THREE.MeshStandardMaterial({ map: groundTex, roughness: 1, metalness: 0, vertexColors: true }));
+ground.rotation.x = -Math.PI / 2;   // lay it flat (local Z → world Y)
 surfaceScene.add(ground);
 
 // v0.6: rings across the sky — shown only when the world you land on has rings
@@ -462,43 +464,43 @@ surfaceRing.position.set(0, 9000, 0);
 surfaceRing.visible = false;
 surfaceScene.add(surfaceRing);
 
-// v0.6: crater decals on the ground — shown only on crater-textured worlds
-const surfaceCraters = new THREE.Group();
-surfaceCraters.visible = false;
-surfaceScene.add(surfaceCraters);
-const CRATER_POOL = [];
-for (let i = 0; i < 40; i++) {
-  const cr = new THREE.Group();
-  // bowl: a cone opening UPWARD (wide rim on top, point at the bottom) = a real pit with depth
-  const bowl = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 28, 1, true),
-    new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 1, side: THREE.DoubleSide }));
-  bowl.rotation.x = Math.PI;      // flip so the wide opening faces up
-  bowl.position.y = 0.5;          // apex at ground (y=0), rim at y=1 (before scaling)
-  // raised lip around the rim
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(1, 0.12, 10, 30),
-    new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 1 }));
-  rim.rotation.x = Math.PI / 2; rim.position.y = 1;
-  cr.add(bowl); cr.add(rim); cr.userData = { bowl, rim };
-  surfaceCraters.add(cr); CRATER_POOL.push(cr);
-}
-function layoutCraters(base) {   // scatter (no overlap), size, give depth, recolor
-  const placed = [];
-  CRATER_POOL.forEach(cr => {
-    let x, z, r, ok = false;
-    for (let t = 0; t < 16 && !ok; t++) {           // rejection sampling → craters don't overlap
-      r = 400 + Math.random() * 1000;
-      x = (Math.random() - 0.5) * 17000; z = (Math.random() - 0.5) * 17000;   // clustered near the landing spot
-      ok = placed.every(p => Math.hypot(p.x - x, p.z - z) > (p.r + r) * 1.1);
+// v0.6.6: sculpt the terrain itself — paint it the world's colour, and on crater
+// worlds push vertices DOWN into cone-shaped pits (sharp point at the centre).
+function shapeGround(base, craterWorld) {
+  const pos = groundGeo.attributes.position, col = groundGeo.attributes.color;
+  const bc = new THREE.Color(base);
+
+  // pick non-overlapping craters
+  const craters = [];
+  if (craterWorld) {
+    for (let k = 0; k < 40; k++) {
+      let x, z, r, ok = false;
+      for (let t = 0; t < 16 && !ok; t++) {
+        r = 600 + Math.random() * 1600;
+        x = (Math.random() - 0.5) * 34000; z = (Math.random() - 0.5) * 34000;
+        ok = craters.every(c => Math.hypot(c.x - x, c.z - z) > (c.r + r) * 1.12);
+      }
+      if (!ok) continue;
+      const cc = Math.random() < 0.5 ? new THREE.Color().setHSL(Math.random(), 0.5, 0.3)   // different colors
+                                     : bc.clone().multiplyScalar(0.5);
+      craters.push({ x, z, r, depth: r * (0.6 + Math.random() * 0.5), cc });
     }
-    if (!ok) { cr.visible = false; return; }         // no room found → skip this one
-    cr.visible = true; placed.push({ x, z, r });
-    cr.scale.set(r, r * 0.5, r);                      // y-scale gives the pit real depth
-    cr.position.set(x, 0, z);
-    cr.userData.bowl.material.color.copy(
-      Math.random() < 0.5 ? new THREE.Color().setHSL(Math.random(), 0.45, 0.28)   // different colors
-                          : new THREE.Color(base).multiplyScalar(0.5));
-    cr.userData.rim.material.color.copy(new THREE.Color(base).lerp(new THREE.Color(0xffffff), 0.35));
-  });
+  }
+
+  // for each ground vertex: find the deepest crater covering it (world Y = local Z)
+  for (let i = 0; i < pos.count; i++) {
+    const wx = pos.getX(i), wz = -pos.getY(i);
+    let y = 0, c = null, t = 1;
+    for (const cr of craters) {
+      const d = Math.hypot(wx - cr.x, wz - cr.z);
+      if (d < cr.r) { const yy = -cr.depth * (1 - d / cr.r); if (yy < y) { y = yy; c = cr; t = d / cr.r; } }
+    }
+    pos.setZ(i, y);                                   // push the vertex down into the ground
+    if (c) { const sh = 0.45 + 0.55 * t; col.setXYZ(i, c.cc.r * sh, c.cc.g * sh, c.cc.b * sh); }  // darker toward centre
+    else col.setXYZ(i, bc.r, bc.g, bc.b);            // normal ground = world colour
+  }
+  pos.needsUpdate = true; col.needsUpdate = true;
+  groundGeo.computeVertexNormals();                  // so the pit walls catch the light
 }
 
 const surfHemi = new THREE.HemisphereLight(0xffffff, 0x404040, 1.0);
@@ -523,7 +525,7 @@ function enterSurface(body) {
   currentBody = body;
   if (!body.visited) { body.visited = true; visitedCount++; }
 
-  ground.material.color.set(body.color);              // paint ground this world's color
+  shapeGround(body.color, body.texType === 'craters'); // colour the terrain; carve pits on crater worlds
   const sky = tintColor(body.color, 0.55);            // hazy, lighter sky of the same hue
   surfaceScene.background = sky;
   surfaceScene.fog = new THREE.Fog(sky.getHex(), 3000, 22000);
@@ -533,10 +535,6 @@ function enterSurface(body) {
   // v0.6: show rings across the sky if this world has them (and tilt the view up to reveal them)
   surfaceRing.visible = !!body.hasRing;
   look.yaw = 0; look.pitch = body.hasRing ? -0.2 : 0.35;   // ring worlds: tilt the view up to reveal them
-  // v0.6: scatter craters on the ground only on crater-textured worlds
-  const craterWorld = body.texType === 'craters';
-  surfaceCraters.visible = craterWorld;
-  if (craterWorld) layoutCraters(body.color);
 
   scene.remove(ship); surfaceScene.add(ship);         // move ship between rooms
   state.pos.set(0, 500, 0);                           // drop in from a bit up

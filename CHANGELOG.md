@@ -7,6 +7,12 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v0.6.6 — craters carved into the ground (bug fix)
+- 🕳️ Craters are now sculpted INTO the terrain instead of sitting on top:
+  the ground mesh is subdivided and its vertices are pushed down into
+  cone-shaped pits (sharp point at the centre), coloured via vertex colors
+  and shaded by recomputed normals — still non-overlapping
+
 ## v0.6.5 — deep craters, capsule ship, farther systems
 - 🕳️ Surface craters are now real 3-D bowls with depth, placed via
   rejection sampling so they never overlap
