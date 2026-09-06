@@ -7,6 +7,11 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v0.6.7 — cratered regolith surface texture
+- 🌑 Crater worlds' SURFACE now uses a dense procedural cratered-regolith
+  texture (embossed craters, seamless tiling), grayscale so it tints to
+  each planet's colour; applied only to the surface ground of crater worlds
+
 ## v0.6.6 — craters carved into the ground (bug fix)
 - 🕳️ Craters are now sculpted INTO the terrain instead of sitting on top:
   the ground mesh is subdivided and its vertices are pushed down into

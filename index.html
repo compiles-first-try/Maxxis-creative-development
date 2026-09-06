@@ -143,7 +143,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v0.6.6';
+const GAME_VERSION = 'v0.6.7';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -431,6 +431,28 @@ const groundTex = (function () {
   return t;
 })();
 
+// v0.6.7: dense cratered regolith texture for crater-world SURFACES (grayscale so
+// it tints to any planet colour via vertex colors). Seamless (craters wrap edges).
+const craterTex = (function () {
+  const s = 512, c = document.createElement('canvas'); c.width = c.height = s;
+  const g = c.getContext('2d');
+  const img = g.createImageData(s, s);                       // noisy regolith base
+  for (let i = 0; i < img.data.length; i += 4) { const n = 150 + (Math.random() * 45) | 0; img.data[i] = img.data[i+1] = img.data[i+2] = n; img.data[i+3] = 255; }
+  g.putImageData(img, 0, 0);
+  function crater(x, y, r) {                                 // embossed crater, lit from lower-right
+    g.beginPath(); g.arc(x, y, r, 0, 7); g.fillStyle = 'rgba(70,70,70,0.55)'; g.fill();                         // shadow rim (upper-left)
+    g.beginPath(); g.arc(x + r * 0.22, y + r * 0.22, r * 0.92, 0, 7); g.fillStyle = 'rgba(238,238,238,0.5)'; g.fill(); // highlight rim (lower-right)
+    g.beginPath(); g.arc(x, y, r * 0.66, 0, 7); g.fillStyle = 'rgba(150,150,150,0.9)'; g.fill();                // floor
+  }
+  const list = [];
+  for (let i = 0; i < 300; i++) list.push([Math.random() * s, Math.random() * s, 4 + Math.pow(Math.random(), 2) * 48]);
+  list.sort((a, b) => b[2] - a[2]);                          // big craters first, small on top
+  list.forEach(([x, y, r]) => { for (const dx of [-s, 0, s]) for (const dy of [-s, 0, s]) crater(x + dx, y + dy, r); });
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(22, 22);
+  return t;
+})();
+
 const GROUND_Y = 0, SHIP_CLEAR = 6, LIFTOFF_HEIGHT = 1500;
 
 const GROUND_SEG = 240;   // subdivided so we can sculpt real craters INTO the ground
@@ -460,6 +482,10 @@ surfaceScene.add(surfaceRing);
 function shapeGround(base, craterWorld) {
   const pos = groundGeo.attributes.position, col = groundGeo.attributes.color;
   const bc = new THREE.Color(base);
+
+  // v0.6.7: crater worlds get the dense cratered regolith texture (only on the surface)
+  ground.material.map = craterWorld ? craterTex : groundTex;
+  ground.material.needsUpdate = true;
 
   // pick non-overlapping craters
   const craters = [];
