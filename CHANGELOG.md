@@ -7,6 +7,13 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v0.6 — binary star, surface rings, surface craters
+- ⭐⭐ The red system (Ember) is now a **binary star** — two stars orbiting
+  the system centre, each casting its own light; the no-land zone wraps both
+- 💍 Landing on a **ringed planet** now shows its rings arcing across the sky
+- 🌑 Crater-textured planets got **multi-colored craters** in their texture,
+  and landing on one scatters real **craters across the ground**
+
 ## v0.5 — three star systems, unique planet textures
 - 🎚️ Up/down thrust is now much gentler via a `VERT_SENS = 0.35` dial
 - 🌌 Three separate star systems placed far apart; system 0 is where you spawn

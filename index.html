@@ -143,7 +143,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v0.5';
+const GAME_VERSION = 'v0.6';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -228,10 +228,13 @@ function planetTexture(type, base) {
     for (let y = 0; y < H; y += rnd(8, 22)) { g.fillStyle = shade(base, rnd(-0.35, 0.35)); g.fillRect(0, y | 0, W, rnd(6, 18)); }
   } else if (type === 'rocky') {                            // speckled rock
     for (let i = 0; i < 4500; i++) { g.fillStyle = shade(base, rnd(-0.4, 0.3)); g.fillRect(Math.random()*W, Math.random()*H, 2, 2); }
-  } else if (type === 'craters') {                          // moon-like craters
-    for (let i = 0; i < 80; i++) { const r = rnd(4, 22), x = Math.random()*W, y = Math.random()*H;
-      g.beginPath(); g.arc(x, y, r, 0, 7); g.fillStyle = shade(base, -0.35); g.fill();
-      g.beginPath(); g.arc(x - r*0.3, y - r*0.3, r*0.6, 0, 7); g.fillStyle = shade(base, 0.25); g.fill(); }
+  } else if (type === 'craters') {                          // craters in varied colors
+    for (let i = 0; i < 90; i++) { const r = rnd(4, 22), x = Math.random()*W, y = Math.random()*H;
+      const floor = Math.random() < 0.45
+        ? '#' + new THREE.Color().setHSL(Math.random(), 0.5, 0.32).getHexString()   // a different-colored crater
+        : shade(base, -0.35);
+      g.beginPath(); g.arc(x, y, r, 0, 7); g.fillStyle = floor; g.fill();
+      g.beginPath(); g.arc(x - r*0.3, y - r*0.3, r*0.6, 0, 7); g.fillStyle = shade(base, 0.28); g.fill(); }
   } else if (type === 'swirl') {                            // stormy swirls
     for (let i = 0; i < 1100; i++) { const a = rnd(0, 7); const x = W/2 + Math.cos(a)*rnd(0, W/2), y = H/2 + Math.sin(a*1.7)*rnd(0, H/2);
       g.fillStyle = shade(base, Math.sin(a*3)*0.3); g.fillRect(x, y, rnd(3, 10), rnd(3, 10)); }
@@ -287,7 +290,7 @@ function makePlanet(cfg, center) {
   }
 
   bodies.push({ name: cfg.name, mesh, pivot, radius: cfg.radius, color: cfg.color, texType: type,
-    orbitSpeed: cfg.orbitSpeed, spin: cfg.spin || 0.05, world: new THREE.Vector3(), visited: false });
+    hasRing: !!cfg.ring, orbitSpeed: cfg.orbitSpeed, spin: cfg.spin || 0.05, world: new THREE.Vector3(), visited: false });
 
   (cfg.moons || []).forEach(mn => {
     mn.radius *= BODY_SCALE; mn.distance *= DIST_SCALE;
@@ -300,22 +303,42 @@ function makePlanet(cfg, center) {
   });
 }
 
-function makeSystem(center, starColor) {
-  const sun = new THREE.Mesh(new THREE.SphereGeometry(SUN_RADIUS, 48, 48), new THREE.MeshBasicMaterial({ color: starColor }));
-  sun.position.copy(center); scene.add(sun);
+// A star = glowing sphere + soft halo sprites (positioned by the caller)
+function makeStarMesh(color) {
+  const s = new THREE.Mesh(new THREE.SphereGeometry(SUN_RADIUS, 48, 48), new THREE.MeshBasicMaterial({ color }));
   [SUN_RADIUS * 3.2, SUN_RADIUS * 5.5].forEach((size, i) => {
-    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(hex(starColor)),
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(hex(color)),
       transparent: true, blending: THREE.AdditiveBlending, opacity: i === 0 ? 0.85 : 0.4, depthWrite: false }));
-    spr.scale.set(size, size, 1); sun.add(spr);
+    spr.scale.set(size, size, 1); s.add(spr);
   });
-  const light = new THREE.PointLight(starColor, 0.8, 0, 0); light.position.copy(center); scene.add(light);
+  return s;
+}
+
+function makeSystem(center, starColor, opts = {}) {
+  const sys = { center: center.clone() };
+
+  if (opts.binary) {
+    // Two stars orbiting the system centre.
+    const pivot = new THREE.Object3D(); pivot.position.copy(center); scene.add(pivot);
+    const off = SUN_RADIUS * 1.9, colB = opts.starColor2 || starColor;
+    const a = makeStarMesh(starColor); a.position.set( off, 0, 0); pivot.add(a);
+    const b = makeStarMesh(colB);      b.position.set(-off, 0, 0); pivot.add(b);
+    const la = new THREE.PointLight(starColor, 0.5, 0, 0); la.position.set( off, 0, 0); pivot.add(la);
+    const lb = new THREE.PointLight(colB,      0.5, 0, 0); lb.position.set(-off, 0, 0); pivot.add(lb);
+    sys.binaryPivot = pivot; sys.binarySpeed = 0.15;
+    sys.sunRadius = off + SUN_RADIUS;               // no-land zone wraps both stars
+  } else {
+    const sun = makeStarMesh(starColor); sun.position.copy(center); scene.add(sun);
+    const light = new THREE.PointLight(starColor, 0.8, 0, 0); light.position.copy(center); scene.add(light);
+    sys.sun = sun; sys.sunRadius = SUN_RADIUS;
+  }
 
   // faint beacon halo: seen from far away so you can hunt for the system, fades as you approach
   const beacon = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(hex(starColor)),
     transparent: true, blending: THREE.AdditiveBlending, opacity: 0, depthWrite: false }));
   beacon.scale.set(SUN_RADIUS * 45, SUN_RADIUS * 45, 1); beacon.position.copy(center); scene.add(beacon);
-
-  systems.push({ center: center.clone(), sunRadius: SUN_RADIUS, sun, beacon });
+  sys.beacon = beacon;
+  systems.push(sys);
 
   // 3–7 planets, each a different texture + random hue, spaced outward
   const n = 3 + (Math.random() * 5 | 0);   // 3..7
@@ -337,7 +360,8 @@ function makeSystem(center, starColor) {
 
 // THREE star systems, far apart. System 0 sits at the origin (where you spawn).
 makeSystem(new THREE.Vector3(0, 0, 0),               0xffe27a);   // Sol — golden
-makeSystem(new THREE.Vector3(360000, 30000, -120000), 0xff7a4a);  // Ember — orange
+makeSystem(new THREE.Vector3(360000, 30000, -120000), 0xff5a3a,   // Ember — RED BINARY (two stars)
+           { binary: true, starColor2: 0xd83828 });
 makeSystem(new THREE.Vector3(-220000, -60000, 300000), 0x8fb8ff); // Frost — blue-white
 
 /* ---------- The Ship ---------- */
@@ -410,6 +434,47 @@ const ground = new THREE.Mesh(
 ground.rotation.x = -Math.PI / 2;   // lay it flat
 surfaceScene.add(ground);
 
+// v0.6: rings across the sky — shown only when the world you land on has rings
+// A big, FAR, flat halo just above the horizon → reads as ring band all around the sky.
+// (fog:false so distance doesn't erase it; far & low so it stays inside the forward view.)
+const surfaceRing = new THREE.Group();
+surfaceRing.add(new THREE.Mesh(new THREE.RingGeometry(40000, 62000, 160),
+  new THREE.MeshBasicMaterial({ color: 0x2e2414, side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthWrite: false, fog: false })));
+surfaceRing.add(new THREE.Mesh(new THREE.RingGeometry(63000, 72000, 160),
+  new THREE.MeshBasicMaterial({ color: 0xf2e2ac, side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthWrite: false, fog: false })));
+surfaceRing.rotation.x = -Math.PI / 2 + 0.12;   // nearly flat, slight tilt so one side rides higher
+surfaceRing.position.set(0, 9000, 0);
+surfaceRing.visible = false;
+surfaceScene.add(surfaceRing);
+
+// v0.6: crater decals on the ground — shown only on crater-textured worlds
+const surfaceCraters = new THREE.Group();
+surfaceCraters.visible = false;
+surfaceScene.add(surfaceCraters);
+const CRATER_POOL = [];
+for (let i = 0; i < 44; i++) {
+  const cr = new THREE.Group();
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(1, 28),
+    new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 1 }));
+  floor.rotation.x = -Math.PI / 2; floor.position.y = 2;
+  const rim = new THREE.Mesh(new THREE.RingGeometry(0.82, 1.0, 28),
+    new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 1 }));
+  rim.rotation.x = -Math.PI / 2; rim.position.y = 4;
+  cr.add(floor); cr.add(rim); cr.userData = { floor, rim };
+  surfaceCraters.add(cr); CRATER_POOL.push(cr);
+}
+function layoutCraters(base) {   // scatter/scale/recolor the pool for this world
+  CRATER_POOL.forEach(cr => {
+    const r = 300 + Math.random() * 1500;
+    cr.scale.set(r, 1, r);
+    cr.position.set((Math.random() - 0.5) * 38000, 0, (Math.random() - 0.5) * 38000);
+    cr.userData.floor.material.color.copy(
+      Math.random() < 0.5 ? new THREE.Color().setHSL(Math.random(), 0.45, 0.3)   // different colors
+                          : new THREE.Color(base).multiplyScalar(0.55));
+    cr.userData.rim.material.color.copy(new THREE.Color(base).lerp(new THREE.Color(0xffffff), 0.3));
+  });
+}
+
 const surfHemi = new THREE.HemisphereLight(0xffffff, 0x404040, 1.0);
 surfaceScene.add(surfHemi);
 const surfSun = new THREE.DirectionalLight(0xfff2c0, 1.5);
@@ -438,6 +503,14 @@ function enterSurface(body) {
   surfaceScene.fog = new THREE.Fog(sky.getHex(), 3000, 22000);
   surfHemi.color.set(tintColor(body.color, 0.6));
   surfHemi.groundColor.set(body.color);
+
+  // v0.6: show rings across the sky if this world has them (and tilt the view up to reveal them)
+  surfaceRing.visible = !!body.hasRing;
+  look.yaw = 0; look.pitch = body.hasRing ? -0.2 : 0.35;   // ring worlds: tilt the view up to reveal them
+  // v0.6: scatter craters on the ground only on crater-textured worlds
+  const craterWorld = body.texType === 'craters';
+  surfaceCraters.visible = craterWorld;
+  if (craterWorld) layoutCraters(body.color);
 
   scene.remove(ship); surfaceScene.add(ship);         // move ship between rooms
   state.pos.set(0, 500, 0);                           // drop in from a bit up
@@ -566,7 +639,8 @@ function animate() {
   }
   // spin each star + fade its beacon in from far away (so you can hunt for systems)
   for (const s of systems) {
-    s.sun.rotation.y += 0.02 * MOTION * dt;
+    if (s.binaryPivot) s.binaryPivot.rotation.y += s.binarySpeed * MOTION * dt;  // two stars orbit
+    else s.sun.rotation.y += 0.02 * MOTION * dt;
     const camDist = camera.position.distanceTo(s.center);
     s.beacon.material.opacity = Math.max(0, Math.min(1, (camDist - 60000) / 190000)) * 0.5;
   }
