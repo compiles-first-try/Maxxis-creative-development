@@ -152,7 +152,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v0.4';
+const GAME_VERSION = 'v0.4.5';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -510,6 +510,10 @@ const clock = new THREE.Clock();
 const tmp = new THREE.Vector3(), forward = new THREE.Vector3(), toShip = new THREE.Vector3();
 let landedTimer = 0;
 
+// v0.4.5: smoothed chase-camera state so turns ease instead of snapping.
+let camFollowYaw = null, camFollowPitch = 0.35;
+const lookTarget = new THREE.Vector3();
+
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.05);
@@ -597,18 +601,31 @@ function updateCamera(dt) {
     look.yaw   += (0    - look.yaw)   * Math.min(1, dt * 1.5);
     look.pitch += (0.35 - look.pitch) * Math.min(1, dt * 1.5);
   }
-  // Free-orbit chase camera: sit behind the ship, offset by your right-drag look angles.
-  const ang = state.yaw + Math.PI + look.yaw;
-  const dist = 26, cp = Math.cos(look.pitch), sp = Math.sin(look.pitch);
+
+  // The angle the camera WANTS (behind the ship + your look offset)...
+  const desiredYaw = state.yaw + look.yaw;
+  if (camFollowYaw === null || snapCam) camFollowYaw = desiredYaw;   // init / snap on scene switch
+
+  // ...but EASE toward it (shortest way around the circle) so turns don't whip.
+  let d = desiredYaw - camFollowYaw;
+  d = Math.atan2(Math.sin(d), Math.cos(d));                          // wrap-safe shortest angle
+  camFollowYaw += d * Math.min(1, dt * 4);
+  camFollowPitch += (look.pitch - camFollowPitch) * Math.min(1, dt * 4);
+
+  const ang = camFollowYaw + Math.PI;
+  const dist = 26, cp = Math.cos(camFollowPitch), sp = Math.sin(camFollowPitch);
   tmp.set(
     ship.position.x + Math.sin(ang) * dist * cp,
     ship.position.y + sp * dist + 6,
     ship.position.z + Math.cos(ang) * dist * cp
   );
-  const t = snapCam ? 1 : (running ? Math.min(1, dt * 4) : 0.02);  // snap on scene switch
-  camera.position.lerp(tmp, t);
-  snapCam = false;
-  camera.lookAt(ship.position);
+
+  camera.position.lerp(tmp, snapCam ? 1 : (running ? Math.min(1, dt * 6) : 0.02));
+
+  // Smoothly aim at the ship too (a moving look-target removes the last bit of jerk).
+  if (snapCam) { lookTarget.copy(ship.position); snapCam = false; }
+  else lookTarget.lerp(ship.position, Math.min(1, dt * 8));
+  camera.lookAt(lookTarget);
 }
 
 function updateHUD() {

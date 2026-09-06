@@ -7,6 +7,11 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v0.4.5 — smoother camera (bug fix)
+- 🎥 Fixed sharp/whippy camera swings while turning: the chase camera now
+  eases its follow-yaw (wrap-safe, shortest-path) and aims at a smoothed
+  look-target instead of snapping rigidly behind the ship
+
 ## v0.4 — split size & distance dials
 - 🔀 Split the single `WORLD` dial into two: `BODY_SCALE = 10` (how big
   planets & star are) and `DIST_SCALE = 20` (how far apart everything sits)
