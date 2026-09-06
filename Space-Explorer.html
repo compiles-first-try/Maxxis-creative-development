@@ -103,7 +103,8 @@
   <span class="key">W</span>/<span class="key">S</span> forward / back &nbsp;
   <span class="key">A</span>/<span class="key">D</span> turn<br />
   <span class="key">Space</span> up &nbsp; <span class="key">Ctrl</span> down &nbsp;
-  <span class="key">Shift</span> boost
+  <span class="key">Shift</span> boost<br />
+  <span class="key">Right-drag</span> look around
 </div>
 
 <div id="landed" class="hud">
@@ -151,17 +152,21 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v0.1';
+const GAME_VERSION = 'v0.2';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
 const MOTION = 0.12;
 
+/* v0.2: planets & star (and their orbital layout) blown up this many times.
+   The ship is NOT scaled, so the worlds now dwarf it. */
+const WORLD = 10;
+
 const THREE_OK = typeof THREE !== 'undefined';
 
 /* ---------- Renderer / scene / camera ---------- */
 const app = document.getElementById('app');
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 app.appendChild(renderer.domElement);
@@ -169,12 +174,12 @@ app.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(
-  65, window.innerWidth / window.innerHeight, 0.5, 20000
+  65, window.innerWidth / window.innerHeight, 1, 500000  // far plane grown for the 10x-bigger universe
 );
 
 /* ---------- Lighting ---------- */
 scene.add(new THREE.AmbientLight(0x334466, 0.6));          // soft fill so dark sides aren't pitch black
-const sunLight = new THREE.PointLight(0xfff2c0, 3.2, 0, 1.6); // the star lights everything
+const sunLight = new THREE.PointLight(0xfff2c0, 2.4, 0, 0); // decay 0 = reaches planets even in the huge scaled-up world
 scene.add(sunLight);
 
 /* ---------- Starfield (the backdrop) ---------- */
@@ -182,7 +187,7 @@ scene.add(sunLight);
   const N = 4000, pos = new Float32Array(N * 3);
   for (let i = 0; i < N; i++) {
     // scatter points on a big shell around the world
-    const r = 8000 + Math.random() * 4000;
+    const r = (8000 + Math.random() * 4000) * WORLD;   // pushed out beyond the bigger worlds
     const t = Math.acos(2 * Math.random() - 1);
     const p = Math.random() * Math.PI * 2;
     pos[i*3]   = r * Math.sin(t) * Math.cos(p);
@@ -191,7 +196,7 @@ scene.add(sunLight);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const m = new THREE.PointsMaterial({ color: 0xffffff, size: 8, sizeAttenuation: true });
+  const m = new THREE.PointsMaterial({ color: 0xffffff, size: 6 * WORLD, sizeAttenuation: true });
   scene.add(new THREE.Points(g, m));
 })();
 
@@ -210,7 +215,7 @@ function glowTexture(hex) {
 }
 
 /* ---------- The Sun (always the biggest body) ---------- */
-const SUN_RADIUS = 260;
+const SUN_RADIUS = 260 * WORLD;   // still always the biggest body, now 10x bigger
 const sun = new THREE.Mesh(
   new THREE.SphereGeometry(SUN_RADIUS, 48, 48),
   new THREE.MeshBasicMaterial({ color: 0xffe27a })   // basic = glows on its own, ignores light
@@ -235,6 +240,8 @@ sunLight.position.set(0, 0, 0);
 const bodies = [];   // everything you can land on (planets + moons)
 
 function makePlanet(cfg) {
+  cfg.radius   *= WORLD;   // v0.2: blow up the body and its orbit distance
+  cfg.distance *= WORLD;
   const geo = new THREE.SphereGeometry(cfg.radius, 48, 48);
   const mat = new THREE.MeshStandardMaterial({
     color: cfg.color, roughness: 0.9, metalness: 0.1,
@@ -269,6 +276,8 @@ function makePlanet(cfg) {
 
   // moons: little spheres orbiting this planet
   (cfg.moons || []).forEach((mn, k) => {
+    mn.radius   *= WORLD;   // v0.2: moons grow too
+    mn.distance *= WORLD;
     const mgeo = new THREE.SphereGeometry(mn.radius, 32, 32);
     const mmat = new THREE.MeshStandardMaterial({ color: mn.color, roughness: 1, emissive: mn.color, emissiveIntensity: 0.05 });
     const mmesh = new THREE.Mesh(mgeo, mmat);
@@ -323,7 +332,7 @@ scene.add(ship);
 
 // Ship physics state
 const state = {
-  pos: new THREE.Vector3(0, 120, 560),   // start out in front of the sun
+  pos: new THREE.Vector3(0, 120 * WORLD, 560 * WORLD),   // start out in front of the (bigger) sun
   vel: new THREE.Vector3(),
   yaw: Math.PI,                          // facing back toward the sun
   bank: 0                                // visual roll while turning
@@ -336,6 +345,22 @@ const track = ['KeyW','KeyS','KeyA','KeyD','Space','ControlLeft','ControlRight',
 addEventListener('keydown', e => { if (track.includes(e.code)) { keys[e.code] = true; e.preventDefault(); } });
 addEventListener('keyup',   e => { if (track.includes(e.code)) { keys[e.code] = false; e.preventDefault(); } });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+/* Right-click + drag to look around the ship (free-orbit camera) */
+const look = { yaw: 0, pitch: 0.35, dragging: false, lx: 0, ly: 0 };
+const canvasEl = renderer.domElement;
+canvasEl.addEventListener('contextmenu', e => e.preventDefault());  // no browser menu on right-click
+canvasEl.addEventListener('mousedown', e => {
+  if (e.button === 2) { look.dragging = true; look.lx = e.clientX; look.ly = e.clientY; }
+});
+addEventListener('mouseup', e => { if (e.button === 2) look.dragging = false; });
+addEventListener('mousemove', e => {
+  if (!look.dragging) return;
+  look.yaw   -= (e.clientX - look.lx) * 0.005;                 // drag horizontally = swing around
+  look.pitch += (e.clientY - look.ly) * 0.005;                 // drag vertically = tilt up/down
+  look.pitch = Math.max(-1.3, Math.min(1.3, look.pitch));      // don't flip over the poles
+  look.lx = e.clientX; look.ly = e.clientY;
+});
 
 /* ---------- HUD elements ---------- */
 const el = id => document.getElementById(id);
@@ -391,7 +416,7 @@ function animate() {
 
 function updateShip(dt) {
   const boost = (keys.ShiftLeft || keys.ShiftRight) ? 2.4 : 1;
-  const accel = 900 * boost;     // thrust power
+  const accel = 900 * WORLD * boost;   // thrust scaled to the bigger world so travel stays snappy
   const turn  = 1.9;             // radians/sec
 
   // A/D turn (yaw) around world-up
@@ -451,11 +476,19 @@ function updateShip(dt) {
 }
 
 function updateCamera(dt) {
-  // chase camera: sit behind & above the ship, look at it
-  forward.set(Math.sin(state.yaw), 0, Math.cos(state.yaw));
-  tmp.copy(ship.position)
-     .addScaledVector(forward, -22)   // behind (closer, since the ship is small now)
-     .add(new THREE.Vector3(0, 8, 0)); // above
+  // While thrusting forward (and not dragging), drift back to the default behind-view.
+  if (keys.KeyW && !look.dragging) {
+    look.yaw   += (0    - look.yaw)   * Math.min(1, dt * 1.5);
+    look.pitch += (0.35 - look.pitch) * Math.min(1, dt * 1.5);
+  }
+  // Free-orbit chase camera: sit behind the ship, offset by your right-drag look angles.
+  const ang = state.yaw + Math.PI + look.yaw;
+  const dist = 26, cp = Math.cos(look.pitch), sp = Math.sin(look.pitch);
+  tmp.set(
+    ship.position.x + Math.sin(ang) * dist * cp,
+    ship.position.y + sp * dist + 6,
+    ship.position.z + Math.cos(ang) * dist * cp
+  );
   camera.position.lerp(tmp, running ? Math.min(1, dt * 4) : 0.02);
   camera.lookAt(ship.position);
 }

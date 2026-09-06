@@ -7,6 +7,14 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v0.2 — giant worlds & free-look
+- 🪐 Planets & star scaled up **10×** (`WORLD = 10`); orbit distances and the
+  starfield grow to match so nothing overlaps, and the ship stays tiny
+- 🚀 Ship thrust scaled to the bigger world so travel stays snappy
+- 🖱️ **Right-click + drag to look around** the ship (free-orbit camera);
+  it drifts back behind you when you thrust forward
+- 💡 Sun light reaches the now-distant planets; log depth buffer added
+
 ## v0.1 — first playable
 - ☀️ Glowing sun in the center (always the biggest body)
 - 🪐 Five well-separated planets: Rustar, Verda, Azuria, Cirene, Ferox
