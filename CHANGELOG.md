@@ -7,6 +7,15 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v0.7 — eight systems, portals & multi-star systems
+- 🌌 Eight named star systems (up from three), spread far across space
+- ⭐ Systems can have one, two, or three suns orbiting the centre
+- 🪐 Some planets are now lumpy — a random bulge deforms the sphere
+- 🌀 Every system has a portal: fly to it, press **E**, and pick any system
+  to travel to instantly
+- 🧭 A top-centre readout shows the system you're in, and an "ENTERING …"
+  banner appears each time you arrive in a new system
+
 ## v0.6.7 — cratered regolith surface texture
 - 🌑 Crater worlds' SURFACE now uses a dense procedural cratered-regolith
   texture (embossed craters, seamless tiling), grayscale so it tints to

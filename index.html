@@ -74,6 +74,57 @@
   #start button:hover { transform: scale(1.06); }
   #start.hide { opacity: 0; pointer-events: none; }
 
+  /* ---------- Current system name (top center) ---------- */
+  #sysName {
+    top: 12px; left: 50%; transform: translateX(-50%); z-index: 25;
+    font-size: 17px; font-weight: bold; letter-spacing: 1px; color: #ffe27a;
+    background: rgba(6,14,30,0.5); border: 1px solid rgba(120,160,255,0.35);
+    padding: 5px 16px; border-radius: 20px; backdrop-filter: blur(4px);
+  }
+
+  /* ---------- Arrival banner ---------- */
+  #sysBanner {
+    top: 30%; left: 50%; transform: translate(-50%,-50%) scale(0.8);
+    text-align: center; opacity: 0; transition: opacity .4s ease, transform .4s ease;
+  }
+  #sysBanner.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+  #sysBanner .big { font-size: 40px; font-weight: bold; letter-spacing: 2px; color: #9ad0ff; text-shadow: 0 0 20px rgba(90,170,255,0.9); }
+
+  /* ---------- Portal hint ---------- */
+  #portalHint {
+    bottom: 96px; left: 50%; transform: translateX(-50%); z-index: 25;
+    font-size: 15px; color: #dff0ff; background: rgba(20,40,80,0.6);
+    border: 1px solid #4a7ad0; padding: 8px 18px; border-radius: 20px;
+    opacity: 0; transition: opacity .25s ease;
+  }
+  #portalHint.show { opacity: 1; }
+
+  /* ---------- Portal menu ---------- */
+  #portalMenu {
+    position: fixed; inset: 0; z-index: 40; display: none;
+    align-items: center; justify-content: center;
+    background: rgba(2,6,18,0.72); backdrop-filter: blur(3px);
+  }
+  #portalMenu.show { display: flex; }
+  .pm-box {
+    background: linear-gradient(180deg,#0c1a34,#08122a); border: 1px solid #3a6ac0;
+    border-radius: 16px; padding: 22px 26px; width: min(560px, 92vw);
+    box-shadow: 0 0 50px rgba(60,120,255,0.4); color: #dbeaff;
+  }
+  .pm-title { font-size: 20px; font-weight: bold; color: #ffe27a; text-align: center; margin-bottom: 16px; }
+  .pm-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .pm-btn {
+    pointer-events: auto; cursor: pointer; text-align: left;
+    background: #14233f; border: 1px solid #3a5fa0; border-radius: 10px;
+    padding: 10px 14px; color: #eaf2ff; font-size: 15px; transition: transform .1s, background .15s;
+  }
+  .pm-btn:hover { background: #1d345c; transform: translateY(-2px); }
+  .pm-btn .dot { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: 8px; vertical-align: middle; }
+  .pm-btn .meta { color: #90a8d0; font-size: 12px; }
+  .pm-btn.here { opacity: 0.5; cursor: default; }
+  .pm-close { pointer-events: auto; cursor: pointer; text-align: center; margin-top: 16px; color: #90a8d0; font-size: 13px; }
+  .pm-close:hover { color: #fff; }
+
   /* ---------- Version badge (always visible, top of everything) ---------- */
   #ver {
     position: fixed; bottom: 10px; right: 14px; z-index: 30;
@@ -104,18 +155,32 @@
   <span class="key">A</span>/<span class="key">D</span> turn<br />
   <span class="key">Space</span> up &nbsp; <span class="key">Ctrl</span> down &nbsp;
   <span class="key">Shift</span> boost<br />
-  <span class="key">Right-drag</span> look around &nbsp; <span class="key">P</span> first-person
+  <span class="key">Right-drag</span> look around &nbsp; <span class="key">P</span> first-person &nbsp; <span class="key">E</span> portal
 </div>
+
+<div id="sysName" class="hud">◎ <span id="sysNameText">Sol</span></div>
 
 <div id="landed" class="hud">
   <div class="big" id="landedName">LANDED</div>
   <div class="sub">Explore the surface — then hold <b>Space</b> to climb back into space. 🚀</div>
 </div>
 
+<div id="sysBanner" class="hud"><div class="big" id="sysBannerText">ENTERING</div></div>
+
+<div id="portalHint" class="hud">🌀 At a portal — press <span class="key">E</span> to travel</div>
+
+<div id="portalMenu">
+  <div class="pm-box">
+    <div class="pm-title">🌀 Portal — choose a destination</div>
+    <div class="pm-list" id="pmList"></div>
+    <div class="pm-close" id="pmClose">✕ close (Esc)</div>
+  </div>
+</div>
+
 <!-- Start screen -->
 <div id="start">
   <h1>🚀 SPACE EXPLORER</h1>
-  <p>Three star systems drift far apart in the dark — each a glowing beacon you can spot from a distance. Fly out, hunt them down, and land on every uniquely-textured world you find.</p>
+  <p>Eight star systems drift far apart in the dark — some circled by two or three suns. Fly to any glowing beacon, or step through a system's <b>portal</b> and pick your destination. Land on every uniquely-textured world you find.</p>
   <div class="keys">
     <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> steer &nbsp;•&nbsp;
     <span class="key">Space</span> climb &nbsp;•&nbsp; <span class="key">Ctrl</span> dive &nbsp;•&nbsp; <span class="key">Shift</span> boost
@@ -143,7 +208,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v0.6.7';
+const GAME_VERSION = 'v0.7';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -272,7 +337,21 @@ function makePlanet(cfg, center) {
     map: planetTexture(type, cfg.color), roughness: 0.92, metalness: 0.05,
     emissive: cfg.color, emissiveIntensity: 0.10
   });
-  const mesh = new THREE.Mesh(new THREE.SphereGeometry(cfg.radius, 48, 48), mat);
+  const geo = new THREE.SphereGeometry(cfg.radius, 48, 48);
+  if (cfg.bulge) {                              // v0.7: push one side out into a bulge
+    const p = geo.attributes.position, v = new THREE.Vector3();
+    const th = Math.acos(2 * Math.random() - 1), ph = Math.random() * Math.PI * 2;   // random unit direction
+    const dir = new THREE.Vector3(Math.sin(th) * Math.cos(ph), Math.cos(th), Math.sin(th) * Math.sin(ph));
+    const amt = 0.3 + Math.random() * 0.4;
+    for (let i = 0; i < p.count; i++) {
+      v.fromBufferAttribute(p, i);
+      const k = Math.max(0, v.clone().normalize().dot(dir));   // 0..1, strongest facing dir
+      v.multiplyScalar(1 + amt * k * k);
+      p.setXYZ(i, v.x, v.y, v.z);
+    }
+    geo.computeVertexNormals();
+  }
+  const mesh = new THREE.Mesh(geo, mat);
 
   const pivot = new THREE.Object3D();
   pivot.position.copy(center);                        // orbit THIS system's centre
@@ -315,32 +394,42 @@ function makeStarMesh(color) {
 }
 
 function makeSystem(center, starColor, opts = {}) {
-  const sys = { center: center.clone() };
+  const sys = { center: center.clone(), name: opts.name || 'System', color: starColor };
+  const nStars = Math.max(1, Math.min(3, opts.stars || 1));   // 1, 2, or 3 stars
 
-  if (opts.binary) {
-    // Two stars orbiting the system centre.
-    const pivot = new THREE.Object3D(); pivot.position.copy(center); scene.add(pivot);
-    const off = SUN_RADIUS * 1.9, colB = opts.starColor2 || starColor;
-    const a = makeStarMesh(starColor); a.position.set( off, 0, 0); pivot.add(a);
-    const b = makeStarMesh(colB);      b.position.set(-off, 0, 0); pivot.add(b);
-    const la = new THREE.PointLight(starColor, 0.5, 0, 0); la.position.set( off, 0, 0); pivot.add(la);
-    const lb = new THREE.PointLight(colB,      0.5, 0, 0); lb.position.set(-off, 0, 0); pivot.add(lb);
-    sys.binaryPivot = pivot; sys.binarySpeed = 0.15;
-    sys.sunRadius = off + SUN_RADIUS;               // no-land zone wraps both stars
-  } else {
+  if (nStars === 1) {
     const sun = makeStarMesh(starColor); sun.position.copy(center); scene.add(sun);
     const light = new THREE.PointLight(starColor, 0.8, 0, 0); light.position.copy(center); scene.add(light);
     sys.sun = sun; sys.sunRadius = SUN_RADIUS;
+  } else {
+    const pivot = new THREE.Object3D(); pivot.position.copy(center); scene.add(pivot);
+    const off = SUN_RADIUS * (nStars === 2 ? 1.9 : 2.5);
+    for (let i = 0; i < nStars; i++) {
+      const a = (i / nStars) * Math.PI * 2, x = Math.cos(a) * off, z = Math.sin(a) * off;
+      const col = i === 0 ? starColor : (opts.starColor2 || starColor);
+      const star = makeStarMesh(col); star.position.set(x, 0, z); pivot.add(star);
+      const li = new THREE.PointLight(col, 1.2 / nStars, 0, 0); li.position.set(x, 0, z); pivot.add(li);
+    }
+    sys.binaryPivot = pivot; sys.binarySpeed = 0.15;
+    sys.sunRadius = off + SUN_RADIUS;
   }
+  sys.nStars = nStars;
 
   // faint beacon halo: seen from far away so you can hunt for the system, fades as you approach
   const beacon = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(hex(starColor)),
     transparent: true, blending: THREE.AdditiveBlending, opacity: 0, depthWrite: false }));
   beacon.scale.set(SUN_RADIUS * 45, SUN_RADIUS * 45, 1); beacon.position.copy(center); scene.add(beacon);
   sys.beacon = beacon;
+
+  // v0.7: a portal in every system — fly to it and press E to pick a destination
+  const portalPos = center.clone().add(new THREE.Vector3(0, 4000, 60000));
+  const portal = makePortal(starColor);
+  portal.position.copy(portalPos); scene.add(portal);
+  sys.portal = portal; sys.portalPos = portalPos;
+
   systems.push(sys);
 
-  // 3–7 planets, each a different texture + random hue, spaced outward
+  // 3–7 planets, each a different texture + random hue, spaced outward; some bulged
   const n = 3 + (Math.random() * 5 | 0);   // 3..7
   for (let i = 0; i < n; i++) {
     const baseR = 55 + Math.random() * 60;
@@ -351,18 +440,43 @@ function makeSystem(center, starColor, opts = {}) {
       distance: 900 + i * (650 + Math.random() * 250),
       orbitSpeed: 0.02 / (1 + i * 0.5),
       spin: 0.04 + Math.random() * 0.05,
-      ring: Math.random() < 0.22
+      ring: Math.random() < 0.22,
+      bulge: Math.random() < 0.4               // v0.7: some planets are lumpy
     };
     if (Math.random() < 0.3) cfg.moons = [{ name: nextName(), color: 0xcfcfcf, radius: 16, distance: 200, orbitSpeed: 0.8 }];
     makePlanet(cfg, center);
   }
 }
 
-// THREE star systems, far apart. System 0 sits at the origin (where you spawn).
-makeSystem(new THREE.Vector3(0, 0, 0),                  0xffe27a);   // Sol — golden
-makeSystem(new THREE.Vector3(780000, 80000, -280000),  0xff5a3a,    // Ember — RED BINARY (two stars)
-           { binary: true, starColor2: 0xd83828 });
-makeSystem(new THREE.Vector3(-520000, -140000, 660000), 0x8fb8ff);  // Frost — blue-white
+// A glowing portal ring (torus + additive halo + swirling core)
+function makePortal(color) {
+  const g = new THREE.Group();
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(4000, 500, 20, 48),
+    new THREE.MeshBasicMaterial({ color }));
+  g.add(ring);
+  const core = new THREE.Mesh(new THREE.CircleGeometry(3600, 48),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.25, side: THREE.DoubleSide }));
+  g.add(core);
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(hex(color)),
+    transparent: true, blending: THREE.AdditiveBlending, opacity: 0.7, depthWrite: false }));
+  halo.scale.set(16000, 16000, 1); g.add(halo);
+  g.userData.ring = ring;
+  return g;
+}
+
+// EIGHT star systems, far apart. System 0 (Sol) is where you spawn.
+const SYSTEM_DEFS = [
+  { name: 'Sol',    pos: [0, 0, 0],                  color: 0xffe27a, stars: 1 },
+  { name: 'Ember',  pos: [780000, 80000, -280000],   color: 0xff5a3a, stars: 2, starColor2: 0xd83828 },
+  { name: 'Frost',  pos: [-520000, -140000, 660000], color: 0x8fb8ff, stars: 1 },
+  { name: 'Vega',   pos: [-880000, 120000, -160000], color: 0xbfe0ff, stars: 3, starColor2: 0x9ec8ff },
+  { name: 'Corvus', pos: [240000, -220000, -900000], color: 0xc59cff, stars: 2, starColor2: 0x8a5cff },
+  { name: 'Onyx',   pos: [640000, 260000, 720000],   color: 0xff9a4a, stars: 1 },
+  { name: 'Lyra',   pos: [-300000, 300000, 880000],  color: 0x6affc0, stars: 2, starColor2: 0x2ec7a0 },
+  { name: 'Pyre',   pos: [900000, -180000, 260000],  color: 0xffd24a, stars: 3, starColor2: 0xff7a3a },
+];
+SYSTEM_DEFS.forEach(d => makeSystem(new THREE.Vector3(d.pos[0], d.pos[1], d.pos[2]), d.color,
+  { name: d.name, stars: d.stars, starColor2: d.starColor2 }));
 
 /* ---------- The Ship ---------- */
 const ship = new THREE.Group();
@@ -640,11 +754,60 @@ const el = id => document.getElementById(id);
 const ui = {
   speed: el('speed'), visited: el('visited'),
   nearName: el('nearName'), nearDist: el('nearDist'), barFill: el('barFill'),
-  landed: el('landed'), landedName: el('landedName')
+  landed: el('landed'), landedName: el('landedName'),
+  sysNameText: el('sysNameText'), sysBanner: el('sysBanner'), sysBannerText: el('sysBannerText'),
+  portalHint: el('portalHint')
 };
 let visitedCount = 0;
 let running = false;
 el('total').textContent = bodies.length;   // total landable worlds across all systems
+
+/* ---------- v0.7: current system, portals & travel ---------- */
+let currentSystem = 0, sysBannerTimer = 0, nearPortal = -1, portalMenuOpen = false;
+const STAR_WORD = { 1: 'single star', 2: 'binary stars', 3: 'trinary stars' };
+ui.sysNameText.textContent = systems[0].name;
+
+function planetsIn(s) { return bodies.filter(b => b.texType && b.pivot.position.distanceTo(s.center) < 1).length; }
+function setCurrentSystem(i) {
+  if (i === currentSystem) return;
+  currentSystem = i;
+  ui.sysNameText.textContent = systems[i].name;
+  ui.sysBannerText.textContent = 'ENTERING ' + systems[i].name.toUpperCase();
+  ui.sysBanner.classList.add('show'); sysBannerTimer = 2.4;
+}
+
+const pmList = el('pmList');
+function openPortalMenu() {
+  if (mode !== 'space') return;
+  pmList.innerHTML = '';
+  systems.forEach((s, i) => {
+    const b = document.createElement('div');
+    b.className = 'pm-btn' + (i === currentSystem ? ' here' : '');
+    b.innerHTML = '<span class="dot" style="background:' + hex(s.color) + '"></span><b>' + s.name + '</b>' +
+      (i === currentSystem ? ' <span class="meta">(here)</span>' : '') +
+      '<div class="meta">' + STAR_WORD[s.nStars] + ' • ' + planetsIn(s) + ' planets</div>';
+    if (i !== currentSystem) b.onclick = () => travelTo(i);
+    pmList.appendChild(b);
+  });
+  portalMenuOpen = true; el('portalMenu').classList.add('show');
+}
+function closePortalMenu() { portalMenuOpen = false; el('portalMenu').classList.remove('show'); }
+el('pmClose').onclick = closePortalMenu;
+
+function travelTo(i) {
+  const d = systems[i];
+  state.pos.copy(d.portalPos).add(new THREE.Vector3(0, 3000, 20000));   // arrive beside the portal
+  state.vel.set(0, 0, 0);
+  state.yaw = Math.atan2(d.center.x - state.pos.x, d.center.z - state.pos.z);  // face the system
+  snapCam = true; landCooldown = 2;
+  setCurrentSystem(i);
+  closePortalMenu();
+}
+
+addEventListener('keydown', e => {
+  if (e.code === 'KeyE' && mode === 'space') { portalMenuOpen ? closePortalMenu() : (nearPortal >= 0 && openPortalMenu()); }
+  else if (e.code === 'Escape' && portalMenuOpen) closePortalMenu();
+});
 
 el('startBtn').addEventListener('click', () => {
   el('start').classList.add('hide');
@@ -678,21 +841,35 @@ function animate() {
     b.mesh.rotation.y  += b.spin * MOTION * dt;
     b.mesh.getWorldPosition(b.world);     // cache each body's true world position
   }
-  // spin each star + fade its beacon in from far away (so you can hunt for systems)
+  // spin each star, spin its portal, fade its beacon in from far away
   for (const s of systems) {
-    if (s.binaryPivot) s.binaryPivot.rotation.y += s.binarySpeed * MOTION * dt;  // two stars orbit
+    if (s.binaryPivot) s.binaryPivot.rotation.y += s.binarySpeed * MOTION * dt;  // 2–3 stars orbit
     else s.sun.rotation.y += 0.02 * MOTION * dt;
+    s.portal.userData.ring.rotation.z += 0.5 * dt;
     const camDist = camera.position.distanceTo(s.center);
     s.beacon.material.opacity = Math.max(0, Math.min(1, (camDist - 60000) / 190000)) * 0.5;
   }
 
+  // v0.7: which system am I in? which portal am I near?
+  if (mode === 'space') {
+    let bi = 0, bd = Infinity, pi = -1, pd = Infinity;
+    systems.forEach((s, i) => {
+      const dc = ship.position.distanceTo(s.center); if (dc < bd) { bd = dc; bi = i; }
+      const dp = ship.position.distanceTo(s.portalPos); if (dp < pd) { pd = dp; pi = i; }
+    });
+    if (bd < 260000) setCurrentSystem(bi);
+    nearPortal = pd < 14000 ? pi : -1;
+    ui.portalHint.classList.toggle('show', nearPortal >= 0 && !portalMenuOpen);
+  } else { nearPortal = -1; ui.portalHint.classList.remove('show'); }
+
   if (landCooldown > 0) landCooldown -= dt;
-  if (running) { if (mode === 'space') updateShip(dt); else updateSurface(dt); }
+  if (running && !portalMenuOpen) { if (mode === 'space') updateShip(dt); else updateSurface(dt); }
   updateCamera(dt);
   updateHUD();
 
-  // banner fade (set by landing in space and by enter/exit surface)
+  // banner fades
   if (landedTimer > 0) { landedTimer -= dt; if (landedTimer <= 0) ui.landed.classList.remove('show'); }
+  if (sysBannerTimer > 0) { sysBannerTimer -= dt; if (sysBannerTimer <= 0) ui.sysBanner.classList.remove('show'); }
 
   // gentle engine flicker
   if (ship.userData.glow) {
