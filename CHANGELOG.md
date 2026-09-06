@@ -7,6 +7,13 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v0.4.6 — vertical jerk fix, first-person, tight fast-follow
+- 🎢 Fixed hard jerk when climbing/diving: the chase camera now tracks its
+  target much tighter (no lag-then-snap on fast vertical moves)
+- 👁️ Press **P** to toggle first-person (cockpit) view; ship hides while inside
+- 🏎️ Camera follows tighter the faster you fly (`glue` term), staying right
+  next to the ship at speed while turns stay smooth
+
 ## v0.4.5 — smoother camera (bug fix)
 - 🎥 Fixed sharp/whippy camera swings while turning: the chase camera now
   eases its follow-yaw (wrap-safe, shortest-path) and aims at a smoothed

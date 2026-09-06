@@ -104,7 +104,7 @@
   <span class="key">A</span>/<span class="key">D</span> turn<br />
   <span class="key">Space</span> up &nbsp; <span class="key">Ctrl</span> down &nbsp;
   <span class="key">Shift</span> boost<br />
-  <span class="key">Right-drag</span> look around
+  <span class="key">Right-drag</span> look around &nbsp; <span class="key">P</span> first-person
 </div>
 
 <div id="landed" class="hud">
@@ -143,7 +143,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v0.4.5';
+const GAME_VERSION = 'v0.4.6';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -458,6 +458,11 @@ addEventListener('keydown', e => { if (track.includes(e.code)) { keys[e.code] = 
 addEventListener('keyup',   e => { if (track.includes(e.code)) { keys[e.code] = false; e.preventDefault(); } });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
+/* v0.4.6: press P to toggle first-person (cockpit) view */
+addEventListener('keydown', e => {
+  if (e.code === 'KeyP') { firstPerson = !firstPerson; snapCam = true; }
+});
+
 /* Right-click + drag to look around the ship (free-orbit camera) */
 const look = { yaw: 0, pitch: 0.35, dragging: false, lx: 0, ly: 0 };
 const canvasEl = renderer.domElement;
@@ -504,6 +509,7 @@ let landedTimer = 0;
 // v0.4.5: smoothed chase-camera state so turns ease instead of snapping.
 let camFollowYaw = null, camFollowPitch = 0.35;
 const lookTarget = new THREE.Vector3();
+let firstPerson = false;   // v0.4.6: toggled with P
 
 function animate() {
   requestAnimationFrame(animate);
@@ -593,6 +599,22 @@ function updateCamera(dt) {
     look.pitch += (0.35 - look.pitch) * Math.min(1, dt * 1.5);
   }
 
+  // ---- First-person (toggle with P): camera rides in the cockpit ----
+  if (firstPerson) {
+    ship.visible = false;                       // don't stare at our own hull
+    const a = state.yaw + look.yaw, p = look.pitch - 0.35, cpp = Math.cos(p);
+    camera.position.copy(ship.position);
+    camera.lookAt(                               // look along the ship's heading
+      ship.position.x + Math.sin(a) * cpp,
+      ship.position.y + Math.sin(p),
+      ship.position.z + Math.cos(a) * cpp
+    );
+    snapCam = false;
+    return;
+  }
+  ship.visible = true;
+
+  // ---- Third-person chase (smoothed) ----
   // The angle the camera WANTS (behind the ship + your look offset)...
   const desiredYaw = state.yaw + look.yaw;
   if (camFollowYaw === null || snapCam) camFollowYaw = desiredYaw;   // init / snap on scene switch
@@ -611,11 +633,14 @@ function updateCamera(dt) {
     ship.position.z + Math.cos(ang) * dist * cp
   );
 
-  camera.position.lerp(tmp, snapCam ? 1 : (running ? Math.min(1, dt * 6) : 0.02));
-
-  // Smoothly aim at the ship too (a moving look-target removes the last bit of jerk).
+  // v0.4.6: follow TIGHTER the faster you fly. Kills the up/down jerk and
+  // keeps the camera glued next to the ship at high speed (turns stay smooth
+  // because the follow-yaw above is already eased).
+  const glue = Math.min(1, state.vel.length() / 3500);
+  camera.position.lerp(tmp, snapCam ? 1 : (running ? Math.min(1, dt * 16 + glue) : 0.02));
+  const aimLerp = snapCam ? 1 : Math.min(1, dt * 18 + glue);
   if (snapCam) { lookTarget.copy(ship.position); snapCam = false; }
-  else lookTarget.lerp(ship.position, Math.min(1, dt * 8));
+  else lookTarget.lerp(ship.position, aimLerp);
   camera.lookAt(lookTarget);
 }
 
