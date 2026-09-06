@@ -109,7 +109,7 @@
 
 <div id="landed" class="hud">
   <div class="big" id="landedName">LANDED</div>
-  <div class="sub">Look around — the ground feels flat, but you're standing on a giant sphere. 🌍</div>
+  <div class="sub">Explore the surface — then hold <b>Space</b> to climb back into space. 🚀</div>
 </div>
 
 <!-- Start screen -->
@@ -143,7 +143,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v0.2';
+const GAME_VERSION = 'v0.3';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -259,7 +259,7 @@ function makePlanet(cfg) {
   }
 
   const body = {
-    name: cfg.name, mesh, pivot, radius: cfg.radius,
+    name: cfg.name, mesh, pivot, radius: cfg.radius, color: cfg.color,
     orbitSpeed: cfg.orbitSpeed, spin: cfg.spin || 0.05,
     world: new THREE.Vector3(), visited: false
   };
@@ -278,7 +278,7 @@ function makePlanet(cfg) {
     mmesh.position.set(mn.distance, 0, 0);
     mpivot.add(mmesh);
     bodies.push({
-      name: mn.name, mesh: mmesh, pivot: mpivot, radius: mn.radius,
+      name: mn.name, mesh: mmesh, pivot: mpivot, radius: mn.radius, color: mn.color,
       orbitSpeed: mn.orbitSpeed, spin: 0.1, world: new THREE.Vector3(), visited: false
     });
   });
@@ -329,6 +329,125 @@ const state = {
   bank: 0                                // visual roll while turning
 };
 ship.position.copy(state.pos);
+
+/* ===================== v0.3: SURFACE WORLDS =====================
+   Touch a body -> drop into a separate FLAT world painted like it.
+   Fly back up past LIFTOFF_HEIGHT -> return to the solar system,
+   popping out right next to the world you were on.               */
+let mode = 'space';        // 'space' | 'surface'
+let currentBody = null;    // the body whose surface we're on
+let landCooldown = 0;      // brief no-land window right after returning
+let snapCam = false;       // snap (don't glide) the camera on a scene switch
+
+const surfaceScene = new THREE.Scene();
+
+// Procedural terrain texture: grayscale noise + tile borders (tinted per world via material.color)
+const groundTex = (function () {
+  const s = 256, c = document.createElement('canvas'); c.width = c.height = s;
+  const x = c.getContext('2d');
+  const img = x.createImageData(s, s);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = 140 + (Math.random() * 115) | 0;         // 140..255 grey speckle
+    img.data[i] = img.data[i+1] = img.data[i+2] = n; img.data[i+3] = 255;
+  }
+  x.putImageData(img, 0, 0);
+  x.strokeStyle = 'rgba(0,0,0,0.30)'; x.lineWidth = 3; x.strokeRect(0, 0, s, s);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(80, 80);
+  return t;
+})();
+
+const GROUND_Y = 0, SHIP_CLEAR = 6, LIFTOFF_HEIGHT = 1500;
+
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(60000, 60000),
+  new THREE.MeshStandardMaterial({ map: groundTex, roughness: 1, metalness: 0 })
+);
+ground.rotation.x = -Math.PI / 2;   // lay it flat
+surfaceScene.add(ground);
+
+const surfHemi = new THREE.HemisphereLight(0xffffff, 0x404040, 1.0);
+surfaceScene.add(surfHemi);
+const surfSun = new THREE.DirectionalLight(0xfff2c0, 1.5);
+surfSun.position.set(600, 1200, 400);
+surfaceScene.add(surfSun);
+
+// a decorative sun hanging in the surface sky
+const surfSunSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: glowTexture('#ffd24a'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+surfSunSprite.scale.set(4000, 4000, 1);
+surfSunSprite.position.set(9000, 7000, -12000);
+surfaceScene.add(surfSunSprite);
+
+function tintColor(hex, f) {   // blend a color toward white by f (0..1)
+  return new THREE.Color(hex).lerp(new THREE.Color(0xffffff), f);
+}
+
+function enterSurface(body) {
+  mode = 'surface';
+  currentBody = body;
+  if (!body.visited) { body.visited = true; visitedCount++; }
+
+  ground.material.color.set(body.color);              // paint ground this world's color
+  const sky = tintColor(body.color, 0.55);            // hazy, lighter sky of the same hue
+  surfaceScene.background = sky;
+  surfaceScene.fog = new THREE.Fog(sky.getHex(), 3000, 22000);
+  surfHemi.color.set(tintColor(body.color, 0.6));
+  surfHemi.groundColor.set(body.color);
+
+  scene.remove(ship); surfaceScene.add(ship);         // move ship between rooms
+  state.pos.set(0, 500, 0);                           // drop in from a bit up
+  state.vel.set(0, 0, 0);
+  ship.position.copy(state.pos);
+
+  ui.landedName.textContent = 'LANDED ON ' + body.name.toUpperCase();
+  ui.landed.classList.add('show'); landedTimer = 2.2; snapCam = true;
+}
+
+function exitSurface() {
+  mode = 'space';
+  surfaceScene.remove(ship); scene.add(ship);
+  const away = currentBody.world.clone();
+  if (away.lengthSq() < 1) away.set(0, 1, 0);
+  away.normalize();
+  state.pos.copy(currentBody.world).addScaledVector(away, currentBody.radius + 700);
+  state.vel.copy(away).multiplyScalar(500);           // drift outward so we clear the world
+  ship.position.copy(state.pos);
+  landCooldown = 2.0;                                  // don't instantly re-land
+  ui.landedName.textContent = 'LEAVING ' + currentBody.name.toUpperCase();
+  ui.landed.classList.add('show'); landedTimer = 1.2; snapCam = true;
+  currentBody = null;
+}
+
+function updateSurface(dt) {
+  const boost = (keys.ShiftLeft || keys.ShiftRight) ? 2.2 : 1;
+  const accel = 1600 * boost, turn = 1.9, GRAV = 500;
+
+  if (keys.KeyA) state.yaw += turn * dt;
+  if (keys.KeyD) state.yaw -= turn * dt;
+  const targetBank = (keys.KeyA ? 0.5 : 0) + (keys.KeyD ? -0.5 : 0);
+  state.bank += (targetBank - state.bank) * Math.min(1, dt * 6);
+
+  forward.set(Math.sin(state.yaw), 0, Math.cos(state.yaw));
+  if (keys.KeyW) state.vel.addScaledVector(forward, accel * dt);
+  if (keys.KeyS) state.vel.addScaledVector(forward, -accel * dt);
+  if (keys.Space) state.vel.y += (accel + GRAV) * dt;                 // beat gravity to climb
+  if (keys.ControlLeft || keys.ControlRight) state.vel.y -= accel * dt;
+
+  state.vel.y -= GRAV * dt;                    // gravity
+  state.vel.x *= 0.92; state.vel.z *= 0.92;    // ground drag
+  state.vel.y *= 0.995;
+
+  state.pos.addScaledVector(state.vel, dt);
+
+  const floor = GROUND_Y + SHIP_CLEAR;         // rest on the ground
+  if (state.pos.y < floor) { state.pos.y = floor; if (state.vel.y < 0) state.vel.y = 0; }
+
+  ship.position.copy(state.pos);
+  ship.rotation.set(0, state.yaw, state.bank);
+
+  if (state.pos.y > LIFTOFF_HEIGHT) exitSurface();     // climb high enough -> back to space
+}
 
 /* ---------- Input ---------- */
 const keys = {};
@@ -392,9 +511,13 @@ function animate() {
   }
   sun.rotation.y += 0.02 * MOTION * dt;
 
-  if (running) updateShip(dt);
+  if (landCooldown > 0) landCooldown -= dt;
+  if (running) { if (mode === 'space') updateShip(dt); else updateSurface(dt); }
   updateCamera(dt);
   updateHUD();
+
+  // banner fade (set by landing in space and by enter/exit surface)
+  if (landedTimer > 0) { landedTimer -= dt; if (landedTimer <= 0) ui.landed.classList.remove('show'); }
 
   // gentle engine flicker
   if (ship.userData.glow) {
@@ -402,7 +525,7 @@ function animate() {
     ship.userData.glow.material.opacity = thrusting ? 0.9 + Math.random() * 0.1 : 0.35;
   }
 
-  renderer.render(scene, camera);
+  renderer.render(mode === 'space' ? scene : surfaceScene, camera);
 }
 
 function updateShip(dt) {
@@ -450,20 +573,11 @@ function updateShip(dt) {
     }
   }
 
-  // landing banner + visited count
-  if (touched) {
-    landedTimer = 0.6;
-    ui.landedName.textContent = 'LANDED ON ' + touched.name.toUpperCase();
-    ui.landed.classList.add('show');
-    if (!touched.visited) { touched.visited = true; visitedCount++; }
-  } else {
-    landedTimer -= dt;
-    if (landedTimer <= 0) ui.landed.classList.remove('show');
-  }
-
   ship.position.copy(state.pos);
-  // orient ship: face heading, plus bank roll
-  ship.rotation.set(0, state.yaw, state.bank);
+  ship.rotation.set(0, state.yaw, state.bank);   // face heading, plus bank roll
+
+  // v0.3: touching a world drops you onto its surface (unless we just left one)
+  if (touched && landCooldown <= 0) enterSurface(touched);
 }
 
 function updateCamera(dt) {
@@ -480,16 +594,26 @@ function updateCamera(dt) {
     ship.position.y + sp * dist + 6,
     ship.position.z + Math.cos(ang) * dist * cp
   );
-  camera.position.lerp(tmp, running ? Math.min(1, dt * 4) : 0.02);
+  const t = snapCam ? 1 : (running ? Math.min(1, dt * 4) : 0.02);  // snap on scene switch
+  camera.position.lerp(tmp, t);
+  snapCam = false;
   camera.lookAt(ship.position);
 }
 
 function updateHUD() {
-  const spd = state.vel.length();
-  ui.speed.textContent = spd.toFixed(0);
+  ui.speed.textContent = state.vel.length().toFixed(0);
   ui.visited.textContent = visitedCount;
 
-  // find nearest body (by surface distance)
+  // On a planet's surface: show altitude + how high to climb to leave.
+  if (mode === 'surface') {
+    const alt = Math.max(0, state.pos.y - GROUND_Y);
+    ui.nearName.textContent = (currentBody ? currentBody.name : '') + ' — surface';
+    ui.nearDist.textContent = 'altitude: ' + alt.toFixed(0) + ' / ' + LIFTOFF_HEIGHT + ' to leave ↑';
+    ui.barFill.style.width = Math.min(100, alt / LIFTOFF_HEIGHT * 100) + '%';
+    return;
+  }
+
+  // In space: find nearest body (by surface distance)
   let best = null, bestD = Infinity;
   for (const b of bodies) {
     const d = state.pos.distanceTo(b.world) - b.radius;

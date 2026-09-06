@@ -7,6 +7,15 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v0.3 — landable surface worlds
+- 🌍 Touching a planet or moon now drops you into a **separate flat world**
+  painted with that body's color + a procedural terrain texture and matching
+  hazy sky/fog
+- 🛬 Land and drive around on the surface (gentle gravity holds you down)
+- 🚀 Climb past `LIFTOFF_HEIGHT` (1500) to blast back into the solar system,
+  popping out right next to the world you left (2s no-re-land cooldown)
+- 🎥 Camera snaps cleanly on each room switch; surface HUD shows altitude
+
 ## v0.2 — giant worlds & free-look
 - 🪐 Planets & star scaled up **10×** (`WORLD = 10`); orbit distances and the
   starfield grow to match so nothing overlaps, and the ship stays tiny
