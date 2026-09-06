@@ -152,15 +152,17 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v0.3';
+const GAME_VERSION = 'v0.4';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
 const MOTION = 0.12;
 
-/* v0.2: planets & star (and their orbital layout) blown up this many times.
-   The ship is NOT scaled, so the worlds now dwarf it. */
-const WORLD = 10;
+/* Two independent dials (the ship is never scaled by these):
+   BODY_SCALE = how big the planets & star are (v0.2: 10x).
+   DIST_SCALE = how far apart everything sits (v0.4: 20x further out). */
+const BODY_SCALE = 10;
+const DIST_SCALE = 20;
 
 const THREE_OK = typeof THREE !== 'undefined';
 
@@ -187,7 +189,7 @@ scene.add(sunLight);
   const N = 4000, pos = new Float32Array(N * 3);
   for (let i = 0; i < N; i++) {
     // scatter points on a big shell around the world
-    const r = (8000 + Math.random() * 4000) * WORLD;   // pushed out beyond the bigger worlds
+    const r = (8000 + Math.random() * 4000) * DIST_SCALE;   // pushed out beyond the spread-out worlds
     const t = Math.acos(2 * Math.random() - 1);
     const p = Math.random() * Math.PI * 2;
     pos[i*3]   = r * Math.sin(t) * Math.cos(p);
@@ -196,7 +198,7 @@ scene.add(sunLight);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const m = new THREE.PointsMaterial({ color: 0xffffff, size: 6 * WORLD, sizeAttenuation: true });
+  const m = new THREE.PointsMaterial({ color: 0xffffff, size: 6 * DIST_SCALE, sizeAttenuation: true });
   scene.add(new THREE.Points(g, m));
 })();
 
@@ -215,7 +217,7 @@ function glowTexture(hex) {
 }
 
 /* ---------- The Sun (always the biggest body) ---------- */
-const SUN_RADIUS = 260 * WORLD;   // still always the biggest body, now 10x bigger
+const SUN_RADIUS = 260 * BODY_SCALE;   // still always the biggest body
 const sun = new THREE.Mesh(
   new THREE.SphereGeometry(SUN_RADIUS, 48, 48),
   new THREE.MeshBasicMaterial({ color: 0xffe27a })   // basic = glows on its own, ignores light
@@ -240,8 +242,8 @@ sunLight.position.set(0, 0, 0);
 const bodies = [];   // everything you can land on (planets + moons)
 
 function makePlanet(cfg) {
-  cfg.radius   *= WORLD;   // v0.2: blow up the body and its orbit distance
-  cfg.distance *= WORLD;
+  cfg.radius   *= BODY_SCALE;   // body size
+  cfg.distance *= DIST_SCALE;   // orbit distance from the star
   const geo = new THREE.SphereGeometry(cfg.radius, 48, 48);
   const mat = new THREE.MeshStandardMaterial({
     color: cfg.color, roughness: 0.9, metalness: 0.1,
@@ -276,8 +278,8 @@ function makePlanet(cfg) {
 
   // moons: little spheres orbiting this planet
   (cfg.moons || []).forEach((mn, k) => {
-    mn.radius   *= WORLD;   // v0.2: moons grow too
-    mn.distance *= WORLD;
+    mn.radius   *= BODY_SCALE;   // moon size
+    mn.distance *= DIST_SCALE;   // moon distance from its planet
     const mgeo = new THREE.SphereGeometry(mn.radius, 32, 32);
     const mmat = new THREE.MeshStandardMaterial({ color: mn.color, roughness: 1, emissive: mn.color, emissiveIntensity: 0.05 });
     const mmesh = new THREE.Mesh(mgeo, mmat);
@@ -332,7 +334,7 @@ scene.add(ship);
 
 // Ship physics state
 const state = {
-  pos: new THREE.Vector3(0, 120 * WORLD, 560 * WORLD),   // start out in front of the (bigger) sun
+  pos: new THREE.Vector3(0, 120 * DIST_SCALE, 560 * DIST_SCALE),   // start out in front of the sun
   vel: new THREE.Vector3(),
   yaw: Math.PI,                          // facing back toward the sun
   bank: 0                                // visual roll while turning
@@ -539,7 +541,7 @@ function animate() {
 
 function updateShip(dt) {
   const boost = (keys.ShiftLeft || keys.ShiftRight) ? 2.4 : 1;
-  const accel = 900 * WORLD * boost;   // thrust scaled to the bigger world so travel stays snappy
+  const accel = 900 * DIST_SCALE * boost;   // thrust scaled to the spread-out world so travel stays snappy
   const turn  = 1.9;             // radians/sec
 
   // A/D turn (yaw) around world-up

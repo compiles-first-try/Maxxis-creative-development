@@ -7,6 +7,14 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v0.4 — split size & distance dials
+- 🔀 Split the single `WORLD` dial into two: `BODY_SCALE = 10` (how big
+  planets & star are) and `DIST_SCALE = 20` (how far apart everything sits)
+- 🌌 Planets now orbit **20× further** out and moons sit 20× further from
+  their planets — same-size worlds, twice the spacing of v0.3
+- 🚀 Ship thrust, start position, and starfield radius follow `DIST_SCALE`
+  so travel stays snappy and stars stay behind the worlds
+
 ## v0.3 — landable surface worlds
 - 🌍 Touching a planet or moon now drops you into a **separate flat world**
   painted with that body's color + a procedural terrain texture and matching
