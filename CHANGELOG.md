@@ -7,6 +7,23 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v1.4 — smoother flight (playability bug fixes)
+- 🚀 Fixed the ship **morphing into odd shapes** when flying through a planet at
+  hyperspeed: the move is now sub-stepped (so a fast frame can't teleport you
+  *inside* a world) and hyperspeed automatically drops to normal speed near any
+  body, so the camera never ends up buried in a surface
+- ⛰️ You can now **climb hills and drop into valleys** properly — surface
+  movement rides the real terrain height, and there's a new hover mode…
+- 🛸 **Hover mode: press H on a planet** to hold your altitude over the ground
+  without tapping Space to hop. Space/F raise & lower the hover height; fly over
+  hills and you glide up and down them smoothly
+- 🖱️ **WoW-like camera:** right-drag aiming is now smoothed (the ship eases into
+  turns instead of snapping) with retuned sensitivity, so turning feels weighted
+  and far less disorienting
+- 🔭 (Everything else from the v1.4 wishlist — hosting on Vercel, real private
+  servers, star magnitudes, solar flares, wandering NPC ships, satellites,
+  civilization tiers, oceans/biomes — is planned for upcoming versions.)
+
 ## v1.3 — mountain collision & ship-flip fix (bug fix)
 - ⛰️ Mountains are now **solid**: the ship rests on the *actual* terrain under it,
   so you ride up slopes and can't fly through peaks (craters still let you dip in).

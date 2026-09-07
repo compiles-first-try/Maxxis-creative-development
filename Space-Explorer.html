@@ -204,7 +204,7 @@
   <span class="key">Space</span> up &nbsp; <span class="key">F</span> down &nbsp;
   <span class="key">Shift</span> boost<br />
   <span class="key">Right-drag</span> aim &nbsp; <span class="key">Left-drag</span> look &nbsp; <span class="key">P</span> 1st-person &nbsp; <span class="key">E</span> portal<br />
-  <span class="key">Q</span>+<span class="key">W</span> hyperspeed ⚡
+  <span class="key">Q</span>+<span class="key">W</span> hyperspeed ⚡ &nbsp; <span class="key">H</span> hover (on a planet) 🛸
 </div>
 
 <div id="sysName" class="hud">◎ <span id="sysNameText">Sol</span></div>
@@ -232,7 +232,7 @@
 <!-- Start screen -->
 <div id="start">
   <h1>🚀 SPACE EXPLORER</h1>
-  <div style="margin-top:-8px;margin-bottom:6px;letter-spacing:3px;color:#7dffb0;font-weight:bold;font-size:14px;">★ v1.3 · MULTIPLAYER ★</div>
+  <div style="margin-top:-8px;margin-bottom:6px;letter-spacing:3px;color:#7dffb0;font-weight:bold;font-size:14px;">★ v1.4 · SMOOTHER SKIES ★</div>
   <p>Five galaxies, each a black hole ringed by dozens of star systems — some with two, three, even four suns. Pick your ship, fly a portal to any system (or blast between galaxies with <b>Q+W</b> hyperspeed), and land on mountainous, richly-textured worlds. Keep an eye out for alien life. Visit every world to complete the universe.</p>
   <div class="keys">
     <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> steer &nbsp;•&nbsp;
@@ -287,7 +287,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v1.3';
+const GAME_VERSION = 'v1.4';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -301,6 +301,11 @@ const DIST_SCALE = 20;
 
 /* v0.5: up/down thrust is this fraction of forward thrust (lower = gentler). */
 const VERT_SENS = 0.35;
+
+/* v1.4: mouse-look sensitivity (radians per pixel) — tuned WoW-like: a full
+   ~1000px drag is roughly a half-turn in yaw. Paired with per-frame smoothing
+   (AIM_EASE) so the turn feels weighted instead of twitchy. */
+const MOUSE_YAW = 0.0026, MOUSE_PITCH = 0.0022, AIM_EASE = 12;
 
 /* v1.2.4: seeded RNG → a deterministic universe, so multiplayer peers all
    generate identical galaxies/systems/planets. */
@@ -752,6 +757,12 @@ const state = {
 state.yaw = Math.atan2(systems[0].center.x - state.pos.x, systems[0].center.z - state.pos.z);
 ship.position.copy(state.pos);
 
+// v1.4: WoW-style smoothed aim. Mouse/keys move the TARGET aim; the ship eases
+// toward it each frame so turning feels weighted and smooth instead of twitchy.
+let aimYaw = state.yaw, aimPitch = 0;
+// v1.4: surface hover — hold altitude over terrain without tapping Space.
+let hoverMode = false, hoverHeight = 60;
+
 /* ===================== v0.3: SURFACE WORLDS =====================
    Touch a body -> drop into a separate FLAT world painted like it.
    Fly back up past LIFTOFF_HEIGHT -> return to the solar system,
@@ -976,6 +987,7 @@ function enterSurface(body) {
   scene.remove(ship); surfaceScene.add(ship);         // move ship between rooms
   state.pos.set(0, 500, 0);                           // drop in from a bit up
   state.vel.set(0, 0, 0);
+  hoverMode = false; hoverHeight = 60;                // v1.4: start each landing grounded
   ship.position.copy(state.pos);
 
   ui.landedName.textContent = 'LANDED ON ' + body.name.toUpperCase();
@@ -992,6 +1004,7 @@ function exitSurface() {
   state.vel.copy(away).multiplyScalar(500);           // drift outward so we clear the world
   state.pitch = Math.asin(Math.max(-1, Math.min(1, away.y)));   // aim along the outward direction
   state.yaw = Math.atan2(away.x, away.z);
+  aimYaw = state.yaw; aimPitch = state.pitch;          // v1.4: sync smoothed aim (no post-teleport drift)
   ship.position.copy(state.pos);
   landCooldown = 2.0;                                  // don't instantly re-land
   ui.landedName.textContent = 'LEAVING ' + currentBody.name.toUpperCase();
@@ -1008,23 +1021,37 @@ function updateSurface(dt) {
   const targetBank = (keys.KeyA ? 0.5 : 0) + (keys.KeyD ? -0.5 : 0);
   state.bank += (targetBank - state.bank) * Math.min(1, dt * 6);
 
+  // horizontal movement (same in both modes)
   forward.set(Math.sin(state.yaw), 0, Math.cos(state.yaw));
   if (keys.KeyW) state.vel.addScaledVector(forward, accel * dt);
   if (keys.KeyS) state.vel.addScaledVector(forward, -accel * dt);
-  if (keys.Space) state.vel.y += (accel + GRAV) * dt;                 // beat gravity to climb
-  if (keys.KeyF) state.vel.y -= accel * dt;                           // dive (F)
-
-  state.vel.y -= GRAV * dt;                    // gravity
   state.vel.x *= 0.92; state.vel.z *= 0.92;    // ground drag
-  state.vel.y *= 0.995;
+  state.pos.x += state.vel.x * dt;             // integrate X/Z first so we know the terrain we're over
+  state.pos.z += state.vel.z * dt;
 
-  state.pos.addScaledVector(state.vel, dt);
+  const th = GROUND_Y + terrainHeightAt(state.pos.x, state.pos.z);   // terrain height under the ship
 
-  // v1.3: rest on the ACTUAL terrain under the ship (mountains now block you,
-  // craters let you dip in) instead of a single flat floor.
-  const th = GROUND_Y + terrainHeightAt(state.pos.x, state.pos.z);
-  const floor = th + SHIP_CLEAR;
-  if (state.pos.y < floor) { state.pos.y = floor; if (state.vel.y < 0) state.vel.y = 0; }
+  if (hoverMode) {
+    // v1.4 (bugs 2 & 3): HOVER — hold a set height over the terrain, no gravity,
+    // no Space-tapping. Space/F raise & lower the hover height; because we ride
+    // the terrain height, you smoothly climb hills and sink into valleys just by
+    // flying over them.
+    if (keys.Space) hoverHeight += accel * VERT_SENS * dt;
+    if (keys.KeyF)  hoverHeight -= accel * VERT_SENS * dt;
+    hoverHeight = Math.max(SHIP_CLEAR, hoverHeight);
+    const target = th + hoverHeight;
+    state.pos.y += (target - state.pos.y) * Math.min(1, dt * 4);     // ease → smooth ride
+    state.vel.y = 0;
+  } else {
+    // free-flight / gravity mode (tap Space to climb, F to dive)
+    if (keys.Space) state.vel.y += (accel + GRAV) * dt;
+    if (keys.KeyF)  state.vel.y -= accel * dt;
+    state.vel.y -= GRAV * dt;                   // gravity
+    state.vel.y *= 0.995;
+    state.pos.y += state.vel.y * dt;
+    const floor = th + SHIP_CLEAR;              // rest on the terrain (ride hills, dip into craters)
+    if (state.pos.y < floor) { state.pos.y = floor; if (state.vel.y < 0) state.vel.y = 0; }
+  }
 
   ship.position.copy(state.pos);
   ship.rotation.set(0, state.yaw, state.bank);
@@ -1036,7 +1063,7 @@ function updateSurface(dt) {
 
 /* ---------- Input ---------- */
 const keys = {};
-const track = ['KeyW','KeyS','KeyA','KeyD','KeyQ','KeyF','Space','ShiftLeft','ShiftRight'];
+const track = ['KeyW','KeyS','KeyA','KeyD','KeyQ','KeyF','KeyH','Space','ShiftLeft','ShiftRight'];
 addEventListener('keydown', e => { if (track.includes(e.code)) { keys[e.code] = true; e.preventDefault(); } });
 addEventListener('keyup',   e => { if (track.includes(e.code)) { keys[e.code] = false; e.preventDefault(); } });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
@@ -1044,6 +1071,13 @@ addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 /* v0.4.6: press P to toggle first-person (cockpit) view */
 addEventListener('keydown', e => {
   if (e.code === 'KeyP') { firstPerson = !firstPerson; snapCam = true; }
+  // v1.4: press H (on a surface) to toggle hover — hold altitude without hopping
+  if (e.code === 'KeyH' && mode === 'surface') {
+    hoverMode = !hoverMode;
+    if (hoverMode) hoverHeight = Math.max(SHIP_CLEAR, state.pos.y - (GROUND_Y + terrainHeightAt(state.pos.x, state.pos.z)));
+    ui.sysBannerText.textContent = hoverMode ? '🛸 HOVER ON' : 'HOVER OFF';
+    ui.sysBanner.classList.add('show'); sysBannerTimer = 1.4;
+  }
 });
 
 /* v1.1: RIGHT-drag aims the ship (fly where you look); LEFT-drag orbits the camera */
@@ -1061,11 +1095,14 @@ addEventListener('mousemove', e => {
   if (!look.dragging) return;
   const dx = e.clientX - look.lx, dy = e.clientY - look.ly;
   look.lx = e.clientX; look.ly = e.clientY;
-  if (look.dragging === 2) {                    // RIGHT-drag: aim the ship
+  if (look.dragging === 2) {                    // RIGHT-drag: aim the ship (WoW-like)
     if (mode === 'space') {
-      state.yaw -= dx * 0.004; state.pitch -= dy * 0.004;
-      state.pitch = Math.max(-1.25, Math.min(1.25, state.pitch));
-    } else { surfPitch = Math.max(-0.4, Math.min(1.2, surfPitch + dy * 0.005)); }
+      aimYaw -= dx * MOUSE_YAW; aimPitch -= dy * MOUSE_PITCH;   // move the TARGET; ship eases to it
+      aimPitch = Math.max(-1.25, Math.min(1.25, aimPitch));
+    } else {
+      state.yaw -= dx * MOUSE_YAW;                              // surface: right-drag also turns you
+      surfPitch = Math.max(-0.4, Math.min(1.2, surfPitch + dy * 0.005));
+    }
   } else {                                       // LEFT-drag: orbit the camera
     camOrbitYaw -= dx * 0.005;
     camOrbitPitch = Math.max(-1.2, Math.min(1.2, camOrbitPitch + dy * 0.005));
@@ -1131,6 +1168,7 @@ function travelTo(i) {
   state.vel.set(0, 0, 0);
   state.yaw = Math.atan2(d.center.x - state.pos.x, d.center.z - state.pos.z);  // face the system
   state.pitch = 0;
+  aimYaw = state.yaw; aimPitch = 0;                    // v1.4: sync smoothed aim
   snapCam = true; landCooldown = 2;
   setCurrentSystem(i);
   closePortalMenu();
@@ -1367,52 +1405,74 @@ function animate() {
 
 let hyperActive = false;   // v0.7.5: true while Q+W hyperspeed engaged
 
+const _checkList = [];   // reused each frame (bodies + stars + black holes)
 function updateShip(dt) {
-  hyperActive = keys.KeyQ && keys.KeyW;                       // Q+W = hyperspeed
+  const wantHyper = keys.KeyQ && keys.KeyW;                   // Q+W = hyperspeed
   const boost = (keys.ShiftLeft || keys.ShiftRight) ? 2.4 : 1;
-  const accel = 900 * DIST_SCALE * boost * (hyperActive ? 500 : 1);   // v0.9: hyperspeed, calmer
   const turn  = 1.9;             // radians/sec
 
-  // A/D turn (yaw) around world-up
-  if (keys.KeyA) state.yaw += turn * dt;
-  if (keys.KeyD) state.yaw -= turn * dt;
+  // A/D turn the TARGET aim (yaw); the ship eases toward it below (v1.4 smoothing)
+  if (keys.KeyA) aimYaw += turn * dt;
+  if (keys.KeyD) aimYaw -= turn * dt;
 
   // visual bank: lean into the turn
   const targetBank = (keys.KeyA ? 0.5 : 0) + (keys.KeyD ? -0.5 : 0);
   state.bank += (targetBank - state.bank) * Math.min(1, dt * 6);
 
+  // v1.4: ease actual yaw/pitch toward the target aim → weighted, WoW-like feel
+  const k = Math.min(1, dt * AIM_EASE);
+  state.yaw   += (aimYaw   - state.yaw)   * k;
+  state.pitch += (aimPitch - state.pitch) * k;
+
   // v0.8.1: forward follows where you're aiming (yaw + pitch) — fly where you look
   const cp = Math.cos(state.pitch);
   forward.set(Math.sin(state.yaw) * cp, Math.sin(state.pitch), Math.cos(state.yaw) * cp);
+
+  // build the collision list (reused array to avoid per-frame garbage)
+  _checkList.length = 0;
+  for (const b of bodies) _checkList.push(b);
+  for (const s of systems) _checkList.push({ world: s.center, radius: s.sunRadius, isSun: true });
+  for (const g of galaxies) _checkList.push({ world: g.center, radius: g.bhRadius * 1.3, isSun: true });
+
+  // v1.4 (bug 1): don't hold hyperspeed while close to a body. Warping THROUGH a
+  // planet put the camera inside its surface for a frame → the ship smeared into
+  // "odd shapes". Dropping to normal speed near planets prevents that entirely.
+  let nearBody = false;
+  for (const b of _checkList) {
+    if (b.isSun && !b.radius) continue;
+    if (state.pos.distanceTo(b.world) < b.radius * 6) { nearBody = true; break; }
+  }
+  hyperActive = wantHyper && !nearBody;
+  const accel = 900 * DIST_SCALE * boost * (hyperActive ? 500 : 1);
 
   if (keys.KeyW) state.vel.addScaledVector(forward, accel * dt);
   if (keys.KeyS) state.vel.addScaledVector(forward, -accel * dt);
   if (keys.Space) state.vel.y += accel * VERT_SENS * dt;      // climb (gentler)
   if (keys.KeyF)  state.vel.y -= accel * VERT_SENS * dt;      // dive (F, gentler)
 
-  // space drag → arcade feel, easy to control
-  state.vel.multiplyScalar(0.985);
+  state.vel.multiplyScalar(0.985);                            // space drag → arcade feel
 
-  // integrate position
-  state.pos.addScaledVector(state.vel, dt);
-
-  // --- collision / landing against every body + the sun ---
+  // v1.4 (bug 1): SUBSTEP the move so a fast/hyper frame can't tunnel THROUGH a
+  // planet. We walk the position in small chunks and test collision each chunk,
+  // so we always stop AT the surface (land) instead of appearing inside it.
+  const stepLen = state.vel.length() * dt;
+  const nSub = Math.max(1, Math.min(48, Math.ceil(stepLen / 12000)));
   let touched = null;
-  const checkList = bodies
-    .concat(systems.map(s => ({ name: 'a star', world: s.center, radius: s.sunRadius, isSun: true })))
-    .concat(galaxies.map(g => ({ name: 'a black hole', world: g.center, radius: g.bhRadius * 1.3, isSun: true })));
-  for (const b of checkList) {
-    toShip.copy(state.pos).sub(b.world);
-    const dist = toShip.length();
-    const floor = b.radius + 4;            // rest 4 units above the surface
-    if (dist < floor) {
-      toShip.normalize();
-      state.pos.copy(b.world).addScaledVector(toShip, floor);  // snap to surface
-      // kill velocity going INTO the surface (keep sliding along it)
-      const into = state.vel.dot(toShip);
-      if (into < 0) state.vel.addScaledVector(toShip, -into);
-      state.vel.multiplyScalar(0.6);       // friction on contact
-      if (!b.isSun) touched = b;           // you don't "land" on a star 🔥
+  for (let sub = 0; sub < nSub && !touched; sub++) {
+    state.pos.addScaledVector(state.vel, dt / nSub);
+    for (const b of _checkList) {
+      toShip.copy(state.pos).sub(b.world);
+      const dist = toShip.length();
+      const floor = b.radius + 4;            // rest 4 units above the surface
+      if (dist < floor) {
+        toShip.normalize();
+        state.pos.copy(b.world).addScaledVector(toShip, floor);  // snap to surface
+        const into = state.vel.dot(toShip);
+        if (into < 0) state.vel.addScaledVector(toShip, -into);  // stop moving INTO it
+        state.vel.multiplyScalar(0.6);       // friction on contact
+        if (!b.isSun) touched = b;           // you don't "land" on a star 🔥
+        break;
+      }
     }
   }
 
@@ -1516,7 +1576,14 @@ function updateHUD() {
 animate();
 
 // Small handle for automated tests (harmless in normal play).
-window.__game = { state, ship, bodies, enterSurface, updateSurface, orientShipTo, shipForward, terrainHeightAt, get mode() { return mode; } };
+window.__game = {
+  state, ship, bodies, systems, keys, enterSurface, updateSurface, updateShip,
+  orientShipTo, shipForward, terrainHeightAt,
+  get mode() { return mode; },
+  get aimYaw() { return aimYaw; }, set aimYaw(v) { aimYaw = v; },
+  get hoverMode() { return hoverMode; }, set hoverMode(v) { hoverMode = v; },
+  setHyperKeys(on) { keys.KeyQ = on; keys.KeyW = on; },
+};
 </script>
 </body>
 </html>

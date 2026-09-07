@@ -1,4 +1,4 @@
-# 🚀 Space Explorer — v1.3
+# 🚀 Space Explorer — v1.4
 
 A 3D space game you fly in your browser. Five galaxies, each a black hole ringed
 by star systems, filled with richly-textured worlds you can actually land on.
@@ -30,6 +30,7 @@ so it even works with **no internet**.
 | **A / D** | Turn left / right |
 | **Right-drag** | Aim the ship (fly wherever you look) |
 | **Space** | Climb · **F** Dive |
+| **H** | 🛸 Hover (on a planet) — hold altitude without hopping |
 | **Shift** | Boost |
 | **Q + W** | ⚡ Hyperspeed (cross the galaxy) |
 | **E** | 🌀 Open a portal (when near one) to jump to any system |
