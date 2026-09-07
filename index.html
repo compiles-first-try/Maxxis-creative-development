@@ -223,7 +223,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v0.8.1';
+const GAME_VERSION = 'v0.9';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -566,18 +566,30 @@ const GALAXY_DEFS = [
   { name: 'Nyxa Void', center: [130000000, 12000000, -42000000], core: 0x9a6cff },
   { name: 'Cindralis', center: [-92000000, -22000000, 116000000], core: 0xff7a4a },
 ];
+const GALAXY_BUBBLE_R = GALAXY_RADIUS * 1.18;   // the "bubble" that wraps each galaxy
 GALAXY_DEFS.forEach((gd, gi) => {
   const gc = new THREE.Vector3(gd.center[0], gd.center[1], gd.center[2]);
   const galaxy = { name: gd.name, center: gc, core: gd.core, systemIndices: [] };
   galaxies.push(galaxy);
   makeBlackHole(gc, galaxy);
+
+  // v0.9: a big translucent bubble around the galaxy (soft fill + wireframe shell)
+  const bubble = new THREE.Group(); bubble.position.copy(gc);
+  bubble.add(new THREE.Mesh(new THREE.SphereGeometry(GALAXY_BUBBLE_R, 32, 24),
+    new THREE.MeshBasicMaterial({ color: gd.core, transparent: true, opacity: 0.05, side: THREE.BackSide, depthWrite: false })));
+  bubble.add(new THREE.Mesh(new THREE.SphereGeometry(GALAXY_BUBBLE_R * 1.005, 28, 18),
+    new THREE.MeshBasicMaterial({ color: gd.core, wireframe: true, transparent: true, opacity: 0.10, depthWrite: false })));
+  scene.add(bubble); galaxy.bubble = bubble; galaxy.bubbleRadius = GALAXY_BUBBLE_R;
+
   const nSys = 5 + (Math.random() * 3 | 0);   // 5..7 systems per galaxy
   for (let i = 0; i < nSys; i++) {
     const ang = Math.random() * Math.PI * 2, rad = (0.35 + Math.random() * 0.65) * GALAXY_RADIUS;
     const off = new THREE.Vector3(Math.cos(ang) * rad, (Math.random() - 0.5) * GALAXY_RADIUS * 0.15, Math.sin(ang) * rad);
     galaxy.systemIndices.push(systems.length);
-    makeSystem(gc.clone().add(off), randStarColor(),
-      { name: nextSysName(), stars: 1 + (Math.random() * 3 | 0), starColor2: randStarColor(), galaxy: gi });
+    const isSol = gi === 0 && i === 0;                       // v0.9: Sol is ALWAYS 1 yellow star
+    let name = nextSysName(); if (isSol) name = 'Sol';
+    makeSystem(gc.clone().add(off), isSol ? 0xffe27a : randStarColor(),
+      { name, stars: isSol ? 1 : 1 + (Math.random() * 3 | 0), starColor2: randStarColor(), galaxy: gi });
   }
 });
 
@@ -886,7 +898,7 @@ let running = false;
 el('total').textContent = bodies.length;   // total landable worlds across all systems
 
 /* ---------- v0.7/0.8: current system + galaxy, portals & travel ---------- */
-let currentSystem = 0, currentGalaxy = 0, sysBannerTimer = 0, nearPortal = -1, portalMenuOpen = false;
+let currentSystem = 0, currentGalaxy = 0, sysBannerTimer = 0, nearPortal = -1, portalMenuOpen = false, insideGalaxy = 0;
 const STAR_WORD = { 1: 'single star', 2: 'binary stars', 3: 'trinary stars' };
 ui.sysNameText.textContent = galaxies[0].name + ' · ' + systems[0].name;
 
@@ -993,6 +1005,21 @@ function animate() {
     g.bhHalo.material.opacity = Math.max(0.15, Math.min(0.7, (gd - 300000) / 20000000 + 0.15));
   }
 
+  // v0.9: which galaxy's bubble am I inside? You can only see OTHER galaxies once you leave.
+  insideGalaxy = -1;
+  for (let gi = 0; gi < galaxies.length; gi++) {
+    if (ship.position.distanceTo(galaxies[gi].center) < galaxies[gi].bubbleRadius) { insideGalaxy = gi; break; }
+  }
+  for (let gi = 0; gi < galaxies.length; gi++) {
+    const show = (insideGalaxy === -1) || (gi === insideGalaxy);   // inside a galaxy → hide the others
+    galaxies[gi].blackHole.visible = show;
+    galaxies[gi].bubble.visible = show;
+  }
+  for (const s of systems) s.beacon.visible = (insideGalaxy === -1) || (s.galaxy === insideGalaxy);
+  if (mode === 'space') ui.sysNameText.textContent = (insideGalaxy === -1)
+    ? '✦ Intergalactic space'
+    : (galaxies[currentGalaxy].name + ' · ' + systems[currentSystem].name);
+
   // v0.7: which system am I in? which portal am I near?
   if (mode === 'space') {
     let bi = 0, bd = Infinity, pi = -1, pd = Infinity;
@@ -1034,7 +1061,7 @@ let hyperActive = false;   // v0.7.5: true while Q+W hyperspeed engaged
 function updateShip(dt) {
   hyperActive = keys.KeyQ && keys.KeyW;                       // Q+W = hyperspeed
   const boost = (keys.ShiftLeft || keys.ShiftRight) ? 2.4 : 1;
-  const accel = 900 * DIST_SCALE * boost * (hyperActive ? 3000 : 1);   // v0.8: WAY faster hyperspeed
+  const accel = 900 * DIST_SCALE * boost * (hyperActive ? 500 : 1);   // v0.9: hyperspeed, calmer
   const turn  = 1.9;             // radians/sec
 
   // A/D turn (yaw) around world-up

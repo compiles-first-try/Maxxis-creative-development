@@ -7,6 +7,16 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v0.9 — galaxy bubbles, fog of galaxies, calmer hyperspeed
+- 🫧 Each galaxy now sits inside a big translucent bubble (soft fill +
+  wireframe shell) around its systems
+- 👁️ Fog of galaxies: while inside a galaxy's bubble you only see THAT
+  galaxy; the others (and their black holes) appear once you fly out into
+  intergalactic space — HUD shows "Intergalactic space" out there
+- 🐢 Hyperspeed is much calmer now (500× instead of 3000×), still fast
+  enough to cross the galaxy
+- ☀️ Sol is now ALWAYS a single yellow star on every fresh load
+
 ## v0.8.1 — aim-to-fly controls
 - 🎯 Right-drag now AIMS the ship in full 3D (yaw + pitch): it flies wherever
   you look, and the chase camera follows the ship's nose
