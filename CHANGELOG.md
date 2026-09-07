@@ -7,6 +7,18 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v1.8 — oceans & biomes
+- 🌊 **Oceans!** Ocean/ice/lava/toxic worlds now flood a shimmering liquid plane at
+  sea level — animated ripples + a slow tide. Water colour & glow match the biome
+  (blue seas, pale ice, glowing lava, sickly toxic pools)
+- ⛰️ Those worlds get **gentle rolling hills**, so the sea forms real **shorelines**
+  — sandy beaches near the water, darker seabed below it
+- 🎨 **Biomes:** each world's ground is tinted by its type — lush green (earth),
+  pale (ice), charred red-black (lava), sickly green (toxic), sandy dunes (desert)
+  — while rocky/crater worlds stay as before
+- 🌊 Terrain collision follows the new rolling hills, so you can hover over the
+  water and cruise the coastlines
+
 ## v1.7 — traffic (NPC ships & satellites)
 - 🛰️ **Satellites** — little ISS-like craft (body + solar panels + dish) now orbit
   many planets (every Sol-system world + ~30% elsewhere) on tilted orbits

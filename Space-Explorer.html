@@ -232,7 +232,7 @@
 <!-- Start screen -->
 <div id="start">
   <h1>🚀 SPACE EXPLORER</h1>
-  <div style="margin-top:-8px;margin-bottom:6px;letter-spacing:3px;color:#7dffb0;font-weight:bold;font-size:14px;">★ v1.7 · TRAFFIC ★</div>
+  <div style="margin-top:-8px;margin-bottom:6px;letter-spacing:3px;color:#7dffb0;font-weight:bold;font-size:14px;">★ v1.8 · OCEANS ★</div>
   <p>Five galaxies, each a black hole ringed by dozens of star systems — some with two, three, even four suns. Pick your ship, fly a portal to any system (or blast between galaxies with <b>Q+W</b> hyperspeed), and land on mountainous, richly-textured worlds. Keep an eye out for alien life. Visit every world to complete the universe.</p>
   <div class="keys">
     <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> steer &nbsp;•&nbsp;
@@ -291,7 +291,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v1.7';
+const GAME_VERSION = 'v1.8';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -941,6 +941,38 @@ const ground = new THREE.Mesh(groundGeo,
 ground.rotation.x = -Math.PI / 2;   // lay it flat (local Z → world Y)
 surfaceScene.add(ground);
 
+/* ===================== v1.8: BIOMES & OCEANS ===================== */
+// Each planet's texture type maps to a biome: a ground tint + (maybe) a liquid
+// "ocean" at sea level. ground=null keeps the planet's own colour.
+const BIOMES = {
+  earth:   { ground: 0x3f8a3a, sea: { color: 0x2f6cff, opacity: 0.72, emissive: 0x00122e, ei: 0.15 } },
+  ice:     { ground: 0xdCe9f5, sea: { color: 0x9fd2ff, opacity: 0.55, emissive: 0x14385c, ei: 0.10 } },
+  lava:    { ground: 0x3a1710, sea: { color: 0xff5a1e, opacity: 0.92, emissive: 0xff3400, ei: 0.95 } },
+  toxic:   { ground: 0x5f6f22, sea: { color: 0x9be04c, opacity: 0.70, emissive: 0x2c4d00, ei: 0.40 } },
+  desert:  { ground: 0xcaa15c, sea: null },
+  rocky:   { ground: null,     sea: null },
+  craters: { ground: null,     sea: null },
+  gas:     { ground: null,     sea: null },
+};
+function biomeFor(t) { return BIOMES[t] || BIOMES.rocky; }
+
+// A big animated liquid plane, shown only on ocean/ice/lava/toxic worlds.
+const waterTex = (function () {
+  const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 900; i++) { g.globalAlpha = 0.04 + Math.random() * 0.06;
+    g.fillStyle = Math.random() < 0.5 ? '#000000' : '#ffffff';
+    g.fillRect(Math.random() * 256, Math.random() * 256, 2 + Math.random() * 40, 1 + Math.random() * 3); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(60, 60); return t;
+})();
+const WATER_LEVEL = 130;   // sea height above the flat plain
+const surfaceWater = new THREE.Mesh(new THREE.PlaneGeometry(60000, 60000, 1, 1),
+  new THREE.MeshStandardMaterial({ map: waterTex, transparent: true, roughness: 0.15, metalness: 0.5,
+    color: 0x2f6cff, depthWrite: false }));
+surfaceWater.rotation.x = -Math.PI / 2; surfaceWater.position.y = WATER_LEVEL;
+surfaceWater.visible = false; surfaceScene.add(surfaceWater);
+let seaLevel = -99999;   // current world's sea height (below everything = no sea)
+
 // v0.6: rings across the sky — shown only when the world you land on has rings
 // A big, FAR, flat halo just above the horizon → reads as ring band all around the sky.
 // (fog:false so distance doesn't erase it; far & low so it stays inside the forward view.)
@@ -975,7 +1007,12 @@ let aliensPresent = false;
 
 // v1.3: remember the craters + mountains of the world we're standing on so the
 // ship can actually COLLIDE with the terrain (ride up mountains, dip into pits).
-let curCraters = [], curMtns = [];
+let curCraters = [], curMtns = [], curRoll = null;   // v1.8: curRoll = gentle rolling hills
+function rollAt(x, z) {
+  if (!curRoll) return 0;
+  const r = curRoll;
+  return r.A * (Math.sin(x * r.f1 + r.p1) + Math.cos(z * r.f2 + r.p2) + 0.6 * Math.sin((x + z) * r.f3 + r.p3));
+}
 function terrainHeightAt(x, z) {
   let y = 0;                                   // craters dig the ground DOWN
   for (const cr of curCraters) {
@@ -987,14 +1024,23 @@ function terrainHeightAt(x, z) {
     const d = Math.hypot(x - m.x, z - m.z);
     if (d < m.r) { const k = 1 - d / m.r; mh += m.h * k * k; }
   }
-  return y + mh;
+  return y + mh + rollAt(x, z);                // v1.8: + gentle rolling hills (creates shorelines)
 }
 
 // v0.6.6: sculpt the terrain itself — paint it the world's colour, and on crater
 // worlds push vertices DOWN into cone-shaped pits (sharp point at the centre).
-function shapeGround(base, craterWorld) {
+function shapeGround(base, craterWorld, opts) {
+  opts = opts || {};
+  const rolling = opts.rolling || 0;           // v1.8: amplitude of gentle rolling hills (0 = flat)
+  const seaY = (opts.seaY === undefined) ? -1e9 : opts.seaY;   // sea level for shore/seabed colouring
   const pos = groundGeo.attributes.position, col = groundGeo.attributes.color;
   const bc = new THREE.Color(base);
+  const sand = bc.clone().lerp(new THREE.Color(0xd8c48a), 0.5);   // shoreline tint
+  const seabed = bc.clone().multiplyScalar(0.45);                 // darker underwater
+
+  // v1.8: pick rolling-hill parameters (also used by terrainHeightAt for collision)
+  curRoll = rolling ? { A: rolling, f1: 0.00018 + Math.random() * 0.0001, f2: 0.00016 + Math.random() * 0.0001,
+    f3: 0.00009 + Math.random() * 0.00006, p1: Math.random() * 7, p2: Math.random() * 7, p3: Math.random() * 7 } : null;
 
   // v0.6.7: crater worlds get the dense cratered regolith texture (only on the surface)
   ground.material.map = craterWorld ? craterTex : groundTex;
@@ -1039,10 +1085,15 @@ function shapeGround(base, craterWorld) {
       const d = Math.hypot(wx - m.x, wz - m.z);
       if (d < m.r) { const k = 1 - d / m.r; mh += m.h * k * k; }
     }
-    pos.setZ(i, y + mh);
+    const roll = rolling ? curRoll.A * (Math.sin(wx * curRoll.f1 + curRoll.p1) + Math.cos(wz * curRoll.f2 + curRoll.p2)
+      + 0.6 * Math.sin((wx + wz) * curRoll.f3 + curRoll.p3)) : 0;
+    const h = y + mh + roll;
+    pos.setZ(i, h);
     if (c) { const sh = 0.45 + 0.55 * t; col.setXYZ(i, c.cc.r * sh, c.cc.g * sh, c.cc.b * sh); }   // crater colour
     else if (mh > 1800) { const f = Math.min(1, (mh - 1800) / 4000); const cc = bc.clone().lerp(peakCol, f);
       col.setXYZ(i, cc.r, cc.g, cc.b); }              // mountain peaks lighten
+    else if (h < seaY) { const cc = seabed; col.setXYZ(i, cc.r, cc.g, cc.b); }   // v1.8: underwater seabed
+    else if (h < seaY + 120) { const cc = sand; col.setXYZ(i, cc.r, cc.g, cc.b); }   // v1.8: shoreline sand
     else col.setXYZ(i, bc.r, bc.g, bc.b);             // normal ground
   }
   pos.needsUpdate = true; col.needsUpdate = true;
@@ -1072,7 +1123,23 @@ function enterSurface(body) {
   currentBody = body;
   if (!body.visited) { body.visited = true; visitedCount++; }
 
-  shapeGround(body.color, body.texType === 'craters'); // colour the terrain; carve pits on crater worlds
+  // v1.8: biome — tint the ground, roll gentle hills, and flood a sea on liquid worlds
+  const biome = biomeFor(body.texType);
+  const groundBase = biome.ground ? new THREE.Color(body.color).lerp(new THREE.Color(biome.ground), 0.6).getHex() : body.color;
+  const hasSea = !!biome.sea;
+  const rolling = hasSea ? 360 : (body.texType === 'desert' ? 240 : 0);   // water & dunes undulate
+  seaLevel = hasSea ? WATER_LEVEL : -1e9;
+  shapeGround(groundBase, body.texType === 'craters', { rolling, seaY: seaLevel });
+  surfaceWater.visible = hasSea;
+  if (hasSea) {
+    const s = biome.sea;
+    surfaceWater.position.y = WATER_LEVEL;
+    surfaceWater.material.color.set(s.color);
+    surfaceWater.material.opacity = s.opacity;
+    surfaceWater.material.emissive.set(s.emissive);
+    surfaceWater.material.emissiveIntensity = s.ei;
+    surfaceWater.material.needsUpdate = true;
+  }
   const sky = tintColor(body.color, 0.55);            // hazy, lighter sky of the same hue
   surfaceScene.background = sky;
   surfaceScene.fog = new THREE.Fog(sky.getHex(), 3000, 22000);
@@ -1541,6 +1608,13 @@ function animate() {
     ship.userData.glow.material.opacity = thrusting ? 0.9 + Math.random() * 0.1 : 0.35;
   }
 
+  // v1.8: gently animate the ocean (drift the ripples + a slow tide)
+  if (mode === 'surface' && surfaceWater.visible) {
+    const ts = clock.elapsedTime;
+    waterTex.offset.set(ts * 0.006, ts * 0.004);
+    surfaceWater.position.y = WATER_LEVEL + Math.sin(ts * 0.6) * 6;
+  }
+
   // v1.1: alien critters bob & sway a little
   if (mode === 'surface' && surfaceAliens.visible) {
     const tsec = clock.elapsedTime;
@@ -1733,8 +1807,9 @@ animate();
 window.__game = {
   state, ship, bodies, systems, keys, enterSurface, updateSurface, updateShip,
   orientShipTo, shipForward, terrainHeightAt, animateFlares,
-  npcs, satellites, updateNpcs,
+  npcs, satellites, updateNpcs, surfaceWater, biomeFor,
   get mode() { return mode; },
+  get seaLevel() { return seaLevel; },
   get aimYaw() { return aimYaw; }, set aimYaw(v) { aimYaw = v; },
   get hoverMode() { return hoverMode; }, set hoverMode(v) { hoverMode = v; },
   setHyperKeys(on) { keys.KeyQ = on; keys.KeyW = on; },
