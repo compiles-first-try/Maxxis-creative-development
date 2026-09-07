@@ -7,6 +7,11 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v1.0 — FULL RELEASE 🚀
+- 🎉 Out of early access! Title screen shows "v1.0 · FULL RELEASE"
+- 🏆 Win moment: visit every world in the universe to see "UNIVERSE COMPLETE!"
+- 📖 Rewrote the README as a proper game page
+
 ## v0.9 — galaxy bubbles, fog of galaxies, calmer hyperspeed
 - 🫧 Each galaxy now sits inside a big translucent bubble (soft fill +
   wireframe shell) around its systems

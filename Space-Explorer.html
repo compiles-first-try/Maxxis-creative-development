@@ -195,7 +195,8 @@
 <!-- Start screen -->
 <div id="start">
   <h1>🚀 SPACE EXPLORER</h1>
-  <p>Three galaxies, each a black hole ringed by star systems — some circled by two or three suns. Fly a portal to any system (or blast between galaxies with <b>Q+W</b> hyperspeed), and land on richly-textured worlds where the sky holds one, two, or three suns.</p>
+  <div style="margin-top:-8px;margin-bottom:6px;letter-spacing:3px;color:#7dffb0;font-weight:bold;font-size:14px;">★ v1.0 · FULL RELEASE ★</div>
+  <p>Three galaxies, each a black hole ringed by star systems — some circled by two or three suns. Fly a portal to any system (or blast between galaxies with <b>Q+W</b> hyperspeed), and land on richly-textured worlds where the sky holds one, two, or three suns. Visit every world to complete the universe.</p>
   <div class="keys">
     <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> steer &nbsp;•&nbsp;
     <span class="key">Space</span> climb &nbsp;•&nbsp; <span class="key">F</span> dive &nbsp;•&nbsp; <span class="key">Right-drag</span> aim &nbsp;•&nbsp; <span class="key">Shift</span> boost
@@ -232,7 +233,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v0.9';
+const GAME_VERSION = 'v1.0';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -907,7 +908,7 @@ let running = false;
 el('total').textContent = bodies.length;   // total landable worlds across all systems
 
 /* ---------- v0.7/0.8: current system + galaxy, portals & travel ---------- */
-let currentSystem = 0, currentGalaxy = 0, sysBannerTimer = 0, nearPortal = -1, portalMenuOpen = false, insideGalaxy = 0;
+let currentSystem = 0, currentGalaxy = 0, sysBannerTimer = 0, nearPortal = -1, portalMenuOpen = false, insideGalaxy = 0, won = false;
 const STAR_WORD = { 1: 'single star', 2: 'binary stars', 3: 'trinary stars' };
 ui.sysNameText.textContent = galaxies[0].name + ' · ' + systems[0].name;
 
@@ -1051,6 +1052,13 @@ function animate() {
   ui.hyper.classList.toggle('show', hyperOn);
   const targetFov = hyperOn ? 100 : 65;
   if (Math.abs(camera.fov - targetFov) > 0.1) { camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 4); camera.updateProjectionMatrix(); }
+
+  // v1.0: visit every world → win!
+  if (!won && bodies.length && visitedCount >= bodies.length) {
+    won = true;
+    ui.sysBannerText.textContent = '🏆 UNIVERSE COMPLETE!';
+    ui.sysBanner.classList.add('show'); sysBannerTimer = 8;
+  }
 
   // banner fades
   if (landedTimer > 0) { landedTimer -= dt; if (landedTimer <= 0) ui.landed.classList.remove('show'); }

@@ -1,53 +1,56 @@
-# 🚀 Space Explorer
+# 🚀 Space Explorer — v1.0
 
-A tiny 3D space game. One glowing star, five scattered planets (two with moons),
-and a ship you fly between them. Land on every world and feel the trick where a
-**giant sphere looks like flat ground** under your feet — the same reason Earth
-feels flat while being a ball.
+A 3D space game you fly in your browser. Three galaxies, each a black hole ringed
+by star systems, filled with richly-textured worlds you can actually land on.
+**Out of early access — this is the full release.**
 
-## ▶️ How to play
+## ▶️ Play it
 
-**No install needed.** Just open `index.html` in any modern browser
-(double-click it, or drag it into Chrome/Firefox/Edge).
-
-> If a browser ever blocks it, run a tiny local server from this folder:
-> `python3 -m http.server` then visit `http://localhost:8000`.
+**No install.** Open **`Space-Explorer.html`** in any modern browser
+(double-click it). It's one self-contained file — the 3D engine is bundled in,
+so it even works with **no internet**.
 
 ## 🎮 Controls
 
-| Key | Does |
-|-----|------|
-| **W / S** | Thrust forward / backward |
+| Key / input | Action |
+|---|---|
+| **W / S** | Thrust forward / back |
 | **A / D** | Turn left / right |
-| **Space** | Climb up |
-| **Ctrl** | Dive down |
-| **Shift** | Boost (hold with a thrust key) |
+| **Right-drag** | Aim the ship (fly wherever you look) |
+| **Space** | Climb · **F** Dive |
+| **Shift** | Boost |
+| **Q + W** | ⚡ Hyperspeed (cross the galaxy) |
+| **E** | 🌀 Open a portal (when near one) to jump to any system |
+| **P** | First-person (cockpit) view |
 
-Fly toward a planet and get close — the ship rests on the surface and a
-**LANDED** banner appears. The proximity bar (top-right) fills up as you near
-the closest world.
+## 🌌 The universe
 
-## 🌍 The worlds
+- **3 galaxies**, each wrapped in a glowing **bubble** and centered on a
+  **black hole** (event horizon + accretion disk).
+- Inside a galaxy you see only *that* galaxy; fly out into **intergalactic
+  space** and every galaxy's bubble appears — pick your next one and fly (or
+  portal) there.
+- Each galaxy holds **5–7 star systems** with **1, 2, or 3 suns**.
+- **Sol** (your start) is always a single yellow star.
+- Every system has **3–7 planets**, each with its own procedural texture
+  (earth, gas giant, ice, lava, toxic, rocky, craters, desert), atmospheres,
+  rings, moons, and some with lumpy bulges.
 
-| Body | Type | Notes |
-|------|------|-------|
-| ☀️ **The Sun** | Star | Always the biggest thing. You can't land on it 🔥 |
-| 🪐 **Rustar** | Planet | Rusty red, closest in |
-| 🪐 **Verda** | Planet | Green — has a moon: **Lume** 🌙 |
-| 🪐 **Azuria** | Planet | Blue, wears a ring 💍 |
-| 🪐 **Cirene** | Planet | Purple — has **two** moons: **Vex** and **Nyx** 🌙🌙 |
-| 🪐 **Ferox** | Planet | Golden, farthest out |
+## 🛬 Landing
 
-**Goal:** visit all 7 landable bodies (5 planets + 3 moons). The counter is top-left.
+Touch any planet or moon to drop onto its **surface** — the ground is painted
+and textured to match the world, the sky shows the system's 1–3 suns, ringed
+worlds show their rings arcing overhead, and crater worlds have real pits carved
+into the terrain. Hold **Space** to climb back into space.
 
-## 🧠 How the "flat but round" illusion works
+## 🏆 Goal
 
-Think of an ant on a beach ball vs. an ant on a stadium. Same curve rule, but the
-stadium is so big the ant sees flat ground. In this game the planets have **huge
-radii (70–110 units)**, so when your ship rests on the surface, the curvature is
-too gentle to notice — you're genuinely standing on a sphere that just *looks* flat.
+Explore and **land on every world in the universe** — do it and you'll see
+**UNIVERSE COMPLETE!** The counter (top-left) tracks your progress.
 
 ## 🛠️ Built with
 
-- [Three.js](https://threejs.org/) (loaded from a CDN — no build step)
-- A single `index.html` file. Everything (scene, physics, HUD) lives inside it.
+- [Three.js](https://threejs.org/) (bundled locally — no build step, no internet)
+- A single `index.html` (dev) → built into `Space-Explorer.html` (one-file game)
+  via `node build-standalone.js`
+- See `CHANGELOG.md` for the full v0.1 → v1.0 journey.
