@@ -1,10 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
-  "headers": [
+  "redirects": [
     {
-      "source": "/vendor/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+      "source": "/vendor/three.min.js",
+      "destination": "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js",
+      "permanent": false
     }
   ]
 }
