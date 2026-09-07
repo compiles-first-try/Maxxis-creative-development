@@ -101,6 +101,31 @@
   #sysBanner.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
   #sysBanner .big { font-size: 40px; font-weight: bold; letter-spacing: 2px; color: #9ad0ff; text-shadow: 0 0 20px rgba(90,170,255,0.9); }
 
+  /* ---------- Players online (multiplayer) ---------- */
+  #players {
+    top: 44px; left: 50%; transform: translateX(-50%); z-index: 24;
+    font-size: 13px; color: #9ad0ff; background: rgba(6,14,30,0.45);
+    padding: 3px 12px; border-radius: 14px; max-width: 80vw; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  #players:empty { display: none; }
+
+  /* ---------- Start-screen multiplayer controls ---------- */
+  .mp { margin-top: 20px; }
+  #mpModes { display: flex; gap: 8px; justify-content: center; }
+  .mp-mode {
+    pointer-events: auto; cursor: pointer; padding: 7px 16px; border-radius: 9px;
+    background: #16233f; border: 2px solid #3a5fa0; color: #dbeaff; font-weight: bold; font-size: 14px;
+  }
+  .mp-mode.sel { border-color: #7dffb0; background: #1c3a2e; color: #7dffb0; }
+  #mpFields { margin-top: 10px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .mp-input {
+    pointer-events: auto; width: 260px; max-width: 80vw; padding: 8px 12px; border-radius: 8px;
+    border: 1px solid #3a5fa0; background: #0b1730; color: #eaf2ff; font-size: 15px;
+  }
+  .mp-hint { font-size: 12px; color: #90a8d0; max-width: 320px; text-align: center; line-height: 1.4; }
+  .mp-hint b { color: #ffe27a; }
+
   /* ---------- Hyperspeed indicator ---------- */
   #hyper {
     top: 64%; left: 50%; transform: translateX(-50%); z-index: 25;
@@ -183,6 +208,7 @@
 </div>
 
 <div id="sysName" class="hud">◎ <span id="sysNameText">Sol</span></div>
+<div id="players" class="hud"></div>
 
 <div id="landed" class="hud">
   <div class="big" id="landedName">LANDED</div>
@@ -206,7 +232,7 @@
 <!-- Start screen -->
 <div id="start">
   <h1>🚀 SPACE EXPLORER</h1>
-  <div style="margin-top:-8px;margin-bottom:6px;letter-spacing:3px;color:#7dffb0;font-weight:bold;font-size:14px;">★ v1.1 · FULL RELEASE ★</div>
+  <div style="margin-top:-8px;margin-bottom:6px;letter-spacing:3px;color:#7dffb0;font-weight:bold;font-size:14px;">★ v1.2.4 · MULTIPLAYER ★</div>
   <p>Five galaxies, each a black hole ringed by dozens of star systems — some with two, three, even four suns. Pick your ship, fly a portal to any system (or blast between galaxies with <b>Q+W</b> hyperspeed), and land on mountainous, richly-textured worlds. Keep an eye out for alien life. Visit every world to complete the universe.</p>
   <div class="keys">
     <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> steer &nbsp;•&nbsp;
@@ -215,6 +241,19 @@
   <div class="shipsel">
     <div class="shipsel-label">🚀 Choose your ship</div>
     <div id="shipBtns"></div>
+  </div>
+  <div class="mp">
+    <div class="shipsel-label">👥 Multiplayer</div>
+    <div id="mpModes">
+      <div class="mp-mode sel" data-mode="single">Single</div>
+      <div class="mp-mode" data-mode="host">Host</div>
+      <div class="mp-mode" data-mode="join">Join</div>
+    </div>
+    <div id="mpFields" hidden>
+      <input id="mpPass" class="mp-input" placeholder="network password" autocomplete="off" />
+      <input id="mpName" class="mp-input" placeholder="your name" autocomplete="off" />
+      <div id="mpHint" class="mp-hint"></div>
+    </div>
   </div>
   <button id="startBtn">LAUNCH</button>
 </div>
@@ -239,7 +278,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v1.1';
+const GAME_VERSION = 'v1.2.4';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -253,6 +292,11 @@ const DIST_SCALE = 20;
 
 /* v0.5: up/down thrust is this fraction of forward thrust (lower = gentler). */
 const VERT_SENS = 0.35;
+
+/* v1.2.4: seeded RNG → a deterministic universe, so multiplayer peers all
+   generate identical galaxies/systems/planets. */
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const WORLD_SEED = 20240613;
 
 const THREE_OK = typeof THREE !== 'undefined';
 
@@ -398,6 +442,11 @@ function planetTexture(type, base) {
 // v1.1: SHARED texture library (a few gray variants per type) reused across all
 // planets and tinted per-planet via material.color — so hundreds of planets don't
 // each allocate a big texture (which would exhaust GPU memory).
+// v1.2.4: from here through galaxy generation, use the seeded RNG so every
+// player builds the exact same universe (restored to real Math.random after).
+const _realRandom = Math.random;
+Math.random = mulberry32(WORLD_SEED);
+
 const TEX_LIB = {};
 TEX_TYPES.forEach(t => { TEX_LIB[t] = [planetTexture(t, 0x9a9a9a), planetTexture(t, 0x9a9a9a), planetTexture(t, 0x9a9a9a)]; });
 
@@ -620,6 +669,8 @@ GALAXY_DEFS.forEach((gd, gi) => {
       { name, stars, starColor2: randStarColor(), galaxy: gi });
   }
 });
+
+Math.random = _realRandom;   // v1.2.4: universe built; back to real randomness for runtime
 
 // v1.1: a shared moving light pool — assigned to the nearest systems each frame,
 // so hundreds of systems stay performant (a few lights instead of one per system).
@@ -996,7 +1047,7 @@ const ui = {
   nearName: el('nearName'), nearDist: el('nearDist'), barFill: el('barFill'),
   landed: el('landed'), landedName: el('landedName'),
   sysNameText: el('sysNameText'), sysBanner: el('sysBanner'), sysBannerText: el('sysBannerText'),
-  portalHint: el('portalHint'), hyper: el('hyper')
+  portalHint: el('portalHint'), hyper: el('hyper'), players: el('players')
 };
 let visitedCount = 0;
 let running = false;
@@ -1073,7 +1124,90 @@ addEventListener('keydown', e => {
   });
 })();
 
+/* ---------- v1.2.4: password-room multiplayer (BroadcastChannel) ---------- */
+let net = null, mpRole = 'single';
+const myId = 'p' + Math.floor(Math.random() * 1e9);
+let myName = 'Pilot';
+const peers = {};   // id -> { group, lastSeen, name }
+const PEER_COLORS = [0xff5a5a, 0x5affa0, 0x5a9cff, 0xffd24a, 0xc59cff, 0xff9ad0, 0x5affff];
+
+function makeLabel(text) {
+  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 64;
+  const g = cv.getContext('2d'); g.font = 'bold 34px sans-serif'; g.textAlign = 'center';
+  g.fillStyle = 'rgba(0,0,0,0.45)'; g.fillRect(0, 0, 256, 64);
+  g.fillStyle = '#ffffff'; g.fillText((text || 'Pilot').slice(0, 14), 128, 44);
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false }));
+  return s;
+}
+function makeRemoteShip(name, idx) {
+  const grp = new THREE.Group();
+  const col = PEER_COLORS[idx % PEER_COLORS.length];
+  const body = new THREE.Mesh(new THREE.ConeGeometry(1.4, 7, 16), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.35 }));
+  body.rotation.x = Math.PI / 2; grp.add(body);          // nose points +Z
+  const wing = new THREE.Mesh(new THREE.BoxGeometry(7, 0.3, 2), new THREE.MeshStandardMaterial({ color: col })); wing.position.z = -1.5; grp.add(wing);
+  const label = makeLabel(name); label.scale.set(80, 20, 1); label.position.set(0, 9, 0); grp.add(label);
+  grp.scale.setScalar(0.5); scene.add(grp);
+  return { group: grp, label };
+}
+function upsertPeer(m) {
+  let p = peers[m.id];
+  if (!p) { p = makeRemoteShip(m.name, Object.keys(peers).length); peers[m.id] = p; }
+  p.name = m.name; p.lastSeen = performance.now();
+  p.group.position.set(m.x, m.y, m.z);
+  if (m.qx !== undefined) p.group.quaternion.set(m.qx, m.qy, m.qz, m.qw);
+  p.group.visible = (m.mode === 'space');                 // only render peers who are in space
+}
+function removePeer(id) { const p = peers[id]; if (p) { scene.remove(p.group); delete peers[id]; } }
+
+function connectMultiplayer(pass, name, role) {
+  myName = (name || '').trim() || (role === 'host' ? 'Host' : 'Pilot');
+  mpRole = role;
+  try { net = new BroadcastChannel('space-explorer-mp-' + pass); }
+  catch (e) { net = null; return false; }
+  net.onmessage = ev => {
+    const m = ev.data; if (!m || m.id === myId) return;
+    if (m.type === 'bye') removePeer(m.id); else if (m.type === 'state') upsertPeer(m);
+  };
+  return true;
+}
+let mpLastSend = 0;
+function mpTick(now) {
+  if (!net) return;
+  if (now - mpLastSend > 80) {   // broadcast my state ~12x/sec
+    mpLastSend = now; const q = ship.quaternion;
+    net.postMessage({ type: 'state', id: myId, name: myName, mode,
+      x: ship.position.x, y: ship.position.y, z: ship.position.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w });
+  }
+  for (const id in peers) if (now - peers[id].lastSeen > 3500) removePeer(id);   // drop the silent
+  const others = Object.values(peers).map(p => p.name || 'Pilot');
+  ui.players.textContent = others.length ? ('👥 You + ' + others.join(', ')) : '';
+}
+addEventListener('beforeunload', () => { if (net) try { net.postMessage({ type: 'bye', id: myId }); } catch (e) {} });
+
+/* ---------- Start-screen multiplayer UI ---------- */
+let mpMode = 'single';
+(function multiplayerUI() {
+  const modes = el('mpModes'), fields = el('mpFields'), pass = el('mpPass'), hint = el('mpHint');
+  [...modes.children].forEach(btn => btn.onclick = () => {
+    mpMode = btn.dataset.mode;
+    [...modes.children].forEach(b => b.classList.toggle('sel', b === btn));
+    fields.hidden = (mpMode === 'single');
+    if (mpMode === 'host') {
+      if (!pass.value) pass.value = 'nova-' + Math.floor(1000 + Math.random() * 9000);   // suggest a password
+      hint.innerHTML = 'Share this password: <b>' + pass.value + '</b><br>Friends pick <b>Join</b> and type it (same browser / local server).';
+    } else if (mpMode === 'join') {
+      hint.innerHTML = "Type the host's network password to join their game.";
+    }
+  });
+  pass.addEventListener('input', () => { if (mpMode === 'host') hint.innerHTML = 'Share this password: <b>' + (pass.value || '…') + '</b><br>Friends pick <b>Join</b> and type it (same browser / local server).'; });
+})();
+
 el('startBtn').addEventListener('click', () => {
+  if (mpMode !== 'single') {
+    const pass = el('mpPass').value.trim();
+    if (!pass) { el('mpHint').innerHTML = '<b>Enter a password first.</b>'; return; }
+    connectMultiplayer(pass, el('mpName').value, mpMode);
+  }
   el('start').classList.add('hide');
   running = true;
 });
@@ -1192,6 +1326,9 @@ function animate() {
     const tsec = clock.elapsedTime;
     ALIEN_POOL.forEach((a, i) => { if (a.visible) { a.userData.body.position.y = 12 + Math.sin(tsec * 2 + i) * 2; a.rotation.y += 0.3 * dt; } });
   }
+
+  // v1.2.4: broadcast my ship + draw everyone else's (no-op unless connected)
+  mpTick(performance.now());
 
   renderer.render(mode === 'space' ? scene : surfaceScene, camera);
 }

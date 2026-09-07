@@ -1,8 +1,20 @@
-# 🚀 Space Explorer — v1.0
+# 🚀 Space Explorer — v1.2.4
 
-A 3D space game you fly in your browser. Three galaxies, each a black hole ringed
+A 3D space game you fly in your browser. Five galaxies, each a black hole ringed
 by star systems, filled with richly-textured worlds you can actually land on.
-**Out of early access — this is the full release.**
+**Out of early access — this is the full release, now with multiplayer.**
+
+## 👥 Multiplayer
+
+On the start screen pick **Host** (you get a network password like `nova-4821`)
+or **Join** (type the host's password). Everyone who types the *same password*
+shares one universe and sees each other's ships fly around live. A wrong password
+just puts you in a different room, so the password controls who can join.
+
+> **Note:** the game is a single offline file with no server, so "same password"
+> links players in the **same browser (multiple tabs/windows) or behind one local
+> server** — not across the open internet. True internet play would need a relay
+> server, which a static HTML file can't run.
 
 ## ▶️ Play it
 

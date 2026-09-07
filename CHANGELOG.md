@@ -7,6 +7,22 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v1.2.4 — password-room multiplayer
+- 🎮 Multiplayer! On the start screen pick **Host** or **Join**. The host gets
+  a suggested **network password** (e.g. `nova-4821`); anyone who types the
+  same password lands in the same shared universe and sees each other's ships
+  fly around in real time, each with a colored ship + name label
+- 🔑 Wrong password = separate room: you only meet pilots who typed your exact
+  password, so the password gates who can join
+- 👥 A "You + …" player list shows in the top-right while connected
+- 🌍 The universe is now **seeded** (`WORLD_SEED`) so every player generates the
+  *identical* galaxies, systems and planets — essential so you're all flying
+  through the same worlds
+- ⚠️ Because the game is one offline file with no server, "same password"
+  connects players in the **same browser (multiple tabs/windows) or behind one
+  local server** — it is not open-internet play (a static HTML file can't run a
+  server). Real cross-internet multiplayer would need a signaling/relay server.
+
 ## v1.1 — five galaxies, ship choice, aliens & more
 - 🌌 Two more galaxies (Verdigris, Rosequartz) — five in all
 - 🚀 Choose your ship model on the start screen (Capsule / Fighter / Saucer / Shuttle)
