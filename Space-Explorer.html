@@ -467,7 +467,8 @@ function makePlanet(cfg, center, sys) {
 
   bodies.push({ name: cfg.name, mesh, pivot, radius: cfg.radius, color: cfg.color, texType: type,
     hasRing: !!cfg.ring, orbitSpeed: cfg.orbitSpeed, spin: cfg.spin || 0.05, world: new THREE.Vector3(), visited: false,
-    starCount: sys ? sys.nStars : 1, starColors: sys ? sys.starColors : [0xffe27a], galaxy: sys ? sys.galaxy : 0 });
+    starCount: sys ? sys.nStars : 1, starColors: sys ? sys.starColors : [0xffe27a], galaxy: sys ? sys.galaxy : 0,
+    sysIndex: sys ? sys.index : 0 });
 
   (cfg.moons || []).forEach(mn => {
     mn.radius *= BODY_SCALE; mn.distance *= DIST_SCALE;
@@ -477,7 +478,8 @@ function makePlanet(cfg, center, sys) {
     mmesh.position.set(mn.distance, 0, 0); mpivot.add(mmesh);
     bodies.push({ name: mn.name, mesh: mmesh, pivot: mpivot, radius: mn.radius, color: mn.color,
       orbitSpeed: mn.orbitSpeed, spin: 0.1, world: new THREE.Vector3(), visited: false,
-      starCount: sys ? sys.nStars : 1, starColors: sys ? sys.starColors : [0xffe27a], galaxy: sys ? sys.galaxy : 0 });
+      starCount: sys ? sys.nStars : 1, starColors: sys ? sys.starColors : [0xffe27a], galaxy: sys ? sys.galaxy : 0,
+      sysIndex: sys ? sys.index : 0 });
   });
 }
 
@@ -891,8 +893,8 @@ function enterSurface(body) {
   surfPitch = body.hasRing ? -0.2 : 0.35;   // ring worlds: tilt the view up to reveal them
   state.pitch = 0;                          // level out for surface
 
-  // v1.1: rare alien life (0.5%)
-  aliensPresent = Math.random() < 0.005;
+  // v1.1: alien life — every Sol-system world always has it; elsewhere a 10% chance
+  aliensPresent = (body.sysIndex === 0) || Math.random() < 0.10;
   surfaceAliens.visible = aliensPresent;
   if (aliensPresent) {
     const n = 3 + (Math.random() * 4 | 0);

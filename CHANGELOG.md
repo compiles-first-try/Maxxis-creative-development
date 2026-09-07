@@ -13,7 +13,8 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 - ⭐ Rare 2% four-star systems (never Sol); their planets' skies show all 4 suns
 - ✨ Way more star systems per galaxy (12–19)
 - ⛰️ Mountains raised out of every planet surface (with lighter peaks)
-- 👽 0.5% chance a landed world has visible alien life forms
+- 👽 Alien life: every world in the Sol (spawn) system always has it, and
+  elsewhere the chance is 10% per landing
 - 🖱️ Left-drag now orbits the camera (right-drag still aims the ship)
 - 🐛 Fixed a crash when landing on moons (they now carry their system's sun info)
 - 🔄 Multi-star systems (2/3/4) orbit their shared centre
