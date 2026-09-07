@@ -7,6 +7,18 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v0.8 — galaxies, black holes, richer worlds
+- 🌌 Three galaxies, each a black hole ringed by 5–7 star systems, placed
+  ~130M units apart; the portal menu is grouped by galaxy → system
+- 🕳️ Every galaxy has a black hole (event horizon + photon ring + glowing
+  accretion disk) that also marks the galaxy from far away; it's solid
+- 🪐 Much richer planet textures (earth/gas/ice/lava/toxic/rocky/craters/
+  desert with fractal blobs, clouds, storms, ice caps) + atmosphere glow
+- ☀️ A planet's surface sky now shows its system's 1, 2, or 3 suns
+- ⚡ Hyperspeed is far faster (3000× thrust) and you can fly between
+  galaxies directly, not just via portals
+- 💡 One distance-limited light per system so many systems stay performant
+
 ## v0.7.5 — 30× galaxy & hyperspeed
 - 🌌 Every star system now sits 30× farther apart (`SYSTEM_SPREAD = 30`);
   far plane and starfield grown to match

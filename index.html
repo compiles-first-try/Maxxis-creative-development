@@ -121,7 +121,10 @@
     box-shadow: 0 0 50px rgba(60,120,255,0.4); color: #dbeaff;
   }
   .pm-title { font-size: 20px; font-weight: bold; color: #ffe27a; text-align: center; margin-bottom: 16px; }
-  .pm-list { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .pm-list { display: block; max-height: 62vh; overflow-y: auto; padding-right: 6px; }
+  .pm-galaxy { font-size: 15px; font-weight: bold; color: #bcd0ff; margin: 14px 4px 8px; border-bottom: 1px solid #2a466f; padding-bottom: 5px; }
+  .pm-galaxy:first-child { margin-top: 0; }
+  .pm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .pm-btn {
     pointer-events: auto; cursor: pointer; text-align: left;
     background: #14233f; border: 1px solid #3a5fa0; border-radius: 10px;
@@ -192,7 +195,7 @@
 <!-- Start screen -->
 <div id="start">
   <h1>🚀 SPACE EXPLORER</h1>
-  <p>Eight star systems drift far apart in the dark — some circled by two or three suns. Fly to any glowing beacon, or step through a system's <b>portal</b> and pick your destination. Land on every uniquely-textured world you find.</p>
+  <p>Three galaxies, each a black hole ringed by star systems — some circled by two or three suns. Fly a portal to any system (or blast between galaxies with <b>Q+W</b> hyperspeed), and land on richly-textured worlds where the sky holds one, two, or three suns.</p>
   <div class="keys">
     <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> steer &nbsp;•&nbsp;
     <span class="key">Space</span> climb &nbsp;•&nbsp; <span class="key">Ctrl</span> dive &nbsp;•&nbsp; <span class="key">Shift</span> boost
@@ -220,7 +223,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v0.7.5';
+const GAME_VERSION = 'v0.8';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -247,7 +250,7 @@ app.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(
-  65, window.innerWidth / window.innerHeight, 1, 120000000  // far plane vast: systems are ~25M units apart
+  65, window.innerWidth / window.innerHeight, 1, 1500000000  // far plane immense: galaxies are ~130M units apart
 );
 
 /* ---------- Lighting ---------- */
@@ -259,7 +262,7 @@ scene.add(new THREE.AmbientLight(0x445577, 0.55));         // soft fill so dark 
   const N = 4000, pos = new Float32Array(N * 3);
   for (let i = 0; i < N; i++) {
     // scatter points on a big shell around the world
-    const r = 45000000 + Math.random() * 25000000;   // far shell, beyond every star system
+    const r = 450000000 + Math.random() * 300000000;   // far shell, beyond every galaxy
     const t = Math.acos(2 * Math.random() - 1);
     const p = Math.random() * Math.PI * 2;
     pos[i*3]   = r * Math.sin(t) * Math.cos(p);
@@ -268,7 +271,7 @@ scene.add(new THREE.AmbientLight(0x445577, 0.55));         // soft fill so dark 
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const m = new THREE.PointsMaterial({ color: 0xffffff, size: 45000, sizeAttenuation: true });
+  const m = new THREE.PointsMaterial({ color: 0xffffff, size: 700000, sizeAttenuation: true });
   scene.add(new THREE.Points(g, m));
 })();
 
@@ -294,42 +297,86 @@ function shade(c, f) {   // f>0 lightens toward white, f<0 darkens toward black;
   return '#' + col.getHexString();
 }
 
-/* ---------- Procedural planet textures — every planet gets a different one ---------- */
-const TEX_TYPES = ['bands', 'rocky', 'craters', 'swirl', 'ice', 'patches', 'lava', 'dunes'];
+/* ---------- v0.8: richer procedural planet textures ---------- */
+const TEX_TYPES = ['earth', 'gas', 'rocky', 'craters', 'ice', 'lava', 'toxic', 'desert'];
+function shadeA(base, f, a) {   // shaded colour as rgba string (with alpha)
+  const cc = new THREE.Color(base).lerp(new THREE.Color(f >= 0 ? 0xffffff : 0x000000), Math.abs(f));
+  return 'rgba(' + (cc.r*255|0) + ',' + (cc.g*255|0) + ',' + (cc.b*255|0) + ',' + a + ')';
+}
 
 function planetTexture(type, base) {
-  const W = 512, H = 256, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const W = 1024, H = 512, c = document.createElement('canvas'); c.width = W; c.height = H;
   const g = c.getContext('2d'); const rnd = (a, b) => a + Math.random() * (b - a);
-  g.fillStyle = hex(base); g.fillRect(0, 0, W, H);
-  if (type === 'bands') {                                   // gas-giant stripes
-    for (let y = 0; y < H; y += rnd(8, 22)) { g.fillStyle = shade(base, rnd(-0.35, 0.35)); g.fillRect(0, y | 0, W, rnd(6, 18)); }
-  } else if (type === 'rocky') {                            // speckled rock
-    for (let i = 0; i < 4500; i++) { g.fillStyle = shade(base, rnd(-0.4, 0.3)); g.fillRect(Math.random()*W, Math.random()*H, 2, 2); }
-  } else if (type === 'craters') {                          // craters in varied colors
-    for (let i = 0; i < 90; i++) { const r = rnd(4, 22), x = Math.random()*W, y = Math.random()*H;
-      const floor = Math.random() < 0.45
-        ? '#' + new THREE.Color().setHSL(Math.random(), 0.5, 0.32).getHexString()   // a different-colored crater
-        : shade(base, -0.35);
-      g.beginPath(); g.arc(x, y, r, 0, 7); g.fillStyle = floor; g.fill();
-      g.beginPath(); g.arc(x - r*0.3, y - r*0.3, r*0.6, 0, 7); g.fillStyle = shade(base, 0.28); g.fill(); }
-  } else if (type === 'swirl') {                            // stormy swirls
-    for (let i = 0; i < 1100; i++) { const a = rnd(0, 7); const x = W/2 + Math.cos(a)*rnd(0, W/2), y = H/2 + Math.sin(a*1.7)*rnd(0, H/2);
-      g.fillStyle = shade(base, Math.sin(a*3)*0.3); g.fillRect(x, y, rnd(3, 10), rnd(3, 10)); }
+
+  // base: subtle equator-to-pole vertical shading
+  const bg = g.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, shade(base, -0.3)); bg.addColorStop(0.5, shade(base, 0.08)); bg.addColorStop(1, shade(base, -0.3));
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+
+  // soft fractal-ish blobs of shaded colour
+  const blobs = (n, rmin, rmax, sLo, sHi, aLo, aHi) => {
+    for (let i = 0; i < n; i++) {
+      const x = Math.random()*W, y = rnd(H*0.05, H*0.95), r = rnd(rmin, rmax);
+      const grd = g.createRadialGradient(x, y, 0, x, y, r);
+      grd.addColorStop(0, shadeA(base, rnd(sLo, sHi), rnd(aLo, aHi))); grd.addColorStop(1, shadeA(base, 0, 0));
+      g.fillStyle = grd; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+    }
+  };
+  const clouds = (n, alpha) => {
+    for (let i = 0; i < n; i++) { const x = Math.random()*W, y = rnd(H*0.08, H*0.92), r = rnd(20, 100);
+      const grd = g.createRadialGradient(x, y, 0, x, y, r);
+      grd.addColorStop(0, 'rgba(255,255,255,' + rnd(alpha*0.5, alpha) + ')'); grd.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = grd; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); }
+  };
+  const iceCaps = () => { g.fillStyle = 'rgba(255,255,255,0.85)'; g.fillRect(0, 0, W, H*0.05); g.fillRect(0, H*0.95, W, H*0.05);
+    g.fillStyle = 'rgba(255,255,255,0.4)'; g.fillRect(0, H*0.05, W, H*0.03); g.fillRect(0, H*0.92, W, H*0.03); };
+
+  if (type === 'gas') {                                     // turbulent banded gas giant + storm
+    for (let y = 0; y < H; y += rnd(9, 24)) { g.fillStyle = shade(base, rnd(-0.4, 0.4));
+      g.beginPath(); g.moveTo(0, y); for (let x = 0; x <= W; x += 24) g.lineTo(x, y + Math.sin(x*0.02 + y*0.3)*9);
+      g.lineTo(W, y + 20); g.lineTo(0, y + 20); g.closePath(); g.fill(); }
+    blobs(26, 40, 130, -0.3, 0.3, 0.2, 0.5);
+    const sx = rnd(W*0.2, W*0.8), sy = rnd(H*0.3, H*0.7), sr = rnd(60, 130);   // great storm
+    const gg = g.createRadialGradient(sx, sy, 0, sx, sy, sr);
+    gg.addColorStop(0, shade(base, 0.5)); gg.addColorStop(0.6, shade(base, -0.4)); gg.addColorStop(1, shadeA(base, 0, 0));
+    g.fillStyle = gg; g.beginPath(); g.arc(sx, sy, sr, 0, 7); g.fill();
+  } else if (type === 'earth') {                            // oceans, continents, clouds, ice caps
+    g.fillStyle = shade(base, -0.2); g.fillRect(0, 0, W, H);
+    blobs(70, 45, 170, 0.15, 0.55, 0.7, 0.98); blobs(50, 18, 70, -0.2, 0.2, 0.3, 0.6);
+    clouds(55, 0.6); iceCaps();
+  } else if (type === 'craters') {                          // richer varied craters
+    blobs(28, 40, 150, -0.2, 0.2, 0.2, 0.5);
+    for (let i = 0; i < 150; i++) { const r = rnd(4, 28), x = Math.random()*W, y = Math.random()*H;
+      const diff = Math.random() < 0.4;
+      g.beginPath(); g.arc(x, y, r, 0, 7); g.fillStyle = diff ? '#' + new THREE.Color().setHSL(Math.random(), 0.5, 0.3).getHexString() : shade(base, -0.4); g.fill();
+      g.beginPath(); g.arc(x - r*0.28, y - r*0.28, r*0.62, 0, 7); g.fillStyle = shade(base, 0.3); g.fill(); }
   } else if (type === 'ice') {                              // pale ice with cracks
-    g.fillStyle = shade(base, 0.4); g.fillRect(0, 0, W, H); g.strokeStyle = shade(base, -0.25); g.lineWidth = 2;
-    for (let i = 0; i < 45; i++) { g.beginPath(); g.moveTo(Math.random()*W, Math.random()*H); g.lineTo(Math.random()*W, Math.random()*H); g.stroke(); }
-  } else if (type === 'patches') {                          // continents/patches
-    for (let i = 0; i < 45; i++) { g.beginPath(); g.arc(Math.random()*W, Math.random()*H, rnd(10, 40), 0, 7); g.fillStyle = shade(base, rnd(-0.3, 0.35)); g.fill(); }
-  } else if (type === 'lava') {                             // dark crust, bright veins
-    g.fillStyle = shade(base, -0.5); g.fillRect(0, 0, W, H);
-    for (let i = 0; i < 140; i++) { g.strokeStyle = shade(base, 0.5); g.lineWidth = rnd(1, 4); const x = Math.random()*W, y = Math.random()*H;
-      g.beginPath(); g.moveTo(x, y); g.lineTo(x + rnd(-30, 30), y + rnd(-30, 30)); g.stroke(); }
-  } else {                                                  // dunes: wavy sand rows
-    for (let y = 0; y < H; y += rnd(10, 26)) { g.fillStyle = shade(base, rnd(-0.2, 0.25));
-      g.beginPath(); g.moveTo(0, y); for (let x = 0; x <= W; x += 32) g.lineTo(x, y + Math.sin(x*0.05 + y)*6);
-      g.lineTo(W, y + 20); g.lineTo(0, y + 20); g.fill(); }
+    g.fillStyle = shade(base, 0.45); g.fillRect(0, 0, W, H);
+    blobs(45, 40, 160, 0.2, 0.5, 0.3, 0.6);
+    g.strokeStyle = shade(base, -0.3); g.lineWidth = 2;
+    for (let i = 0; i < 80; i++) { g.beginPath(); g.moveTo(Math.random()*W, Math.random()*H); g.lineTo(Math.random()*W, Math.random()*H); g.stroke(); }
+    iceCaps();
+  } else if (type === 'lava') {                             // dark crust, glowing veins
+    g.fillStyle = shade(base, -0.62); g.fillRect(0, 0, W, H);
+    blobs(45, 30, 130, -0.5, -0.2, 0.4, 0.85);
+    for (let i = 0; i < 240; i++) { g.strokeStyle = 'rgba(255,' + (110 + Math.random()*110|0) + ',40,' + rnd(0.4, 0.95) + ')'; g.lineWidth = rnd(1, 4);
+      const x = Math.random()*W, y = Math.random()*H; g.beginPath(); g.moveTo(x, y); g.lineTo(x + rnd(-45, 45), y + rnd(-45, 45)); g.stroke(); }
+  } else if (type === 'toxic') {                            // acidic haze & pools
+    blobs(75, 30, 150, -0.3, 0.4, 0.4, 0.85);
+    for (let i = 0; i < 45; i++) { const x = Math.random()*W, y = Math.random()*H, r = rnd(20, 90);
+      const grd = g.createRadialGradient(x, y, 0, x, y, r);
+      grd.addColorStop(0, 'rgba(190,255,120,' + rnd(0.15, 0.45) + ')'); grd.addColorStop(1, 'rgba(190,255,120,0)');
+      g.fillStyle = grd; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); }
+  } else if (type === 'rocky') {                            // layered rock & dust
+    blobs(90, 20, 130, -0.38, 0.38, 0.4, 0.9);
+    for (let i = 0; i < 7000; i++) { g.fillStyle = shade(base, rnd(-0.4, 0.3)); g.fillRect(Math.random()*W, Math.random()*H, 2, 2); }
+  } else {                                                  // desert dunes
+    for (let y = 0; y < H; y += rnd(12, 26)) { g.fillStyle = shade(base, rnd(-0.25, 0.3));
+      g.beginPath(); g.moveTo(0, y); for (let x = 0; x <= W; x += 26) g.lineTo(x, y + Math.sin(x*0.03 + y*0.5)*7);
+      g.lineTo(W, y + 22); g.lineTo(0, y + 22); g.fill(); }
+    blobs(30, 40, 130, -0.2, 0.28, 0.2, 0.5);
   }
-  const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; return t;
+  const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; t.anisotropy = 4; return t;
 }
 
 /* ---------- Planets, moons & STAR SYSTEMS ---------- */
@@ -341,15 +388,15 @@ const NAMES = ['Rustar','Verda','Azuria','Cirene','Ferox','Tarno','Vellum','Occa
                'Marrow','Sable','Pyra','Quill','Zenv','Umbra','Drift','Lonn','Krey','Fenn','Wisp','Orrin','Thal','Vasa'];
 let nameIx = 0; const nextName = () => NAMES[(nameIx++) % NAMES.length];
 
-function makePlanet(cfg, center) {
+function makePlanet(cfg, center, sys) {
   cfg.radius   *= BODY_SCALE;
   cfg.distance *= DIST_SCALE;
   const type = TEX_TYPES[(planetCount++) % TEX_TYPES.length];   // guarantees variety
   const mat = new THREE.MeshStandardMaterial({
-    map: planetTexture(type, cfg.color), roughness: 0.92, metalness: 0.05,
-    emissive: cfg.color, emissiveIntensity: 0.10
+    map: planetTexture(type, cfg.color), roughness: type === 'earth' || type === 'ice' ? 0.6 : 0.95,
+    metalness: type === 'earth' ? 0.15 : 0.05, emissive: cfg.color, emissiveIntensity: 0.08
   });
-  const geo = new THREE.SphereGeometry(cfg.radius, 48, 48);
+  const geo = new THREE.SphereGeometry(cfg.radius, 64, 48);   // smoother sphere
   if (cfg.bulge) {                              // v0.7: push one side out into a bulge
     const p = geo.attributes.position, v = new THREE.Vector3();
     const th = Math.acos(2 * Math.random() - 1), ph = Math.random() * Math.PI * 2;   // random unit direction
@@ -364,6 +411,12 @@ function makePlanet(cfg, center) {
     geo.computeVertexNormals();
   }
   const mesh = new THREE.Mesh(geo, mat);
+
+  // v0.8: soft atmosphere limb glow
+  const atmo = new THREE.Mesh(new THREE.SphereGeometry(cfg.radius * 1.07, 48, 32),
+    new THREE.MeshBasicMaterial({ color: shade(cfg.color, 0.35), transparent: true, opacity: 0.16,
+      side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false }));
+  mesh.add(atmo);
 
   const pivot = new THREE.Object3D();
   pivot.position.copy(center);                        // orbit THIS system's centre
@@ -381,7 +434,8 @@ function makePlanet(cfg, center) {
   }
 
   bodies.push({ name: cfg.name, mesh, pivot, radius: cfg.radius, color: cfg.color, texType: type,
-    hasRing: !!cfg.ring, orbitSpeed: cfg.orbitSpeed, spin: cfg.spin || 0.05, world: new THREE.Vector3(), visited: false });
+    hasRing: !!cfg.ring, orbitSpeed: cfg.orbitSpeed, spin: cfg.spin || 0.05, world: new THREE.Vector3(), visited: false,
+    starCount: sys ? sys.nStars : 1, starColors: sys ? sys.starColors : [0xffe27a], galaxy: sys ? sys.galaxy : 0 });
 
   (cfg.moons || []).forEach(mn => {
     mn.radius *= BODY_SCALE; mn.distance *= DIST_SCALE;
@@ -406,13 +460,13 @@ function makeStarMesh(color) {
 }
 
 function makeSystem(center, starColor, opts = {}) {
-  const sys = { center: center.clone(), name: opts.name || 'System', color: starColor };
+  const sys = { center: center.clone(), name: opts.name || 'System', color: starColor,
+    galaxy: opts.galaxy || 0, index: systems.length, starColors: [] };
   const nStars = Math.max(1, Math.min(3, opts.stars || 1));   // 1, 2, or 3 stars
 
   if (nStars === 1) {
     const sun = makeStarMesh(starColor); sun.position.copy(center); scene.add(sun);
-    const light = new THREE.PointLight(starColor, 0.8, 0, 0); light.position.copy(center); scene.add(light);
-    sys.sun = sun; sys.sunRadius = SUN_RADIUS;
+    sys.sun = sun; sys.sunRadius = SUN_RADIUS; sys.starColors = [starColor];
   } else {
     const pivot = new THREE.Object3D(); pivot.position.copy(center); scene.add(pivot);
     const off = SUN_RADIUS * (nStars === 2 ? 1.9 : 2.5);
@@ -420,12 +474,14 @@ function makeSystem(center, starColor, opts = {}) {
       const a = (i / nStars) * Math.PI * 2, x = Math.cos(a) * off, z = Math.sin(a) * off;
       const col = i === 0 ? starColor : (opts.starColor2 || starColor);
       const star = makeStarMesh(col); star.position.set(x, 0, z); pivot.add(star);
-      const li = new THREE.PointLight(col, 1.2 / nStars, 0, 0); li.position.set(x, 0, z); pivot.add(li);
+      sys.starColors.push(col);
     }
     sys.binaryPivot = pivot; sys.binarySpeed = 0.15;
     sys.sunRadius = off + SUN_RADIUS;
   }
   sys.nStars = nStars;
+  // ONE distance-limited light per system (keeps total light count sane across all galaxies)
+  const light = new THREE.PointLight(starColor, 1.7, 1200000); light.position.copy(center); scene.add(light);
 
   // faint beacon halo: seen from far away so you can hunt for the system, fades as you approach
   const beacon = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(hex(starColor)),
@@ -456,7 +512,7 @@ function makeSystem(center, starColor, opts = {}) {
       bulge: Math.random() < 0.4               // v0.7: some planets are lumpy
     };
     if (Math.random() < 0.3) cfg.moons = [{ name: nextName(), color: 0xcfcfcf, radius: 16, distance: 200, orbitSpeed: 0.8 }];
-    makePlanet(cfg, center);
+    makePlanet(cfg, center, sys);
   }
 }
 
@@ -476,21 +532,54 @@ function makePortal(color) {
   return g;
 }
 
-// EIGHT star systems, far apart. System 0 (Sol) is where you spawn.
-const SYSTEM_SPREAD = 30;   // v0.7.5: systems sit this many times farther apart
-const SYSTEM_DEFS = [
-  { name: 'Sol',    pos: [0, 0, 0],                  color: 0xffe27a, stars: 1 },
-  { name: 'Ember',  pos: [780000, 80000, -280000],   color: 0xff5a3a, stars: 2, starColor2: 0xd83828 },
-  { name: 'Frost',  pos: [-520000, -140000, 660000], color: 0x8fb8ff, stars: 1 },
-  { name: 'Vega',   pos: [-880000, 120000, -160000], color: 0xbfe0ff, stars: 3, starColor2: 0x9ec8ff },
-  { name: 'Corvus', pos: [240000, -220000, -900000], color: 0xc59cff, stars: 2, starColor2: 0x8a5cff },
-  { name: 'Onyx',   pos: [640000, 260000, 720000],   color: 0xff9a4a, stars: 1 },
-  { name: 'Lyra',   pos: [-300000, 300000, 880000],  color: 0x6affc0, stars: 2, starColor2: 0x2ec7a0 },
-  { name: 'Pyre',   pos: [900000, -180000, 260000],  color: 0xffd24a, stars: 3, starColor2: 0xff7a3a },
+// ---------- v0.8: GALAXIES — each is a black hole ringed by a disk of star systems ----------
+const galaxies = [];
+const GALAXY_RADIUS = 25000000;    // systems sit within this distance of the black hole
+const SYS_NAMES = ['Sol','Ember','Frost','Vega','Corvus','Onyx','Lyra','Pyre','Nova','Rhea','Talon',
+  'Cygnus','Draco','Mira','Atlas','Orion','Nadir','Zephyr','Cinder','Kaon','Vesper','Rune','Sol II','Thorn'];
+let sysNameIx = 0; const nextSysName = () => SYS_NAMES[(sysNameIx++) % SYS_NAMES.length];
+const STAR_PALETTE = [0xffe27a, 0xff7a4a, 0x8fb8ff, 0xbfe0ff, 0xffd24a, 0x6affc0, 0xc59cff, 0xff5a3a, 0xffffff, 0xffb060];
+const randStarColor = () => STAR_PALETTE[Math.random() * STAR_PALETTE.length | 0];
+
+function makeBlackHole(center, galaxy) {
+  const grp = new THREE.Group(); grp.position.copy(center);
+  const R = SUN_RADIUS * 4;
+  grp.add(new THREE.Mesh(new THREE.SphereGeometry(R, 48, 48), new THREE.MeshBasicMaterial({ color: 0x000000 })));   // event horizon
+  const ph = new THREE.Mesh(new THREE.TorusGeometry(R * 1.25, R * 0.05, 16, 64), new THREE.MeshBasicMaterial({ color: 0xfff2c0 }));
+  ph.rotation.x = Math.PI / 2.2; grp.add(ph);                                                                       // photon ring
+  const disks = new THREE.Group();
+  [[0xffd070, 0.55], [0xff8030, 0.4], [0xff4020, 0.28]].forEach(([col, op], i) => {
+    const d = new THREE.Mesh(new THREE.RingGeometry(R * (1.5 + i * 0.8), R * (2.3 + i * 1.2), 90),
+      new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false }));
+    d.rotation.x = Math.PI / 2.2; disks.add(d);
+  });
+  grp.add(disks);
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(hex(galaxy.core)),
+    transparent: true, blending: THREE.AdditiveBlending, opacity: 0.55, depthWrite: false }));
+  halo.scale.set(R * 30, R * 30, 1); grp.add(halo);
+  scene.add(grp);
+  galaxy.blackHole = grp; galaxy.bhDisks = disks; galaxy.bhHalo = halo; galaxy.bhRadius = R;
+}
+
+const GALAXY_DEFS = [
+  { name: 'Aurelia',   center: [0, 0, 0],                       core: 0xffd27a },
+  { name: 'Nyxa Void', center: [130000000, 12000000, -42000000], core: 0x9a6cff },
+  { name: 'Cindralis', center: [-92000000, -22000000, 116000000], core: 0xff7a4a },
 ];
-SYSTEM_DEFS.forEach(d => makeSystem(
-  new THREE.Vector3(d.pos[0] * SYSTEM_SPREAD, d.pos[1] * SYSTEM_SPREAD, d.pos[2] * SYSTEM_SPREAD),
-  d.color, { name: d.name, stars: d.stars, starColor2: d.starColor2 }));
+GALAXY_DEFS.forEach((gd, gi) => {
+  const gc = new THREE.Vector3(gd.center[0], gd.center[1], gd.center[2]);
+  const galaxy = { name: gd.name, center: gc, core: gd.core, systemIndices: [] };
+  galaxies.push(galaxy);
+  makeBlackHole(gc, galaxy);
+  const nSys = 5 + (Math.random() * 3 | 0);   // 5..7 systems per galaxy
+  for (let i = 0; i < nSys; i++) {
+    const ang = Math.random() * Math.PI * 2, rad = (0.35 + Math.random() * 0.65) * GALAXY_RADIUS;
+    const off = new THREE.Vector3(Math.cos(ang) * rad, (Math.random() - 0.5) * GALAXY_RADIUS * 0.15, Math.sin(ang) * rad);
+    galaxy.systemIndices.push(systems.length);
+    makeSystem(gc.clone().add(off), randStarColor(),
+      { name: nextSysName(), stars: 1 + (Math.random() * 3 | 0), starColor2: randStarColor(), galaxy: gi });
+  }
+});
 
 /* ---------- The Ship ---------- */
 const ship = new THREE.Group();
@@ -525,11 +614,12 @@ scene.add(ship);
 
 // Ship physics state
 const state = {
-  pos: new THREE.Vector3(0, 120 * DIST_SCALE, 560 * DIST_SCALE),   // start out in front of the sun
+  pos: systems[0].portalPos.clone().add(new THREE.Vector3(0, 2000, 15000)),   // spawn at the first system's portal
   vel: new THREE.Vector3(),
-  yaw: Math.PI,                          // facing back toward the sun
+  yaw: Math.PI,                          // (set below to face the first system)
   bank: 0                                // visual roll while turning
 };
+state.yaw = Math.atan2(systems[0].center.x - state.pos.x, systems[0].center.z - state.pos.z);
 ship.position.copy(state.pos);
 
 /* ===================== v0.3: SURFACE WORLDS =====================
@@ -654,12 +744,13 @@ const surfSun = new THREE.DirectionalLight(0xfff2c0, 1.5);
 surfSun.position.set(600, 1200, 400);
 surfaceScene.add(surfSun);
 
-// a decorative sun hanging in the surface sky
-const surfSunSprite = new THREE.Sprite(new THREE.SpriteMaterial({
-  map: glowTexture('#ffd24a'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-surfSunSprite.scale.set(4000, 4000, 1);
-surfSunSprite.position.set(9000, 7000, -12000);
-surfaceScene.add(surfSunSprite);
+// v0.8: 1–3 suns in the surface sky, matching the system's star count
+const whiteGlow = glowTexture('#ffffff');
+const SURF_SUN_POS = [[12000, 9000, -20000], [-18000, 7000, -14000], [6000, 13000, 16000]];
+const surfSuns = SURF_SUN_POS.map(p => {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: whiteGlow, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+  s.scale.set(9000, 9000, 1); s.position.set(p[0], p[1], p[2]); s.visible = false; surfaceScene.add(s); return s;
+});
 
 function tintColor(hex, f) {   // blend a color toward white by f (0..1)
   return new THREE.Color(hex).lerp(new THREE.Color(0xffffff), f);
@@ -676,6 +767,13 @@ function enterSurface(body) {
   surfaceScene.fog = new THREE.Fog(sky.getHex(), 3000, 22000);
   surfHemi.color.set(tintColor(body.color, 0.6));
   surfHemi.groundColor.set(body.color);
+
+  // v0.8: show this system's 1–3 suns in the sky
+  for (let i = 0; i < surfSuns.length; i++) {
+    const on = i < (body.starCount || 1); surfSuns[i].visible = on;
+    if (on) surfSuns[i].material.color.set(body.starColors[i % body.starColors.length]);
+  }
+  surfSun.color.set(body.starColors ? body.starColors[0] : 0xfff2c0);
 
   // v0.6: show rings across the sky if this world has them (and tilt the view up to reveal them)
   surfaceRing.visible = !!body.hasRing;
@@ -776,16 +874,16 @@ let visitedCount = 0;
 let running = false;
 el('total').textContent = bodies.length;   // total landable worlds across all systems
 
-/* ---------- v0.7: current system, portals & travel ---------- */
-let currentSystem = 0, sysBannerTimer = 0, nearPortal = -1, portalMenuOpen = false;
+/* ---------- v0.7/0.8: current system + galaxy, portals & travel ---------- */
+let currentSystem = 0, currentGalaxy = 0, sysBannerTimer = 0, nearPortal = -1, portalMenuOpen = false;
 const STAR_WORD = { 1: 'single star', 2: 'binary stars', 3: 'trinary stars' };
-ui.sysNameText.textContent = systems[0].name;
+ui.sysNameText.textContent = galaxies[0].name + ' · ' + systems[0].name;
 
 function planetsIn(s) { return bodies.filter(b => b.texType && b.pivot.position.distanceTo(s.center) < 1).length; }
 function setCurrentSystem(i) {
   if (i === currentSystem) return;
-  currentSystem = i;
-  ui.sysNameText.textContent = systems[i].name;
+  currentSystem = i; currentGalaxy = systems[i].galaxy;
+  ui.sysNameText.textContent = galaxies[currentGalaxy].name + ' · ' + systems[i].name;
   ui.sysBannerText.textContent = 'ENTERING ' + systems[i].name.toUpperCase();
   ui.sysBanner.classList.add('show'); sysBannerTimer = 2.4;
 }
@@ -794,14 +892,22 @@ const pmList = el('pmList');
 function openPortalMenu() {
   if (mode !== 'space') return;
   pmList.innerHTML = '';
-  systems.forEach((s, i) => {
-    const b = document.createElement('div');
-    b.className = 'pm-btn' + (i === currentSystem ? ' here' : '');
-    b.innerHTML = '<span class="dot" style="background:' + hex(s.color) + '"></span><b>' + s.name + '</b>' +
-      (i === currentSystem ? ' <span class="meta">(here)</span>' : '') +
-      '<div class="meta">' + STAR_WORD[s.nStars] + ' • ' + planetsIn(s) + ' planets</div>';
-    if (i !== currentSystem) b.onclick = () => travelTo(i);
-    pmList.appendChild(b);
+  galaxies.forEach((gx, gi) => {                       // v0.8: grouped by galaxy
+    const h = document.createElement('div'); h.className = 'pm-galaxy';
+    h.innerHTML = '🌌 ' + gx.name + (gi === currentGalaxy ? ' <span class="meta">(current galaxy)</span>' : '');
+    pmList.appendChild(h);
+    const grid = document.createElement('div'); grid.className = 'pm-grid';
+    gx.systemIndices.forEach(i => {
+      const s = systems[i];
+      const b = document.createElement('div');
+      b.className = 'pm-btn' + (i === currentSystem ? ' here' : '');
+      b.innerHTML = '<span class="dot" style="background:' + hex(s.color) + '"></span><b>' + s.name + '</b>' +
+        (i === currentSystem ? ' <span class="meta">(here)</span>' : '') +
+        '<div class="meta">' + STAR_WORD[s.nStars] + ' • ' + planetsIn(s) + ' planets</div>';
+      if (i !== currentSystem) b.onclick = () => travelTo(i);
+      grid.appendChild(b);
+    });
+    pmList.appendChild(grid);
   });
   portalMenuOpen = true; el('portalMenu').classList.add('show');
 }
@@ -867,6 +973,15 @@ function animate() {
     s.beacon.scale.set(bs, bs, 1);
   }
 
+  // v0.8: spin black-hole disks, and keep each galaxy's halo a constant on-screen marker
+  for (const g of galaxies) {
+    g.bhDisks.rotation.z += 0.15 * MOTION * dt;
+    const gd = camera.position.distanceTo(g.center);
+    const hs = Math.max(g.bhRadius * 30, gd * 0.05);
+    g.bhHalo.scale.set(hs, hs, 1);
+    g.bhHalo.material.opacity = Math.max(0.15, Math.min(0.7, (gd - 300000) / 20000000 + 0.15));
+  }
+
   // v0.7: which system am I in? which portal am I near?
   if (mode === 'space') {
     let bi = 0, bd = Infinity, pi = -1, pd = Infinity;
@@ -908,7 +1023,7 @@ let hyperActive = false;   // v0.7.5: true while Q+W hyperspeed engaged
 function updateShip(dt) {
   hyperActive = keys.KeyQ && keys.KeyW;                       // Q+W = hyperspeed
   const boost = (keys.ShiftLeft || keys.ShiftRight) ? 2.4 : 1;
-  const accel = 900 * DIST_SCALE * boost * (hyperActive ? 120 : 1);   // hyperspeed thrust
+  const accel = 900 * DIST_SCALE * boost * (hyperActive ? 3000 : 1);   // v0.8: WAY faster hyperspeed
   const turn  = 1.9;             // radians/sec
 
   // A/D turn (yaw) around world-up
@@ -935,7 +1050,9 @@ function updateShip(dt) {
 
   // --- collision / landing against every body + the sun ---
   let touched = null;
-  const checkList = bodies.concat(systems.map(s => ({ name: 'a star', world: s.center, radius: s.sunRadius, isSun: true })));
+  const checkList = bodies
+    .concat(systems.map(s => ({ name: 'a star', world: s.center, radius: s.sunRadius, isSun: true })))
+    .concat(galaxies.map(g => ({ name: 'a black hole', world: g.center, radius: g.bhRadius * 1.3, isSun: true })));
   for (const b of checkList) {
     toShip.copy(state.pos).sub(b.world);
     const dist = toShip.length();
