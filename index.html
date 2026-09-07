@@ -232,7 +232,7 @@
 <!-- Start screen -->
 <div id="start">
   <h1>🚀 SPACE EXPLORER</h1>
-  <div style="margin-top:-8px;margin-bottom:6px;letter-spacing:3px;color:#7dffb0;font-weight:bold;font-size:14px;">★ v1.2.4 · MULTIPLAYER ★</div>
+  <div style="margin-top:-8px;margin-bottom:6px;letter-spacing:3px;color:#7dffb0;font-weight:bold;font-size:14px;">★ v1.3 · MULTIPLAYER ★</div>
   <p>Five galaxies, each a black hole ringed by dozens of star systems — some with two, three, even four suns. Pick your ship, fly a portal to any system (or blast between galaxies with <b>Q+W</b> hyperspeed), and land on mountainous, richly-textured worlds. Keep an eye out for alien life. Visit every world to complete the universe.</p>
   <div class="keys">
     <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> steer &nbsp;•&nbsp;
@@ -278,7 +278,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v1.2.4';
+const GAME_VERSION = 'v1.3';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -835,6 +835,23 @@ for (let i = 0; i < 8; i++) {
 }
 let aliensPresent = false;
 
+// v1.3: remember the craters + mountains of the world we're standing on so the
+// ship can actually COLLIDE with the terrain (ride up mountains, dip into pits).
+let curCraters = [], curMtns = [];
+function terrainHeightAt(x, z) {
+  let y = 0;                                   // craters dig the ground DOWN
+  for (const cr of curCraters) {
+    const d = Math.hypot(x - cr.x, z - cr.z);
+    if (d < cr.r) { const yy = -cr.depth * (1 - d / cr.r); if (yy < y) y = yy; }
+  }
+  let mh = 0;                                  // mountains push it UP (same formula as shapeGround)
+  for (const m of curMtns) {
+    const d = Math.hypot(x - m.x, z - m.z);
+    if (d < m.r) { const k = 1 - d / m.r; mh += m.h * k * k; }
+  }
+  return y + mh;
+}
+
 // v0.6.6: sculpt the terrain itself — paint it the world's colour, and on crater
 // worlds push vertices DOWN into cone-shaped pits (sharp point at the centre).
 function shapeGround(base, craterWorld) {
@@ -870,6 +887,7 @@ function shapeGround(base, craterWorld) {
     mtns.push({ x: Math.cos(a) * rr, z: Math.sin(a) * rr, r: 2500 + Math.random() * 5500, h: 1200 + Math.random() * 4000 });
   }
   const peakCol = bc.clone().lerp(new THREE.Color(0xffffff), 0.35);   // lighter peaks (snowy caps)
+  curCraters = craters; curMtns = mtns;   // v1.3: keep them for terrain collision sampling
 
   for (let i = 0; i < pos.count; i++) {
     const wx = pos.getX(i), wz = -pos.getY(i);
@@ -993,13 +1011,18 @@ function updateSurface(dt) {
 
   state.pos.addScaledVector(state.vel, dt);
 
-  const floor = GROUND_Y + SHIP_CLEAR;         // rest on the ground
+  // v1.3: rest on the ACTUAL terrain under the ship (mountains now block you,
+  // craters let you dip in) instead of a single flat floor.
+  const th = GROUND_Y + terrainHeightAt(state.pos.x, state.pos.z);
+  const floor = th + SHIP_CLEAR;
   if (state.pos.y < floor) { state.pos.y = floor; if (state.vel.y < 0) state.vel.y = 0; }
 
   ship.position.copy(state.pos);
   ship.rotation.set(0, state.yaw, state.bank);
 
-  if (state.pos.y > LIFTOFF_HEIGHT) exitSurface();     // climb high enough -> back to space
+  // liftoff is measured ABOVE the terrain you're over, so standing on a tall
+  // mountain doesn't fling you into space.
+  if (state.pos.y - th > LIFTOFF_HEIGHT) exitSurface();
 }
 
 /* ---------- Input ---------- */
@@ -1392,11 +1415,16 @@ function updateShip(dt) {
 }
 
 // Orient the ship so its +Z nose points along `dir`, with a roll of `bank`.
-const _om = new THREE.Matrix4(), _oUp = new THREE.Vector3(0, 1, 0), _oNeg = new THREE.Vector3();
-const _ORIGIN = new THREE.Vector3(0, 0, 0);
+// v1.3: build the frame from a HORIZONTAL right-axis (derived from yaw) instead of
+// lookAt's fixed world-up. That right-axis never lines up with the flight direction,
+// so flying straight up/down no longer flips the ship (the old gimbal-lock bug that
+// made the model appear to "change").
+const _om = new THREE.Matrix4(), _oUp = new THREE.Vector3(0, 1, 0);
+const _oR = new THREE.Vector3(), _oU = new THREE.Vector3();
 function orientShipTo(dir, bank) {
-  _oNeg.copy(dir).negate();                   // target = -dir, eye = origin
-  _om.lookAt(_ORIGIN, _oNeg, _oUp);           // -Z faces -dir  →  +Z (nose) faces +dir
+  _oR.set(Math.cos(state.yaw), 0, -Math.sin(state.yaw));   // horizontal right — defined for ALL pitch
+  _oU.crossVectors(dir, _oR).normalize();                  // up = forward × right (stays orthonormal)
+  _om.makeBasis(_oR, _oU, dir);                            // columns X=right, Y=up, Z=nose
   ship.quaternion.setFromRotationMatrix(_om);
   ship.rotateZ(bank || 0);
 }
@@ -1453,7 +1481,7 @@ function updateHUD() {
 
   // On a planet's surface: show altitude + how high to climb to leave.
   if (mode === 'surface') {
-    const alt = Math.max(0, state.pos.y - GROUND_Y);
+    const alt = Math.max(0, state.pos.y - GROUND_Y - terrainHeightAt(state.pos.x, state.pos.z));
     ui.nearName.textContent = (currentBody ? currentBody.name : '') + ' — surface';
     ui.nearDist.textContent = 'altitude: ' + alt.toFixed(0) + ' / ' + LIFTOFF_HEIGHT + ' to leave ↑';
     ui.barFill.style.width = Math.min(100, alt / LIFTOFF_HEIGHT * 100) + '%';
@@ -1477,6 +1505,9 @@ function updateHUD() {
 }
 
 animate();
+
+// Small handle for automated tests (harmless in normal play).
+window.__game = { state, ship, bodies, enterSurface, updateSurface, orientShipTo, shipForward, terrainHeightAt, get mode() { return mode; } };
 </script>
 </body>
 </html>

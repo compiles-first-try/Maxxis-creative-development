@@ -7,6 +7,16 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v1.3 — mountain collision & ship-flip fix (bug fix)
+- ⛰️ Mountains are now **solid**: the ship rests on the *actual* terrain under it,
+  so you ride up slopes and can't fly through peaks (craters still let you dip in).
+  Liftoff height and the altitude readout are measured above the ground you're
+  over, so standing on a tall peak no longer flings you back to space
+- 🚀 Fixed the ship **flipping/changing pose** when flying straight up or down:
+  its orientation is now built from a horizontal axis that never lines up with
+  your heading, killing the gimbal-flip (verified: <2° step through vertical vs.
+  the old ~180° snap)
+
 ## v1.2.4 — password-room multiplayer
 - 🎮 Multiplayer! On the start screen pick **Host** or **Join**. The host gets
   a suggested **network password** (e.g. `nova-4821`); anyone who types the
