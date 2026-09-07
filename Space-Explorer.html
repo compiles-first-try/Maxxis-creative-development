@@ -165,9 +165,9 @@
 <div id="controls" class="hud">
   <span class="key">W</span>/<span class="key">S</span> forward / back &nbsp;
   <span class="key">A</span>/<span class="key">D</span> turn<br />
-  <span class="key">Space</span> up &nbsp; <span class="key">Ctrl</span> down &nbsp;
+  <span class="key">Space</span> up &nbsp; <span class="key">F</span> down &nbsp;
   <span class="key">Shift</span> boost<br />
-  <span class="key">Right-drag</span> look around &nbsp; <span class="key">P</span> first-person &nbsp; <span class="key">E</span> portal<br />
+  <span class="key">Right-drag</span> aim ship &nbsp; <span class="key">P</span> first-person &nbsp; <span class="key">E</span> portal<br />
   <span class="key">Q</span>+<span class="key">W</span> hyperspeed ⚡
 </div>
 
@@ -198,7 +198,7 @@
   <p>Three galaxies, each a black hole ringed by star systems — some circled by two or three suns. Fly a portal to any system (or blast between galaxies with <b>Q+W</b> hyperspeed), and land on richly-textured worlds where the sky holds one, two, or three suns.</p>
   <div class="keys">
     <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> steer &nbsp;•&nbsp;
-    <span class="key">Space</span> climb &nbsp;•&nbsp; <span class="key">Ctrl</span> dive &nbsp;•&nbsp; <span class="key">Shift</span> boost
+    <span class="key">Space</span> climb &nbsp;•&nbsp; <span class="key">F</span> dive &nbsp;•&nbsp; <span class="key">Right-drag</span> aim &nbsp;•&nbsp; <span class="key">Shift</span> boost
   </div>
   <button id="startBtn">LAUNCH</button>
 </div>
@@ -232,7 +232,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v0.8';
+const GAME_VERSION = 'v0.8.1';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -626,6 +626,7 @@ const state = {
   pos: systems[0].portalPos.clone().add(new THREE.Vector3(0, 2000, 15000)),   // spawn at the first system's portal
   vel: new THREE.Vector3(),
   yaw: Math.PI,                          // (set below to face the first system)
+  pitch: 0,                              // v0.8.1: nose up/down (fly where you look)
   bank: 0                                // visual roll while turning
 };
 state.yaw = Math.atan2(systems[0].center.x - state.pos.x, systems[0].center.z - state.pos.z);
@@ -786,7 +787,8 @@ function enterSurface(body) {
 
   // v0.6: show rings across the sky if this world has them (and tilt the view up to reveal them)
   surfaceRing.visible = !!body.hasRing;
-  look.yaw = 0; look.pitch = body.hasRing ? -0.2 : 0.35;   // ring worlds: tilt the view up to reveal them
+  surfPitch = body.hasRing ? -0.2 : 0.35;   // ring worlds: tilt the view up to reveal them
+  state.pitch = 0;                          // level out for surface
 
   scene.remove(ship); surfaceScene.add(ship);         // move ship between rooms
   state.pos.set(0, 500, 0);                           // drop in from a bit up
@@ -805,6 +807,8 @@ function exitSurface() {
   away.normalize();
   state.pos.copy(currentBody.world).addScaledVector(away, currentBody.radius + 700);
   state.vel.copy(away).multiplyScalar(500);           // drift outward so we clear the world
+  state.pitch = Math.asin(Math.max(-1, Math.min(1, away.y)));   // aim along the outward direction
+  state.yaw = Math.atan2(away.x, away.z);
   ship.position.copy(state.pos);
   landCooldown = 2.0;                                  // don't instantly re-land
   ui.landedName.textContent = 'LEAVING ' + currentBody.name.toUpperCase();
@@ -825,7 +829,7 @@ function updateSurface(dt) {
   if (keys.KeyW) state.vel.addScaledVector(forward, accel * dt);
   if (keys.KeyS) state.vel.addScaledVector(forward, -accel * dt);
   if (keys.Space) state.vel.y += (accel + GRAV) * dt;                 // beat gravity to climb
-  if (keys.ControlLeft || keys.ControlRight) state.vel.y -= accel * dt;
+  if (keys.KeyF) state.vel.y -= accel * dt;                           // dive (F)
 
   state.vel.y -= GRAV * dt;                    // gravity
   state.vel.x *= 0.92; state.vel.z *= 0.92;    // ground drag
@@ -844,7 +848,7 @@ function updateSurface(dt) {
 
 /* ---------- Input ---------- */
 const keys = {};
-const track = ['KeyW','KeyS','KeyA','KeyD','KeyQ','Space','ControlLeft','ControlRight','ShiftLeft','ShiftRight'];
+const track = ['KeyW','KeyS','KeyA','KeyD','KeyQ','KeyF','Space','ShiftLeft','ShiftRight'];
 addEventListener('keydown', e => { if (track.includes(e.code)) { keys[e.code] = true; e.preventDefault(); } });
 addEventListener('keyup',   e => { if (track.includes(e.code)) { keys[e.code] = false; e.preventDefault(); } });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
@@ -854,8 +858,9 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyP') { firstPerson = !firstPerson; snapCam = true; }
 });
 
-/* Right-click + drag to look around the ship (free-orbit camera) */
-const look = { yaw: 0, pitch: 0.35, dragging: false, lx: 0, ly: 0 };
+/* v0.8.1: right-click + drag AIMS the ship — it flies wherever you look */
+const look = { dragging: false, lx: 0, ly: 0 };
+let surfPitch = 0.35;    // camera pitch while on a surface (space uses state.pitch)
 const canvasEl = renderer.domElement;
 canvasEl.addEventListener('contextmenu', e => e.preventDefault());  // no browser menu on right-click
 canvasEl.addEventListener('mousedown', e => {
@@ -864,10 +869,16 @@ canvasEl.addEventListener('mousedown', e => {
 addEventListener('mouseup', e => { if (e.button === 2) look.dragging = false; });
 addEventListener('mousemove', e => {
   if (!look.dragging) return;
-  look.yaw   -= (e.clientX - look.lx) * 0.005;                 // drag horizontally = swing around
-  look.pitch += (e.clientY - look.ly) * 0.005;                 // drag vertically = tilt up/down
-  look.pitch = Math.max(-1.3, Math.min(1.3, look.pitch));      // don't flip over the poles
+  const dx = e.clientX - look.lx, dy = e.clientY - look.ly;
   look.lx = e.clientX; look.ly = e.clientY;
+  if (mode === 'space') {                     // aim the ship: yaw + pitch
+    state.yaw   -= dx * 0.004;
+    state.pitch -= dy * 0.004;
+    state.pitch = Math.max(-1.25, Math.min(1.25, state.pitch));   // don't flip over
+  } else {                                     // on a surface, just tilt the view
+    surfPitch += dy * 0.005;
+    surfPitch = Math.max(-0.4, Math.min(1.2, surfPitch));
+  }
 });
 
 /* ---------- HUD elements ---------- */
@@ -928,6 +939,7 @@ function travelTo(i) {
   state.pos.copy(d.portalPos).add(new THREE.Vector3(0, 3000, 20000));   // arrive beside the portal
   state.vel.set(0, 0, 0);
   state.yaw = Math.atan2(d.center.x - state.pos.x, d.center.z - state.pos.z);  // face the system
+  state.pitch = 0;
   snapCam = true; landCooldown = 2;
   setCurrentSystem(i);
   closePortalMenu();
@@ -956,7 +968,6 @@ const tmp = new THREE.Vector3(), forward = new THREE.Vector3(), toShip = new THR
 let landedTimer = 0;
 
 // v0.4.5: smoothed chase-camera state so turns ease instead of snapping.
-let camFollowYaw = null, camFollowPitch = 0.35;
 const lookTarget = new THREE.Vector3();
 let firstPerson = false;   // v0.4.6: toggled with P
 
@@ -1020,7 +1031,7 @@ function animate() {
 
   // gentle engine flicker
   if (ship.userData.glow) {
-    const thrusting = keys.KeyW || keys.KeyS || keys.Space || keys.ControlLeft || keys.ControlRight;
+    const thrusting = keys.KeyW || keys.KeyS || keys.Space || keys.KeyF;
     ship.userData.glow.material.opacity = thrusting ? 0.9 + Math.random() * 0.1 : 0.35;
   }
 
@@ -1043,13 +1054,14 @@ function updateShip(dt) {
   const targetBank = (keys.KeyA ? 0.5 : 0) + (keys.KeyD ? -0.5 : 0);
   state.bank += (targetBank - state.bank) * Math.min(1, dt * 6);
 
-  // forward direction from yaw (flat in XZ)
-  forward.set(Math.sin(state.yaw), 0, Math.cos(state.yaw));
+  // v0.8.1: forward follows where you're aiming (yaw + pitch) — fly where you look
+  const cp = Math.cos(state.pitch);
+  forward.set(Math.sin(state.yaw) * cp, Math.sin(state.pitch), Math.cos(state.yaw) * cp);
 
   if (keys.KeyW) state.vel.addScaledVector(forward, accel * dt);
   if (keys.KeyS) state.vel.addScaledVector(forward, -accel * dt);
-  if (keys.Space) state.vel.y += accel * VERT_SENS * dt;                 // climb (gentler)
-  if (keys.ControlLeft || keys.ControlRight) state.vel.y -= accel * VERT_SENS * dt; // dive (gentler)
+  if (keys.Space) state.vel.y += accel * VERT_SENS * dt;      // climb (gentler)
+  if (keys.KeyF)  state.vel.y -= accel * VERT_SENS * dt;      // dive (F, gentler)
 
   // space drag → arcade feel, easy to control
   state.vel.multiplyScalar(0.985);
@@ -1078,62 +1090,57 @@ function updateShip(dt) {
   }
 
   ship.position.copy(state.pos);
-  ship.rotation.set(0, state.yaw, state.bank);   // face heading, plus bank roll
+  orientShipTo(forward, state.bank);   // point the ship where it's flying (yaw + pitch) + bank
 
   // v0.3: touching a world drops you onto its surface (unless we just left one)
   if (touched && landCooldown <= 0) enterSurface(touched);
 }
 
-function updateCamera(dt) {
-  // While thrusting forward (and not dragging), drift back to the default behind-view.
-  if (keys.KeyW && !look.dragging) {
-    look.yaw   += (0    - look.yaw)   * Math.min(1, dt * 1.5);
-    look.pitch += (0.35 - look.pitch) * Math.min(1, dt * 1.5);
-  }
+// Orient the ship so its +Z nose points along `dir`, with a roll of `bank`.
+const _om = new THREE.Matrix4(), _oUp = new THREE.Vector3(0, 1, 0), _oNeg = new THREE.Vector3();
+const _ORIGIN = new THREE.Vector3(0, 0, 0);
+function orientShipTo(dir, bank) {
+  _oNeg.copy(dir).negate();                   // target = -dir, eye = origin
+  _om.lookAt(_ORIGIN, _oNeg, _oUp);           // -Z faces -dir  →  +Z (nose) faces +dir
+  ship.quaternion.setFromRotationMatrix(_om);
+  ship.rotateZ(bank || 0);
+}
 
-  // ---- First-person (toggle with P): camera rides in the cockpit ----
+const camDir = new THREE.Vector3(0, 0, 1);   // smoothed chase direction (space)
+function shipForward(out) { const cp = Math.cos(state.pitch); return out.set(Math.sin(state.yaw) * cp, Math.sin(state.pitch), Math.cos(state.yaw) * cp); }
+
+function updateCamera(dt) {
+  // ---- First-person (P): camera in the cockpit, looking where you fly ----
   if (firstPerson) {
-    ship.visible = false;                       // don't stare at our own hull
-    const a = state.yaw + look.yaw, p = look.pitch - 0.35, cpp = Math.cos(p);
+    ship.visible = false;
+    shipForward(forward);
     camera.position.copy(ship.position);
-    camera.lookAt(                               // look along the ship's heading
-      ship.position.x + Math.sin(a) * cpp,
-      ship.position.y + Math.sin(p),
-      ship.position.z + Math.cos(a) * cpp
-    );
+    camera.lookAt(tmp.copy(ship.position).add(forward));
     snapCam = false;
     return;
   }
   ship.visible = true;
 
-  // ---- Third-person chase (smoothed) ----
-  // The angle the camera WANTS (behind the ship + your look offset)...
-  const desiredYaw = state.yaw + look.yaw;
-  if (camFollowYaw === null || snapCam) camFollowYaw = desiredYaw;   // init / snap on scene switch
-
-  // ...but EASE toward it (shortest way around the circle) so turns don't whip.
-  let d = desiredYaw - camFollowYaw;
-  d = Math.atan2(Math.sin(d), Math.cos(d));                          // wrap-safe shortest angle
-  camFollowYaw += d * Math.min(1, dt * 4);
-  camFollowPitch += (look.pitch - camFollowPitch) * Math.min(1, dt * 4);
-
-  const ang = camFollowYaw + Math.PI;
-  const dist = 26, cp = Math.cos(camFollowPitch), sp = Math.sin(camFollowPitch);
-  tmp.set(
-    ship.position.x + Math.sin(ang) * dist * cp,
-    ship.position.y + sp * dist + 6,
-    ship.position.z + Math.cos(ang) * dist * cp
-  );
-
-  // v0.4.6: follow TIGHTER the faster you fly. Kills the up/down jerk and
-  // keeps the camera glued next to the ship at high speed (turns stay smooth
-  // because the follow-yaw above is already eased).
-  const glue = Math.min(1, state.vel.length() / 3500);
-  camera.position.lerp(tmp, snapCam ? 1 : (running ? Math.min(1, dt * 16 + glue) : 0.02));
-  const aimLerp = snapCam ? 1 : Math.min(1, dt * 18 + glue);
-  if (snapCam) { lookTarget.copy(ship.position); snapCam = false; }
-  else lookTarget.lerp(ship.position, aimLerp);
-  camera.lookAt(lookTarget);
+  if (mode === 'space') {
+    // chase behind the ship's aim (yaw+pitch); smooth the direction so turns don't whip
+    shipForward(forward);
+    if (snapCam) camDir.copy(forward);
+    camDir.lerp(forward, snapCam ? 1 : Math.min(1, dt * 3)).normalize();
+    const dist = 26, glue = Math.min(1, state.vel.length() / 3500);
+    tmp.copy(ship.position).addScaledVector(camDir, -dist).addScaledVector(_oUp, 8);
+    camera.position.lerp(tmp, snapCam ? 1 : (running ? Math.min(1, dt * 16 + glue) : 0.02));
+    if (snapCam) { lookTarget.copy(ship.position); snapCam = false; }
+    else lookTarget.lerp(ship.position, Math.min(1, dt * 18 + glue));
+    camera.lookAt(lookTarget);
+  } else {
+    // surface: behind the ship by yaw, tilted by surfPitch (right-drag / ring reveal)
+    const ang = state.yaw + Math.PI, dist = 26, cp = Math.cos(surfPitch), sp = Math.sin(surfPitch);
+    tmp.set(ship.position.x + Math.sin(ang) * dist * cp, ship.position.y + sp * dist + 6, ship.position.z + Math.cos(ang) * dist * cp);
+    camera.position.lerp(tmp, snapCam ? 1 : (running ? Math.min(1, dt * 8) : 0.02));
+    if (snapCam) { lookTarget.copy(ship.position); snapCam = false; }
+    else lookTarget.lerp(ship.position, Math.min(1, dt * 10));
+    camera.lookAt(lookTarget);
+  }
 }
 
 function updateHUD() {

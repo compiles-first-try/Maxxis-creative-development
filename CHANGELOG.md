@@ -7,6 +7,12 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v0.8.1 — aim-to-fly controls
+- 🎯 Right-drag now AIMS the ship in full 3D (yaw + pitch): it flies wherever
+  you look, and the chase camera follows the ship's nose
+- 🚀 The ship model now orients to its true flight direction (nose up/down)
+- ⌨️ Dive is now **F** instead of Ctrl (space and surface)
+
 ## v0.8 — galaxies, black holes, richer worlds
 - 🌌 Three galaxies, each a black hole ringed by 5–7 star systems, placed
   ~130M units apart; the portal menu is grouped by galaxy → system
