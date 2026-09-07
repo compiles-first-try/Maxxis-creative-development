@@ -64,6 +64,17 @@
     display: inline-block; min-width: 22px; text-align: center; padding: 2px 9px; margin: 0 3px;
     border-radius: 7px; background: #16233f; border: 1px solid #3a5fa0; color: #fff; font-weight: bold;
   }
+  .shipsel { margin-top: 22px; }
+  .shipsel-label { font-size: 14px; color: #bcd4ff; margin-bottom: 10px; letter-spacing: 1px; }
+  #shipBtns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .ship-btn {
+    pointer-events: auto; cursor: pointer; padding: 8px 18px; border-radius: 10px;
+    background: #16233f; border: 2px solid #3a5fa0; color: #dbeaff; font-size: 15px; font-weight: bold;
+    transition: transform .1s, border-color .15s, background .15s;
+  }
+  .ship-btn:hover { transform: translateY(-2px); }
+  .ship-btn.sel { border-color: #ffe27a; background: #263a63; color: #ffe27a; box-shadow: 0 0 16px rgba(255,200,80,0.4); }
+
   #start button {
     margin-top: 30px; pointer-events: auto; cursor: pointer;
     font-size: 20px; font-weight: bold; color: #04101f; letter-spacing: 1px;
@@ -167,7 +178,7 @@
   <span class="key">A</span>/<span class="key">D</span> turn<br />
   <span class="key">Space</span> up &nbsp; <span class="key">F</span> down &nbsp;
   <span class="key">Shift</span> boost<br />
-  <span class="key">Right-drag</span> aim ship &nbsp; <span class="key">P</span> first-person &nbsp; <span class="key">E</span> portal<br />
+  <span class="key">Right-drag</span> aim &nbsp; <span class="key">Left-drag</span> look &nbsp; <span class="key">P</span> 1st-person &nbsp; <span class="key">E</span> portal<br />
   <span class="key">Q</span>+<span class="key">W</span> hyperspeed ⚡
 </div>
 
@@ -195,11 +206,15 @@
 <!-- Start screen -->
 <div id="start">
   <h1>🚀 SPACE EXPLORER</h1>
-  <div style="margin-top:-8px;margin-bottom:6px;letter-spacing:3px;color:#7dffb0;font-weight:bold;font-size:14px;">★ v1.0 · FULL RELEASE ★</div>
-  <p>Three galaxies, each a black hole ringed by star systems — some circled by two or three suns. Fly a portal to any system (or blast between galaxies with <b>Q+W</b> hyperspeed), and land on richly-textured worlds where the sky holds one, two, or three suns. Visit every world to complete the universe.</p>
+  <div style="margin-top:-8px;margin-bottom:6px;letter-spacing:3px;color:#7dffb0;font-weight:bold;font-size:14px;">★ v1.1 · FULL RELEASE ★</div>
+  <p>Five galaxies, each a black hole ringed by dozens of star systems — some with two, three, even four suns. Pick your ship, fly a portal to any system (or blast between galaxies with <b>Q+W</b> hyperspeed), and land on mountainous, richly-textured worlds. Keep an eye out for alien life. Visit every world to complete the universe.</p>
   <div class="keys">
     <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> steer &nbsp;•&nbsp;
-    <span class="key">Space</span> climb &nbsp;•&nbsp; <span class="key">F</span> dive &nbsp;•&nbsp; <span class="key">Right-drag</span> aim &nbsp;•&nbsp; <span class="key">Shift</span> boost
+    <span class="key">Space</span> climb &nbsp;•&nbsp; <span class="key">F</span> dive &nbsp;•&nbsp; <span class="key">Right-drag</span> aim &nbsp;•&nbsp; <span class="key">Left-drag</span> look &nbsp;•&nbsp; <span class="key">Shift</span> boost
+  </div>
+  <div class="shipsel">
+    <div class="shipsel-label">🚀 Choose your ship</div>
+    <div id="shipBtns"></div>
   </div>
   <button id="startBtn">LAUNCH</button>
 </div>
@@ -233,7 +248,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v1.0';
+const GAME_VERSION = 'v1.1';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -389,6 +404,12 @@ function planetTexture(type, base) {
   const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; t.anisotropy = 4; return t;
 }
 
+// v1.1: SHARED texture library (a few gray variants per type) reused across all
+// planets and tinted per-planet via material.color — so hundreds of planets don't
+// each allocate a big texture (which would exhaust GPU memory).
+const TEX_LIB = {};
+TEX_TYPES.forEach(t => { TEX_LIB[t] = [planetTexture(t, 0x9a9a9a), planetTexture(t, 0x9a9a9a), planetTexture(t, 0x9a9a9a)]; });
+
 /* ---------- Planets, moons & STAR SYSTEMS ---------- */
 const SUN_RADIUS = 260 * BODY_SCALE;     // every star is this big (always bigger than its planets)
 const bodies  = [];                      // everything you can land on (planets + moons)
@@ -403,10 +424,11 @@ function makePlanet(cfg, center, sys) {
   cfg.distance *= DIST_SCALE;
   const type = TEX_TYPES[(planetCount++) % TEX_TYPES.length];   // guarantees variety
   const mat = new THREE.MeshStandardMaterial({
-    map: planetTexture(type, cfg.color), roughness: type === 'earth' || type === 'ice' ? 0.6 : 0.95,
-    metalness: type === 'earth' ? 0.15 : 0.05, emissive: cfg.color, emissiveIntensity: 0.08
+    map: TEX_LIB[type][planetCount % 3], color: cfg.color,     // shared texture, tinted per planet
+    roughness: type === 'earth' || type === 'ice' ? 0.6 : 0.95,
+    metalness: type === 'earth' ? 0.15 : 0.05, emissive: cfg.color, emissiveIntensity: 0.06
   });
-  const geo = new THREE.SphereGeometry(cfg.radius, 64, 48);   // smoother sphere
+  const geo = new THREE.SphereGeometry(cfg.radius, 48, 32);   // sphere (fewer segs: many planets now)
   if (cfg.bulge) {                              // v0.7: push one side out into a bulge
     const p = geo.attributes.position, v = new THREE.Vector3();
     const th = Math.acos(2 * Math.random() - 1), ph = Math.random() * Math.PI * 2;   // random unit direction
@@ -454,7 +476,8 @@ function makePlanet(cfg, center, sys) {
     const mpivot = new THREE.Object3D(); mpivot.rotation.z = (Math.random() - 0.5) * 0.6; mesh.add(mpivot);
     mmesh.position.set(mn.distance, 0, 0); mpivot.add(mmesh);
     bodies.push({ name: mn.name, mesh: mmesh, pivot: mpivot, radius: mn.radius, color: mn.color,
-      orbitSpeed: mn.orbitSpeed, spin: 0.1, world: new THREE.Vector3(), visited: false });
+      orbitSpeed: mn.orbitSpeed, spin: 0.1, world: new THREE.Vector3(), visited: false,
+      starCount: sys ? sys.nStars : 1, starColors: sys ? sys.starColors : [0xffe27a], galaxy: sys ? sys.galaxy : 0 });
   });
 }
 
@@ -472,14 +495,14 @@ function makeStarMesh(color) {
 function makeSystem(center, starColor, opts = {}) {
   const sys = { center: center.clone(), name: opts.name || 'System', color: starColor,
     galaxy: opts.galaxy || 0, index: systems.length, starColors: [] };
-  const nStars = Math.max(1, Math.min(3, opts.stars || 1));   // 1, 2, or 3 stars
+  const nStars = Math.max(1, Math.min(4, opts.stars || 1));   // 1–4 stars
 
   if (nStars === 1) {
     const sun = makeStarMesh(starColor); sun.position.copy(center); scene.add(sun);
     sys.sun = sun; sys.sunRadius = SUN_RADIUS; sys.starColors = [starColor];
   } else {
     const pivot = new THREE.Object3D(); pivot.position.copy(center); scene.add(pivot);
-    const off = SUN_RADIUS * (nStars === 2 ? 1.9 : 2.5);
+    const off = SUN_RADIUS * (nStars === 2 ? 1.9 : nStars === 3 ? 2.5 : 3.0);   // stars orbit the barycenter
     for (let i = 0; i < nStars; i++) {
       const a = (i / nStars) * Math.PI * 2, x = Math.cos(a) * off, z = Math.sin(a) * off;
       const col = i === 0 ? starColor : (opts.starColor2 || starColor);
@@ -489,9 +512,7 @@ function makeSystem(center, starColor, opts = {}) {
     sys.binaryPivot = pivot; sys.binarySpeed = 0.15;
     sys.sunRadius = off + SUN_RADIUS;
   }
-  sys.nStars = nStars;
-  // ONE distance-limited light per system (keeps total light count sane across all galaxies)
-  const light = new THREE.PointLight(starColor, 1.7, 1200000); light.position.copy(center); scene.add(light);
+  sys.nStars = nStars;   // lighting is handled by a shared moving light pool (see LIGHT_POOL)
 
   // faint beacon halo: seen from far away so you can hunt for the system, fades as you approach
   const beacon = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(hex(starColor)),
@@ -572,9 +593,11 @@ function makeBlackHole(center, galaxy) {
 }
 
 const GALAXY_DEFS = [
-  { name: 'Aurelia',   center: [0, 0, 0],                       core: 0xffd27a },
-  { name: 'Nyxa Void', center: [130000000, 12000000, -42000000], core: 0x9a6cff },
-  { name: 'Cindralis', center: [-92000000, -22000000, 116000000], core: 0xff7a4a },
+  { name: 'Aurelia',    center: [0, 0, 0],                        core: 0xffd27a },
+  { name: 'Nyxa Void',  center: [130000000, 12000000, -42000000],  core: 0x9a6cff },
+  { name: 'Cindralis',  center: [-92000000, -22000000, 116000000], core: 0xff7a4a },
+  { name: 'Verdigris',  center: [60000000, -90000000, -150000000], core: 0x4fe0b0 },
+  { name: 'Rosequartz', center: [-160000000, 70000000, 30000000],  core: 0xff7ad0 },
 ];
 const GALAXY_BUBBLE_R = GALAXY_RADIUS * 1.18;   // the "bubble" that wraps each galaxy
 GALAXY_DEFS.forEach((gd, gi) => {
@@ -591,47 +614,78 @@ GALAXY_DEFS.forEach((gd, gi) => {
     new THREE.MeshBasicMaterial({ color: gd.core, wireframe: true, transparent: true, opacity: 0.10, depthWrite: false })));
   scene.add(bubble); galaxy.bubble = bubble; galaxy.bubbleRadius = GALAXY_BUBBLE_R;
 
-  const nSys = 5 + (Math.random() * 3 | 0);   // 5..7 systems per galaxy
+  const nSys = 12 + (Math.random() * 8 | 0);   // v1.1: WAY more systems (12..19 per galaxy)
   for (let i = 0; i < nSys; i++) {
-    const ang = Math.random() * Math.PI * 2, rad = (0.35 + Math.random() * 0.65) * GALAXY_RADIUS;
-    const off = new THREE.Vector3(Math.cos(ang) * rad, (Math.random() - 0.5) * GALAXY_RADIUS * 0.15, Math.sin(ang) * rad);
+    const ang = Math.random() * Math.PI * 2, rad = (0.2 + Math.random() * 0.8) * GALAXY_RADIUS;
+    const off = new THREE.Vector3(Math.cos(ang) * rad, (Math.random() - 0.5) * GALAXY_RADIUS * 0.2, Math.sin(ang) * rad);
     galaxy.systemIndices.push(systems.length);
-    const isSol = gi === 0 && i === 0;                       // v0.9: Sol is ALWAYS 1 yellow star
+    const isSol = gi === 0 && i === 0;                       // Sol is ALWAYS 1 yellow star
     let name = nextSysName(); if (isSol) name = 'Sol';
+    let stars = isSol ? 1 : 1 + (Math.random() * 3 | 0);     // 1..3
+    if (!isSol && Math.random() < 0.02) stars = 4;           // v1.1: 2% rare 4-star system
     makeSystem(gc.clone().add(off), isSol ? 0xffe27a : randStarColor(),
-      { name, stars: isSol ? 1 : 1 + (Math.random() * 3 | 0), starColor2: randStarColor(), galaxy: gi });
+      { name, stars, starColor2: randStarColor(), galaxy: gi });
   }
 });
 
-/* ---------- The Ship ---------- */
+// v1.1: a shared moving light pool — assigned to the nearest systems each frame,
+// so hundreds of systems stay performant (a few lights instead of one per system).
+const LIGHT_POOL = [];
+for (let i = 0; i < 7; i++) { const l = new THREE.PointLight(0xffffff, 0, 2200000); scene.add(l); LIGHT_POOL.push(l); }
+
+/* ---------- The Ship (v1.1: pick your model) ---------- */
 const ship = new THREE.Group();
-(function buildShip() {
-  // Starliner-style gumdrop capsule, built along +Y (nose up), then tilted to face forward.
-  const cap = new THREE.Group();
-  const white = new THREE.MeshStandardMaterial({ color: 0xeef0f4, metalness: 0.2, roughness: 0.5 });
+const SHIP_MODELS = ['Capsule', 'Fighter', 'Saucer', 'Shuttle'];
+let shipModel = 'Capsule';
+
+function buildShip(model) {
+  while (ship.children.length) ship.remove(ship.children[0]);   // clear old model
+  shipModel = model;
+  const white = new THREE.MeshStandardMaterial({ color: 0xeef0f4, metalness: 0.3, roughness: 0.45 });
   const dark  = new THREE.MeshStandardMaterial({ color: 0x2a3340, metalness: 0.4, roughness: 0.6 });
   const metal = new THREE.MeshStandardMaterial({ color: 0x9aa4b2, metalness: 0.85, roughness: 0.3 });
+  const accent = new THREE.MeshStandardMaterial({ color: 0x2ec7ff, metalness: 0.5, roughness: 0.4, emissive: 0x0a3355, emissiveIntensity: 0.5 });
+  const cap = new THREE.Group();   // built along +Y (nose up), tilted to face +Z
+  let glowColor = '#ffa94a', glowZ = -3.4;
 
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 2.7, 5, 32), white);   // gumdrop body
-  body.position.y = 1.0; cap.add(body);
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(1.5, 28, 16, 0, Math.PI * 2, 0, Math.PI / 2), white); // dome
-  nose.position.y = 3.5; cap.add(nose);
-  const band = new THREE.Mesh(new THREE.CylinderGeometry(2.72, 2.72, 0.5, 32), dark);  // dark detail band
-  band.position.y = 0.3; cap.add(band);
-  const svc = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.35, 1.6, 32), dark);    // service module
-  svc.position.y = -1.3; cap.add(svc);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.35, 12, 32), metal);      // docking ring on base
-  ring.rotation.x = Math.PI / 2; ring.position.y = -2.15; cap.add(ring);
+  if (model === 'Capsule') {
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 2.7, 5, 32), white); body.position.y = 1; cap.add(body);
+    const nose = new THREE.Mesh(new THREE.SphereGeometry(1.5, 28, 16, 0, Math.PI*2, 0, Math.PI/2), white); nose.position.y = 3.5; cap.add(nose);
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(2.72, 2.72, 0.5, 32), dark); band.position.y = 0.3; cap.add(band);
+    const svc = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.35, 1.6, 32), dark); svc.position.y = -1.3; cap.add(svc);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.35, 12, 32), metal); ring.rotation.x = Math.PI/2; ring.position.y = -2.15; cap.add(ring);
+  } else if (model === 'Fighter') {
+    const body = new THREE.Mesh(new THREE.ConeGeometry(1.3, 7, 20), white); body.position.y = 1; cap.add(body);
+    const cock = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), accent); cock.position.y = 2.4; cap.add(cock);
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(8, 0.3, 2.4), dark); wing.position.y = -1; cap.add(wing);
+    const fin  = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2.2, 2), dark); fin.position.set(0, 0, 0); cap.add(fin);
+    for (const sx of [-3.6, 3.6]) { const eng = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 2, 12), metal); eng.position.set(sx, -1.6, 0); cap.add(eng); }
+    glowColor = '#33e0ff'; glowZ = -3.2;
+  } else if (model === 'Saucer') {
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 0.6, 40), metal); disc.position.y = 0; cap.add(disc);
+    const rim  = new THREE.Mesh(new THREE.TorusGeometry(4, 0.5, 12, 40), dark); rim.rotation.x = Math.PI/2; cap.add(rim);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(1.8, 20, 14, 0, Math.PI*2, 0, Math.PI/2), accent); dome.position.y = 0.4; cap.add(dome);
+    const under = new THREE.Mesh(new THREE.SphereGeometry(1.4, 16, 10, 0, Math.PI*2, 0, Math.PI/2), dark); under.rotation.x = Math.PI; under.position.y = -0.4; cap.add(under);
+    glowColor = '#7dffb0'; glowZ = 0; // saucer glows underneath — handle below
+  } else { // Shuttle
+    const body = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2, 6), white); body.position.y = 0.5; cap.add(body);
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(1.3, 2, 4), white); nose.rotation.y = Math.PI/4; nose.position.y = 3; cap.add(nose);
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(7, 0.3, 2.5), dark); wing.position.set(0, -0.4, -1); cap.add(wing);
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2, 1.6), dark); tail.position.set(0, 1.4, -2.4); cap.add(tail);
+    const win = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.7, 0.2), accent); win.position.set(0, 1.1, 2.6); cap.add(win);
+    glowColor = '#ffd24a';
+  }
 
-  cap.rotation.x = Math.PI / 2;         // nose (+Y) -> +Z = the forward direction
+  cap.rotation.x = Math.PI / 2;   // nose (+Y) -> +Z (forward)
   ship.add(cap);
 
-  // engine glow at the base (points back, toward the chase camera)
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture('#ffa94a'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-  glow.scale.set(9, 9, 1); glow.position.z = -3.4;
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(glowColor), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  glow.scale.set(9, 9, 1);
+  if (model === 'Saucer') glow.position.set(0, 0, 0); else glow.position.z = glowZ;
   ship.userData.glow = glow; ship.add(glow);
-})();
-ship.scale.setScalar(0.5);   // capsule size
+}
+buildShip('Capsule');
+ship.scale.setScalar(0.5);
 scene.add(ship);
 
 // Ship physics state
@@ -718,6 +772,25 @@ surfaceRing.position.set(0, 9000, 0);
 surfaceRing.visible = false;
 surfaceScene.add(surfaceRing);
 
+// v1.1: rare alien life forms (little critters) — a hidden pool shown ~0.5% of landings
+const surfaceAliens = new THREE.Group(); surfaceAliens.visible = false; surfaceScene.add(surfaceAliens);
+const ALIEN_POOL = [];
+for (let i = 0; i < 8; i++) {
+  const a = new THREE.Group();
+  const col = new THREE.Color().setHSL(Math.random(), 0.75, 0.5);
+  const mat = new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.35, roughness: 0.6 });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(9, 16, 12), mat); body.scale.set(1, 1.3, 1); body.position.y = 12; a.add(body);
+  for (const sx of [-5, 5]) {                                   // eye stalks
+    const stalk = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.3, 8, 6), mat); stalk.position.set(sx, 22, 0); a.add(stalk);
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(3, 12, 10), new THREE.MeshStandardMaterial({ color: 0xffffff })); eye.position.set(sx, 27, 0); a.add(eye);
+    const pup = new THREE.Mesh(new THREE.SphereGeometry(1.4, 8, 8), new THREE.MeshBasicMaterial({ color: 0x000000 })); pup.position.set(sx, 27, 2.6); a.add(pup);
+  }
+  for (const lx of [-6, 0, 6]) { const leg = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1, 12, 6), mat); leg.position.set(lx, 5, 0); a.add(leg); }
+  a.userData.body = body;
+  surfaceAliens.add(a); ALIEN_POOL.push(a);
+}
+let aliensPresent = false;
+
 // v0.6.6: sculpt the terrain itself — paint it the world's colour, and on crater
 // worlds push vertices DOWN into cone-shaped pits (sharp point at the centre).
 function shapeGround(base, craterWorld) {
@@ -745,20 +818,35 @@ function shapeGround(base, craterWorld) {
     }
   }
 
-  // for each ground vertex: find the deepest crater covering it (world Y = local Z)
+  // v1.1: mountains — smooth peaks raised out of the ground (every world gets some)
+  const mtns = [];
+  const nM = 10 + (Math.random() * 12 | 0);
+  for (let k = 0; k < nM; k++) {
+    const a = Math.random() * Math.PI * 2, rr = 7000 + Math.random() * 13000;   // keep a flat landing zone at the centre
+    mtns.push({ x: Math.cos(a) * rr, z: Math.sin(a) * rr, r: 2500 + Math.random() * 5500, h: 1200 + Math.random() * 4000 });
+  }
+  const peakCol = bc.clone().lerp(new THREE.Color(0xffffff), 0.35);   // lighter peaks (snowy caps)
+
   for (let i = 0; i < pos.count; i++) {
     const wx = pos.getX(i), wz = -pos.getY(i);
     let y = 0, c = null, t = 1;
-    for (const cr of craters) {
+    for (const cr of craters) {                       // craters dig down
       const d = Math.hypot(wx - cr.x, wz - cr.z);
       if (d < cr.r) { const yy = -cr.depth * (1 - d / cr.r); if (yy < y) { y = yy; c = cr; t = d / cr.r; } }
     }
-    pos.setZ(i, y);                                   // push the vertex down into the ground
-    if (c) { const sh = 0.45 + 0.55 * t; col.setXYZ(i, c.cc.r * sh, c.cc.g * sh, c.cc.b * sh); }  // darker toward centre
-    else col.setXYZ(i, bc.r, bc.g, bc.b);            // normal ground = world colour
+    let mh = 0;                                        // mountains push up (smooth bumps, additive)
+    for (const m of mtns) {
+      const d = Math.hypot(wx - m.x, wz - m.z);
+      if (d < m.r) { const k = 1 - d / m.r; mh += m.h * k * k; }
+    }
+    pos.setZ(i, y + mh);
+    if (c) { const sh = 0.45 + 0.55 * t; col.setXYZ(i, c.cc.r * sh, c.cc.g * sh, c.cc.b * sh); }   // crater colour
+    else if (mh > 1800) { const f = Math.min(1, (mh - 1800) / 4000); const cc = bc.clone().lerp(peakCol, f);
+      col.setXYZ(i, cc.r, cc.g, cc.b); }              // mountain peaks lighten
+    else col.setXYZ(i, bc.r, bc.g, bc.b);             // normal ground
   }
   pos.needsUpdate = true; col.needsUpdate = true;
-  groundGeo.computeVertexNormals();                  // so the pit walls catch the light
+  groundGeo.computeVertexNormals();                  // so slopes catch the light
 }
 
 const surfHemi = new THREE.HemisphereLight(0xffffff, 0x404040, 1.0);
@@ -769,7 +857,7 @@ surfaceScene.add(surfSun);
 
 // v0.8: 1–3 suns in the surface sky, matching the system's star count
 const whiteGlow = glowTexture('#ffffff');
-const SURF_SUN_POS = [[12000, 9000, -20000], [-18000, 7000, -14000], [6000, 13000, 16000]];
+const SURF_SUN_POS = [[12000, 9000, -20000], [-18000, 7000, -14000], [6000, 13000, 16000], [20000, 10000, 6000]];
 const surfSuns = SURF_SUN_POS.map(p => {
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: whiteGlow, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
   s.scale.set(9000, 9000, 1); s.position.set(p[0], p[1], p[2]); s.visible = false; surfaceScene.add(s); return s;
@@ -802,6 +890,17 @@ function enterSurface(body) {
   surfaceRing.visible = !!body.hasRing;
   surfPitch = body.hasRing ? -0.2 : 0.35;   // ring worlds: tilt the view up to reveal them
   state.pitch = 0;                          // level out for surface
+
+  // v1.1: rare alien life (0.5%)
+  aliensPresent = Math.random() < 0.005;
+  surfaceAliens.visible = aliensPresent;
+  if (aliensPresent) {
+    const n = 3 + (Math.random() * 4 | 0);
+    ALIEN_POOL.forEach((a, i) => { const on = i < n; a.visible = on;
+      if (on) { a.position.set((Math.random() - 0.5) * 900, 0, (Math.random() - 0.5) * 700 - 500); a.rotation.y = Math.random() * 7; } });
+    ui.sysBannerText.textContent = '👽 ALIEN LIFE DETECTED!';
+    ui.sysBanner.classList.add('show'); sysBannerTimer = 4.5;
+  }
 
   scene.remove(ship); surfaceScene.add(ship);         // move ship between rooms
   state.pos.set(0, 500, 0);                           // drop in from a bit up
@@ -871,26 +970,29 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyP') { firstPerson = !firstPerson; snapCam = true; }
 });
 
-/* v0.8.1: right-click + drag AIMS the ship — it flies wherever you look */
-const look = { dragging: false, lx: 0, ly: 0 };
-let surfPitch = 0.35;    // camera pitch while on a surface (space uses state.pitch)
+/* v1.1: RIGHT-drag aims the ship (fly where you look); LEFT-drag orbits the camera */
+const look = { dragging: 0, lx: 0, ly: 0 };   // 0 = none, 1 = left (orbit cam), 2 = right (aim ship)
+let surfPitch = 0.35;                          // camera pitch while on a surface
+let camOrbitYaw = 0, camOrbitPitch = 0;        // left-drag camera offset (recenters when you thrust)
 const canvasEl = renderer.domElement;
 canvasEl.addEventListener('contextmenu', e => e.preventDefault());  // no browser menu on right-click
 canvasEl.addEventListener('mousedown', e => {
-  if (e.button === 2) { look.dragging = true; look.lx = e.clientX; look.ly = e.clientY; }
+  if (e.button === 2) look.dragging = 2; else if (e.button === 0) look.dragging = 1; else return;
+  look.lx = e.clientX; look.ly = e.clientY;
 });
-addEventListener('mouseup', e => { if (e.button === 2) look.dragging = false; });
+addEventListener('mouseup', () => { look.dragging = 0; });
 addEventListener('mousemove', e => {
   if (!look.dragging) return;
   const dx = e.clientX - look.lx, dy = e.clientY - look.ly;
   look.lx = e.clientX; look.ly = e.clientY;
-  if (mode === 'space') {                     // aim the ship: yaw + pitch
-    state.yaw   -= dx * 0.004;
-    state.pitch -= dy * 0.004;
-    state.pitch = Math.max(-1.25, Math.min(1.25, state.pitch));   // don't flip over
-  } else {                                     // on a surface, just tilt the view
-    surfPitch += dy * 0.005;
-    surfPitch = Math.max(-0.4, Math.min(1.2, surfPitch));
+  if (look.dragging === 2) {                    // RIGHT-drag: aim the ship
+    if (mode === 'space') {
+      state.yaw -= dx * 0.004; state.pitch -= dy * 0.004;
+      state.pitch = Math.max(-1.25, Math.min(1.25, state.pitch));
+    } else { surfPitch = Math.max(-0.4, Math.min(1.2, surfPitch + dy * 0.005)); }
+  } else {                                       // LEFT-drag: orbit the camera
+    camOrbitYaw -= dx * 0.005;
+    camOrbitPitch = Math.max(-1.2, Math.min(1.2, camOrbitPitch + dy * 0.005));
   }
 });
 
@@ -909,7 +1011,7 @@ el('total').textContent = bodies.length;   // total landable worlds across all s
 
 /* ---------- v0.7/0.8: current system + galaxy, portals & travel ---------- */
 let currentSystem = 0, currentGalaxy = 0, sysBannerTimer = 0, nearPortal = -1, portalMenuOpen = false, insideGalaxy = 0, won = false;
-const STAR_WORD = { 1: 'single star', 2: 'binary stars', 3: 'trinary stars' };
+const STAR_WORD = { 1: 'single star', 2: 'binary stars', 3: 'trinary stars', 4: 'quaternary stars' };
 ui.sysNameText.textContent = galaxies[0].name + ' · ' + systems[0].name;
 
 function planetsIn(s) { return bodies.filter(b => b.texType && b.pivot.position.distanceTo(s.center) < 1).length; }
@@ -962,6 +1064,21 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyE' && mode === 'space') { portalMenuOpen ? closePortalMenu() : (nearPortal >= 0 && openPortalMenu()); }
   else if (e.code === 'Escape' && portalMenuOpen) closePortalMenu();
 });
+
+// v1.1: ship selector on the start screen
+(function shipSelector() {
+  const box = el('shipBtns');
+  SHIP_MODELS.forEach(m => {
+    const btn = document.createElement('div');
+    btn.className = 'ship-btn' + (m === shipModel ? ' sel' : '');
+    btn.textContent = m;
+    btn.onclick = () => {
+      buildShip(m); ship.scale.setScalar(m === 'Saucer' ? 0.6 : 0.5);
+      [...box.children].forEach(c => c.classList.toggle('sel', c.textContent === m));
+    };
+    box.appendChild(btn);
+  });
+})();
 
 el('startBtn').addEventListener('click', () => {
   el('start').classList.add('hide');
@@ -1042,6 +1159,13 @@ function animate() {
     ui.portalHint.classList.toggle('show', nearPortal >= 0 && !portalMenuOpen);
   } else { nearPortal = -1; ui.portalHint.classList.remove('show'); }
 
+  // v1.1: point the shared light pool at the nearest systems
+  { const arr = systems.map(s => [s, camera.position.distanceTo(s.center)]).sort((a, b) => a[1] - b[1]);
+    for (let i = 0; i < LIGHT_POOL.length; i++) {
+      if (i < arr.length) { LIGHT_POOL[i].position.copy(arr[i][0].center); LIGHT_POOL[i].color.set(arr[i][0].color); LIGHT_POOL[i].intensity = 1.7; }
+      else LIGHT_POOL[i].intensity = 0;
+    } }
+
   if (landCooldown > 0) landCooldown -= dt;
   if (running && !portalMenuOpen) { if (mode === 'space') updateShip(dt); else updateSurface(dt); }
   updateCamera(dt);
@@ -1068,6 +1192,12 @@ function animate() {
   if (ship.userData.glow) {
     const thrusting = keys.KeyW || keys.KeyS || keys.Space || keys.KeyF;
     ship.userData.glow.material.opacity = thrusting ? 0.9 + Math.random() * 0.1 : 0.35;
+  }
+
+  // v1.1: alien critters bob & sway a little
+  if (mode === 'surface' && surfaceAliens.visible) {
+    const tsec = clock.elapsedTime;
+    ALIEN_POOL.forEach((a, i) => { if (a.visible) { a.userData.body.position.y = 12 + Math.sin(tsec * 2 + i) * 2; a.rotation.y += 0.3 * dt; } });
   }
 
   renderer.render(mode === 'space' ? scene : surfaceScene, camera);
@@ -1142,6 +1272,7 @@ function orientShipTo(dir, bank) {
 }
 
 const camDir = new THREE.Vector3(0, 0, 1);   // smoothed chase direction (space)
+const _off = new THREE.Vector3(), _right = new THREE.Vector3(), _q = new THREE.Quaternion();
 function shipForward(out) { const cp = Math.cos(state.pitch); return out.set(Math.sin(state.yaw) * cp, Math.sin(state.pitch), Math.cos(state.yaw) * cp); }
 
 function updateCamera(dt) {
@@ -1161,8 +1292,16 @@ function updateCamera(dt) {
     shipForward(forward);
     if (snapCam) camDir.copy(forward);
     camDir.lerp(forward, snapCam ? 1 : Math.min(1, dt * 3)).normalize();
+    if (keys.KeyW) {   // recenter the left-drag orbit while thrusting forward
+      camOrbitYaw += (0 - camOrbitYaw) * Math.min(1, dt * 1.5);
+      camOrbitPitch += (0 - camOrbitPitch) * Math.min(1, dt * 1.5);
+    }
     const dist = 26, glue = Math.min(1, state.vel.length() / 3500);
-    tmp.copy(ship.position).addScaledVector(camDir, -dist).addScaledVector(_oUp, 8);
+    _off.copy(camDir).negate();                              // behind the ship
+    _q.setFromAxisAngle(_oUp, camOrbitYaw); _off.applyQuaternion(_q);         // left-drag yaw
+    _right.crossVectors(_oUp, _off).normalize();
+    _q.setFromAxisAngle(_right, camOrbitPitch); _off.applyQuaternion(_q);     // left-drag pitch
+    tmp.copy(ship.position).addScaledVector(_off, dist).addScaledVector(_oUp, 8);
     camera.position.lerp(tmp, snapCam ? 1 : (running ? Math.min(1, dt * 16 + glue) : 0.02));
     if (snapCam) { lookTarget.copy(ship.position); snapCam = false; }
     else lookTarget.lerp(ship.position, Math.min(1, dt * 18 + glue));
