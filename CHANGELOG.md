@@ -7,6 +7,18 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v1.9 — life tiers & civilizations
+- 🛸 **The Sol system is now a Type II civilization** — land on any Sol world to
+  find a glowing megastructure: a central spire + energy ring + towers
+- 🌌 **40% of worlds elsewhere have life** (up from 10%), with a tier rolled from
+  common to rare:
+  - 🦕 **Prehistoric** — roaming critters (most common)
+  - 🛖 **Type 0** — huts + campfires (with wildlife)
+  - 🏙️ **Type I** — a lit city of windowed towers
+  - 🛸 **Type II** — glowing megastructure & spires (rarest)
+- 🏷️ The landing banner names the tier you found; structures sit on the real
+  terrain (and at the waterline on ocean worlds)
+
 ## v1.8 — oceans & biomes
 - 🌊 **Oceans!** Ocean/ice/lava/toxic worlds now flood a shimmering liquid plane at
   sea level — animated ripples + a slow tide. Water colour & glow match the biome

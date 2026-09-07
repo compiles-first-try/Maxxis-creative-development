@@ -232,7 +232,7 @@
 <!-- Start screen -->
 <div id="start">
   <h1>🚀 SPACE EXPLORER</h1>
-  <div style="margin-top:-8px;margin-bottom:6px;letter-spacing:3px;color:#7dffb0;font-weight:bold;font-size:14px;">★ v1.8 · OCEANS ★</div>
+  <div style="margin-top:-8px;margin-bottom:6px;letter-spacing:3px;color:#7dffb0;font-weight:bold;font-size:14px;">★ v1.9 · CIVILIZATIONS ★</div>
   <p>Five galaxies, each a black hole ringed by dozens of star systems — some with two, three, even four suns. Pick your ship, fly a portal to any system (or blast between galaxies with <b>Q+W</b> hyperspeed), and land on mountainous, richly-textured worlds. Keep an eye out for alien life. Visit every world to complete the universe.</p>
   <div class="keys">
     <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> steer &nbsp;•&nbsp;
@@ -291,7 +291,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v1.8';
+const GAME_VERSION = 'v1.9';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -1005,6 +1005,68 @@ for (let i = 0; i < 8; i++) {
 }
 let aliensPresent = false;
 
+/* ===================== v1.9: LIFE TIERS & CIVILIZATIONS ===================== */
+// -1 none · 0 prehistoric (critters) · 1 Type 0 (huts) · 2 Type I (city) · 3 Type II (megastructure)
+let lifeTier = -1;
+const LIFE_TIERS = ['🦕 PREHISTORIC LIFE', '🛖 TYPE 0 CIVILIZATION', '🏙️ TYPE I CIVILIZATION', '🛸 TYPE II CIVILIZATION'];
+const surfaceCiv = new THREE.Group(); surfaceScene.add(surfaceCiv);
+// shared lit-window texture for cities
+const cityWinTex = (function () {
+  const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+  g.fillStyle = '#0a0e18'; g.fillRect(0, 0, 64, 64);
+  for (let y = 6; y < 64; y += 10) for (let x = 6; x < 64; x += 10)
+    if (Math.random() < 0.55) { g.fillStyle = Math.random() < 0.5 ? '#ffd67a' : '#8fd0ff'; g.fillRect(x, y, 5, 6); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2, 5); return t;
+})();
+function clearCiv() {
+  while (surfaceCiv.children.length) {
+    const o = surfaceCiv.children.pop();
+    o.traverse(m => { if (m.geometry) m.geometry.dispose(); if (m.material && m.material.dispose && m.material !== cityMat) m.material.dispose(); });
+    surfaceCiv.remove(o);
+  }
+}
+const cityMat = new THREE.MeshStandardMaterial({ color: 0x2b3350, map: cityWinTex, emissive: 0xffffff,
+  emissiveMap: cityWinTex, emissiveIntensity: 0.9, roughness: 0.6, metalness: 0.3 });
+function placeOnGround(obj, x, z) {   // sit on terrain (or at the waterline on ocean worlds)
+  const gy = Math.max(terrainHeightAt(x, z), seaLevel > -1e8 ? seaLevel : -1e9);
+  obj.position.set(x, gy, z);
+}
+function buildCiv(tier) {
+  clearCiv();
+  if (tier === 1) {                                   // Type 0 — huts + campfires
+    const n = 6 + (Math.random() * 6 | 0);
+    for (let i = 0; i < n; i++) {
+      const hut = new THREE.Group();
+      const wall = new THREE.Mesh(new THREE.CylinderGeometry(45, 55, 40, 8), new THREE.MeshStandardMaterial({ color: 0x9c6b3f, roughness: 0.9 })); wall.position.y = 20; hut.add(wall);
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(72, 55, 8), new THREE.MeshStandardMaterial({ color: 0x6b4423, roughness: 0.9 })); roof.position.y = 67; hut.add(roof);
+      placeOnGround(hut, (Math.random() - 0.5) * 1600, (Math.random() - 0.5) * 1400 - 300); surfaceCiv.add(hut);
+    }
+    for (let i = 0; i < 2; i++) { const f = new THREE.Mesh(new THREE.SphereGeometry(16, 10, 8), new THREE.MeshBasicMaterial({ color: 0xff8a2a }));
+      placeOnGround(f, (Math.random() - 0.5) * 1200, (Math.random() - 0.5) * 1000 - 300); f.position.y += 16; surfaceCiv.add(f); }
+  } else if (tier === 2) {                            // Type I — a lit city
+    const n = 16 + (Math.random() * 12 | 0);
+    for (let i = 0; i < n; i++) {
+      const w = 40 + Math.random() * 70, dp = 40 + Math.random() * 70, h = 150 + Math.random() * 560;
+      const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, dp), cityMat); b.position.y = h / 2;
+      const g = new THREE.Group(); g.add(b);
+      placeOnGround(g, (Math.random() - 0.5) * 2600, (Math.random() - 0.5) * 2400 - 300); surfaceCiv.add(g);
+    }
+  } else if (tier === 3) {                            // Type II — glowing megastructure + spires
+    const emat = new THREE.MeshStandardMaterial({ color: 0x0a2030, emissive: 0x33e0ff, emissiveIntensity: 0.9, metalness: 0.7, roughness: 0.2 });
+    const core = new THREE.Group();
+    const spire = new THREE.Mesh(new THREE.CylinderGeometry(20, 90, 900, 12), emat); spire.position.y = 450; core.add(spire);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(340, 20, 12, 44), new THREE.MeshBasicMaterial({ color: 0x66f0ff })); ring.rotation.x = Math.PI / 2; ring.position.y = 540; core.add(ring);
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture('#66f0ff'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })); halo.scale.set(1600, 1600, 1); halo.position.y = 520; core.add(halo);
+    placeOnGround(core, 0, -500); surfaceCiv.add(core);
+    const n = 9 + (Math.random() * 6 | 0);
+    for (let i = 0; i < n; i++) {
+      const h = 400 + Math.random() * 900;
+      const t = new THREE.Mesh(new THREE.CylinderGeometry(18, 34, h, 8), emat); const g = new THREE.Group(); t.position.y = h / 2; g.add(t);
+      placeOnGround(g, (Math.random() - 0.5) * 3000, (Math.random() - 0.5) * 2600 - 300); surfaceCiv.add(g);
+    }
+  }
+}
+
 // v1.3: remember the craters + mountains of the world we're standing on so the
 // ship can actually COLLIDE with the terrain (ride up mountains, dip into pits).
 let curCraters = [], curMtns = [], curRoll = null;   // v1.8: curRoll = gentle rolling hills
@@ -1158,16 +1220,21 @@ function enterSurface(body) {
   surfPitch = body.hasRing ? -0.2 : 0.35;   // ring worlds: tilt the view up to reveal them
   state.pitch = 0;                          // level out for surface
 
-  // v1.1: alien life — every Sol-system world always has it; elsewhere a 10% chance
-  aliensPresent = (body.sysIndex === 0) || Math.random() < 0.10;
-  surfaceAliens.visible = aliensPresent;
-  if (aliensPresent) {
+  // v1.9: life tiers. Sol-system worlds host a Type II civilization; elsewhere a
+  // 40% chance, weighted from prehistoric (common) up to Type II (rare).
+  if (body.sysIndex === 0) lifeTier = 3;
+  else if (Math.random() < 0.40) { const r = Math.random(); lifeTier = r < 0.5 ? 0 : r < 0.8 ? 1 : r < 0.95 ? 2 : 3; }
+  else lifeTier = -1;
+  aliensPresent = lifeTier >= 0;
+  const critters = (lifeTier === 0 || lifeTier === 1);   // wildlife on wild & low-tier worlds
+  surfaceAliens.visible = critters;
+  if (critters) {
     const n = 3 + (Math.random() * 4 | 0);
     ALIEN_POOL.forEach((a, i) => { const on = i < n; a.visible = on;
-      if (on) { a.position.set((Math.random() - 0.5) * 900, 0, (Math.random() - 0.5) * 700 - 500); a.rotation.y = Math.random() * 7; } });
-    ui.sysBannerText.textContent = '👽 ALIEN LIFE DETECTED!';
-    ui.sysBanner.classList.add('show'); sysBannerTimer = 4.5;
+      if (on) { const x = (Math.random() - 0.5) * 900, z = (Math.random() - 0.5) * 700 - 500; a.position.set(x, terrainHeightAt(x, z), z); a.rotation.y = Math.random() * 7; } });
   }
+  buildCiv(lifeTier);                                     // huts / city / megastructure (no-op for -1 & 0)
+  if (aliensPresent) { ui.sysBannerText.textContent = LIFE_TIERS[lifeTier]; ui.sysBanner.classList.add('show'); sysBannerTimer = 4.5; }
 
   scene.remove(ship); surfaceScene.add(ship);         // move ship between rooms
   state.pos.set(0, 500, 0);                           // drop in from a bit up
@@ -1807,9 +1874,10 @@ animate();
 window.__game = {
   state, ship, bodies, systems, keys, enterSurface, updateSurface, updateShip,
   orientShipTo, shipForward, terrainHeightAt, animateFlares,
-  npcs, satellites, updateNpcs, surfaceWater, biomeFor,
+  npcs, satellites, updateNpcs, surfaceWater, biomeFor, surfaceCiv, LIFE_TIERS,
   get mode() { return mode; },
   get seaLevel() { return seaLevel; },
+  get lifeTier() { return lifeTier; },
   get aimYaw() { return aimYaw; }, set aimYaw(v) { aimYaw = v; },
   get hoverMode() { return hoverMode; }, set hoverMode(v) { hoverMode = v; },
   setHyperKeys(on) { keys.KeyQ = on; keys.KeyW = on; },
