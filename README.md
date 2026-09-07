@@ -1,4 +1,4 @@
-# 🚀 Space Explorer — v1.4
+# 🚀 Space Explorer — v1.5
 
 A 3D space game you fly in your browser. Five galaxies, each a black hole ringed
 by star systems, filled with richly-textured worlds you can actually land on.

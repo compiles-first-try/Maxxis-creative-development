@@ -232,7 +232,7 @@
 <!-- Start screen -->
 <div id="start">
   <h1>🚀 SPACE EXPLORER</h1>
-  <div style="margin-top:-8px;margin-bottom:6px;letter-spacing:3px;color:#7dffb0;font-weight:bold;font-size:14px;">★ v1.4 · SMOOTHER SKIES ★</div>
+  <div style="margin-top:-8px;margin-bottom:6px;letter-spacing:3px;color:#7dffb0;font-weight:bold;font-size:14px;">★ v1.5 · LIVING SKIES ★</div>
   <p>Five galaxies, each a black hole ringed by dozens of star systems — some with two, three, even four suns. Pick your ship, fly a portal to any system (or blast between galaxies with <b>Q+W</b> hyperspeed), and land on mountainous, richly-textured worlds. Keep an eye out for alien life. Visit every world to complete the universe.</p>
   <div class="keys">
     <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> steer &nbsp;•&nbsp;
@@ -287,7 +287,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v1.4';
+const GAME_VERSION = 'v1.5';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -537,15 +537,51 @@ function makePlanet(cfg, center, sys) {
   });
 }
 
-// A star = glowing sphere + soft halo sprites (positioned by the caller)
-function makeStarMesh(color) {
-  const s = new THREE.Mesh(new THREE.SphereGeometry(SUN_RADIUS, 48, 48), new THREE.MeshBasicMaterial({ color }));
-  [SUN_RADIUS * 3.2, SUN_RADIUS * 5.5].forEach((size, i) => {
-    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(hex(color)),
+// v1.5: star size varies by "magnitude" — small dwarfs common, giants rare.
+function starRadiusSingle() {
+  if (Math.random() < 0.07) return SUN_RADIUS * (1.9 + Math.random() * 0.7);   // rare giant (≤2.6×)
+  return SUN_RADIUS * (0.55 + Math.pow(Math.random(), 1.7) * 0.9);             // dwarf..normal (0.55–1.45×)
+}
+
+// A star = glowing sphere + soft halo sprites + animated solar flares (v1.5).
+function makeStarMesh(color, radius) {
+  radius = radius || SUN_RADIUS;
+  const s = new THREE.Mesh(new THREE.SphereGeometry(radius, 40, 40), new THREE.MeshBasicMaterial({ color }));
+  const glow = glowTexture(hex(color));
+  [radius * 3.2, radius * 5.5].forEach((size, i) => {
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow,
       transparent: true, blending: THREE.AdditiveBlending, opacity: i === 0 ? 0.85 : 0.4, depthWrite: false }));
     spr.scale.set(size, size, 1); s.add(spr);
   });
+  // v1.5: solar flares — additive plasma tongues around the limb that pulse & erupt
+  const flares = [];
+  const nF = 6;
+  for (let i = 0; i < nF; i++) {
+    const ang = (i / nF) * Math.PI * 2 + Math.random() * 0.5;
+    const baseR = radius * (0.7 + Math.random() * 0.7);
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow,
+      transparent: true, blending: THREE.AdditiveBlending, opacity: 0.5, depthWrite: false }));
+    spr.position.set(Math.cos(ang) * radius, Math.sin(ang) * radius, 0);
+    spr.scale.set(baseR, baseR, 1);
+    s.add(spr);
+    flares.push({ spr, ang, baseR, phase: Math.random() * 7, speed: 0.7 + Math.random() * 1.6, r0: radius });
+  }
+  s.userData.flares = flares;
+  s.userData.radius = radius;
   return s;
+}
+// v1.5: animate one star's flares (called only for stars near the camera)
+function animateFlares(starMesh, t) {
+  const fl = starMesh.userData.flares; if (!fl) return;
+  for (const f of fl) {
+    const pulse = Math.sin(t * f.speed + f.phase);
+    const erupt = Math.max(0, Math.sin(t * 0.23 + f.phase * 1.7) - 0.6) * 2.5;   // occasional big tongue
+    const sc = f.baseR * (1 + 0.35 * pulse + erupt);
+    f.spr.scale.set(sc, sc, 1);
+    f.spr.material.opacity = 0.28 + 0.22 * (pulse * 0.5 + 0.5) + erupt * 0.25;
+    const reach = f.r0 * (1.0 + 0.12 * pulse + erupt * 0.35);   // tongues lick outward when erupting
+    f.spr.position.set(Math.cos(f.ang) * reach, Math.sin(f.ang) * reach, 0);
+  }
 }
 
 function makeSystem(center, starColor, opts = {}) {
@@ -553,20 +589,27 @@ function makeSystem(center, starColor, opts = {}) {
     galaxy: opts.galaxy || 0, index: systems.length, starColors: [] };
   const nStars = Math.max(1, Math.min(4, opts.stars || 1));   // 1–4 stars
 
+  sys.stars = [];        // v1.5: the star meshes, for flare animation
   if (nStars === 1) {
-    const sun = makeStarMesh(starColor); sun.position.copy(center); scene.add(sun);
-    sys.sun = sun; sys.sunRadius = SUN_RADIUS; sys.starColors = [starColor];
+    // v1.5: size by magnitude (Sol keeps a normal, recognizable size)
+    const r = opts.starRadius || starRadiusSingle();
+    const sun = makeStarMesh(starColor, r); sun.position.copy(center); scene.add(sun);
+    sys.sun = sun; sys.sunRadius = r; sys.starColors = [starColor]; sys.stars.push(sun);
   } else {
     const pivot = new THREE.Object3D(); pivot.position.copy(center); scene.add(pivot);
     const off = SUN_RADIUS * (nStars === 2 ? 1.9 : nStars === 3 ? 2.5 : 3.0);   // stars orbit the barycenter
+    // v1.5: multi-star systems vary in size RELATIVE to each other (primary biggest)
+    const primaryR = SUN_RADIUS * (0.85 + Math.random() * 0.55);
+    let maxR = 0;
     for (let i = 0; i < nStars; i++) {
       const a = (i / nStars) * Math.PI * 2, x = Math.cos(a) * off, z = Math.sin(a) * off;
       const col = i === 0 ? starColor : (opts.starColor2 || starColor);
-      const star = makeStarMesh(col); star.position.set(x, 0, z); pivot.add(star);
-      sys.starColors.push(col);
+      const r = i === 0 ? primaryR : primaryR * (0.45 + Math.random() * 0.4);   // companions smaller, related
+      const star = makeStarMesh(col, r); star.position.set(x, 0, z); pivot.add(star);
+      sys.starColors.push(col); sys.stars.push(star); if (r > maxR) maxR = r;
     }
     sys.binaryPivot = pivot; sys.binarySpeed = 0.15;
-    sys.sunRadius = off + SUN_RADIUS;
+    sys.sunRadius = off + maxR;
   }
   sys.nStars = nStars;   // lighting is handled by a shared moving light pool (see LIGHT_POOL)
 
@@ -680,7 +723,7 @@ GALAXY_DEFS.forEach((gd, gi) => {
     let stars = isSol ? 1 : 1 + (Math.random() * 3 | 0);     // 1..3
     if (!isSol && Math.random() < 0.02) stars = 4;           // v1.1: 2% rare 4-star system
     makeSystem(gc.clone().add(off), isSol ? 0xffe27a : randStarColor(),
-      { name, stars, starColor2: randStarColor(), galaxy: gi });
+      { name, stars, starColor2: randStarColor(), galaxy: gi, starRadius: isSol ? SUN_RADIUS : 0 });
   }
 });
 
@@ -1318,6 +1361,8 @@ function animate() {
     s.beacon.material.opacity = Math.max(0, Math.min(1, (camDist - 300000) / 3000000)) * 0.6;
     const bs = Math.max(SUN_RADIUS * 30, camDist * 0.02);
     s.beacon.scale.set(bs, bs, 1);
+    // v1.5: animate solar flares only for nearby stars (keeps hundreds of stars cheap)
+    if (camDist < 4000000 && s.stars) for (const st of s.stars) animateFlares(st, clock.elapsedTime);
   }
 
   // v0.8: spin black-hole disks, and keep each galaxy's halo a constant on-screen marker
@@ -1578,7 +1623,7 @@ animate();
 // Small handle for automated tests (harmless in normal play).
 window.__game = {
   state, ship, bodies, systems, keys, enterSurface, updateSurface, updateShip,
-  orientShipTo, shipForward, terrainHeightAt,
+  orientShipTo, shipForward, terrainHeightAt, animateFlares,
   get mode() { return mode; },
   get aimYaw() { return aimYaw; }, set aimYaw(v) { aimYaw = v; },
   get hoverMode() { return hoverMode; }, set hoverMode(v) { hoverMode = v; },

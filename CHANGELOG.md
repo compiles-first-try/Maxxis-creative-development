@@ -7,6 +7,16 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v1.5 — living skies (star magnitudes & solar flares)
+- ⭐ Stars now vary in **size by magnitude**: small dwarfs are common, giants are
+  rare (0.55×–2.6× the base size). Every system looks distinct
+- ⭐⭐ In multi-star systems the suns are sized **relative to one another** — a big
+  primary with smaller companions — instead of all being identical
+- ☀️ **Solar flares!** Every star grows animated plasma tongues that pulse and
+  occasionally erupt outward from the limb (animated only for nearby stars, so
+  hundreds of stars stay performant)
+- ☀️ Sol always stays a normal, recognizable yellow star
+
 ## v1.4 — smoother flight (playability bug fixes)
 - 🚀 Fixed the ship **morphing into odd shapes** when flying through a planet at
   hyperspeed: the move is now sub-stepped (so a fast frame can't teleport you
