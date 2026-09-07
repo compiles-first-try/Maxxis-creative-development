@@ -7,6 +7,14 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v1.7 — traffic (NPC ships & satellites)
+- 🛰️ **Satellites** — little ISS-like craft (body + solar panels + dish) now orbit
+  many planets (every Sol-system world + ~30% elsewhere) on tilted orbits
+- 🚀 **NPC ships** — a pool of ~14 AI craft cruises around you, some heading to
+  real nearby planets, so you regularly spot other ships flying between worlds.
+  They respawn near you as you travel, so space always feels populated
+- ⚙️ Both are space-only and cheap (respawn/cull around the player)
+
 ## v1.6 — online (real internet multiplayer + hosting)
 - 🌐 **Real internet multiplayer** via Supabase Realtime: Host gets a password,
   friends **anywhere** pick Join and type it — same shared universe, live ships.

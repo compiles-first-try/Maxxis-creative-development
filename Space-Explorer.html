@@ -232,7 +232,7 @@
 <!-- Start screen -->
 <div id="start">
   <h1>🚀 SPACE EXPLORER</h1>
-  <div style="margin-top:-8px;margin-bottom:6px;letter-spacing:3px;color:#7dffb0;font-weight:bold;font-size:14px;">★ v1.6 · ONLINE ★</div>
+  <div style="margin-top:-8px;margin-bottom:6px;letter-spacing:3px;color:#7dffb0;font-weight:bold;font-size:14px;">★ v1.7 · TRAFFIC ★</div>
   <p>Five galaxies, each a black hole ringed by dozens of star systems — some with two, three, even four suns. Pick your ship, fly a portal to any system (or blast between galaxies with <b>Q+W</b> hyperspeed), and land on mountainous, richly-textured worlds. Keep an eye out for alien life. Visit every world to complete the universe.</p>
   <div class="keys">
     <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> steer &nbsp;•&nbsp;
@@ -291,7 +291,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v1.6';
+const GAME_VERSION = 'v1.7';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -809,6 +809,77 @@ ship.position.copy(state.pos);
 let aimYaw = state.yaw, aimPitch = 0;
 // v1.4: surface hover — hold altitude over terrain without tapping Space.
 let hoverMode = false, hoverHeight = 60;
+
+/* ===================== v1.7: TRAFFIC — NPC ships & satellites ===================== */
+// #9 Satellites: little ISS-like craft orbiting some planets (all Sol worlds + ~30%).
+const satellites = [];
+function makeSatellite() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(40, 40, 80),
+    new THREE.MeshStandardMaterial({ color: 0xcfd6e0, metalness: 0.85, roughness: 0.3 }));
+  g.add(body);
+  for (const sx of [-1, 1]) {   // solar panels
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(150, 4, 64),
+      new THREE.MeshStandardMaterial({ color: 0x203a6b, metalness: 0.6, roughness: 0.4, emissive: 0x0a1a3a, emissiveIntensity: 0.5 }));
+    panel.position.x = sx * 115; g.add(panel);
+  }
+  const dish = new THREE.Mesh(new THREE.SphereGeometry(24, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.3, roughness: 0.6 }));
+  dish.rotation.x = -Math.PI / 2; dish.position.z = 52; g.add(dish);
+  return g;
+}
+for (const b of bodies) {
+  if (b.isSun || b.radius < 450) continue;                 // planets only (skip tiny moons)
+  if (b.sysIndex === 0 || Math.random() < 0.3) {
+    const sat = makeSatellite();
+    const pivot = new THREE.Object3D();
+    pivot.rotation.x = (Math.random() - 0.5) * 1.4;        // tilted orbit
+    pivot.rotation.z = (Math.random() - 0.5) * 0.6;
+    sat.position.set(b.radius * 1.9 + 300, 0, 0);
+    pivot.add(sat); b.mesh.add(pivot);                     // rides with the planet
+    satellites.push({ pivot, speed: 0.4 + Math.random() * 0.6 });
+  }
+}
+
+// #8 NPC ships: a small pool that wanders near the player so you occasionally see
+// other craft cruising between worlds. Respawned near you so traffic is always visible.
+const NPC_COUNT = 14, npcs = [];
+function makeNpcShip() {
+  const c = [0x9fb4d0, 0xbfd0e8, 0xd0b090, 0xa0e0c0, 0xd0a0d0][Math.random() * 5 | 0];
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.ConeGeometry(55, 230, 10),
+    new THREE.MeshStandardMaterial({ color: c, metalness: 0.5, roughness: 0.5, emissive: c, emissiveIntensity: 0.15 }));
+  body.rotation.x = -Math.PI / 2; g.add(body);             // nose -Z (Object3D.lookAt faces -Z)
+  const wing = new THREE.Mesh(new THREE.BoxGeometry(300, 12, 80), new THREE.MeshStandardMaterial({ color: 0x33405a })); wing.position.z = 40; g.add(wing);
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture('#8fd0ff'), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  glow.scale.set(340, 340, 1); glow.position.z = 150; g.add(glow);   // engine glow at the tail (+Z)
+  g.visible = false; scene.add(g);
+  return { group: g, pos: new THREE.Vector3(), target: new THREE.Vector3(), speed: 5000 + Math.random() * 8000 };
+}
+for (let i = 0; i < NPC_COUNT; i++) npcs.push(makeNpcShip());
+function npcRespawn(n, near) {   // place it near the player, aimed across the view
+  const R = 4000 + Math.random() * 9000, D = 6000 + Math.random() * 20000;
+  const dir = () => new THREE.Vector3(Math.random() - 0.5, (Math.random() - 0.5) * 0.5, Math.random() - 0.5).normalize();
+  n.pos.copy(near).addScaledVector(dir(), R);
+  // half the time head toward a real nearby body → looks like inter-planet traffic
+  if (Math.random() < 0.5 && bodies.length) { const b = bodies[Math.random() * bodies.length | 0]; n.target.copy(b.world); }
+  else n.target.copy(near).addScaledVector(dir(), D);
+  n.group.position.copy(n.pos);
+}
+const _npcHead = new THREE.Vector3(), _npcLook = new THREE.Vector3();
+function updateNpcs(dt, playerPos) {
+  for (const n of npcs) {
+    if (!n.group.visible) { npcRespawn(n, playerPos); n.group.visible = true; }
+    _npcHead.copy(n.target).sub(n.pos);
+    const d = _npcHead.length();
+    if (d < 1200 || n.pos.distanceTo(playerPos) > 90000) { npcRespawn(n, playerPos); continue; }
+    _npcHead.multiplyScalar(1 / d);                        // unit heading
+    n.pos.addScaledVector(_npcHead, Math.min(n.speed * dt, d));
+    n.group.position.copy(n.pos);
+    n.group.lookAt(_npcLook.copy(n.pos).add(_npcHead));    // face travel dir (nose -Z)
+  }
+}
+function hideNpcs() { for (const n of npcs) n.group.visible = false; }
 
 /* ===================== v0.3: SURFACE WORLDS =====================
    Touch a body -> drop into a separate FLAT world painted like it.
@@ -1476,6 +1547,10 @@ function animate() {
     ALIEN_POOL.forEach((a, i) => { if (a.visible) { a.userData.body.position.y = 12 + Math.sin(tsec * 2 + i) * 2; a.rotation.y += 0.3 * dt; } });
   }
 
+  // v1.7: traffic — wandering NPC ships + orbiting satellites (space only)
+  if (mode === 'space') { updateNpcs(dt, state.pos); for (const s of satellites) s.pivot.rotation.y += s.speed * dt; }
+  else hideNpcs();
+
   // v1.2.4: broadcast my ship + draw everyone else's (no-op unless connected)
   mpTick(performance.now());
 
@@ -1658,6 +1733,7 @@ animate();
 window.__game = {
   state, ship, bodies, systems, keys, enterSurface, updateSurface, updateShip,
   orientShipTo, shipForward, terrainHeightAt, animateFlares,
+  npcs, satellites, updateNpcs,
   get mode() { return mode; },
   get aimYaw() { return aimYaw; }, set aimYaw(v) { aimYaw = v; },
   get hoverMode() { return hoverMode; }, set hoverMode(v) { hoverMode = v; },
