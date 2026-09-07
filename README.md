@@ -1,4 +1,4 @@
-# 🚀 Space Explorer — v1.5
+# 🚀 Space Explorer — v1.6
 
 A 3D space game you fly in your browser. Five galaxies, each a black hole ringed
 by star systems, filled with richly-textured worlds you can actually land on.
@@ -11,10 +11,17 @@ or **Join** (type the host's password). Everyone who types the *same password*
 shares one universe and sees each other's ships fly around live. A wrong password
 just puts you in a different room, so the password controls who can join.
 
-> **Note:** the game is a single offline file with no server, so "same password"
-> links players in the **same browser (multiple tabs/windows) or behind one local
-> server** — not across the open internet. True internet play would need a relay
-> server, which a static HTML file can't run.
+> **v1.6:** multiplayer is now **real internet play** — when the page is online it
+> uses **Supabase Realtime**, so friends anywhere who type your password join your
+> universe (shown as 🌐). If Supabase can't load (the offline single file with no
+> internet), it automatically falls back to **same-browser** rooms (shown as 🖥️).
+
+## ☁️ Hosting
+
+The hosted version is just `index.html` + `vendor/` served as static files (see
+`vercel.json`) — deploy the repo to **Vercel** and it runs as a web app with
+internet multiplayer. The downloadable **`Space-Explorer.html`** remains a single
+offline file for double-click play.
 
 ## ▶️ Play it
 

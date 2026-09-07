@@ -232,7 +232,7 @@
 <!-- Start screen -->
 <div id="start">
   <h1>🚀 SPACE EXPLORER</h1>
-  <div style="margin-top:-8px;margin-bottom:6px;letter-spacing:3px;color:#7dffb0;font-weight:bold;font-size:14px;">★ v1.5 · LIVING SKIES ★</div>
+  <div style="margin-top:-8px;margin-bottom:6px;letter-spacing:3px;color:#7dffb0;font-weight:bold;font-size:14px;">★ v1.6 · ONLINE ★</div>
   <p>Five galaxies, each a black hole ringed by dozens of star systems — some with two, three, even four suns. Pick your ship, fly a portal to any system (or blast between galaxies with <b>Q+W</b> hyperspeed), and land on mountainous, richly-textured worlds. Keep an eye out for alien life. Visit every world to complete the universe.</p>
   <div class="keys">
     <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> steer &nbsp;•&nbsp;
@@ -265,6 +265,10 @@
     document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');
   }
 </script>
+<!-- v1.6: Supabase client for TRUE internet multiplayer. Loads only when online;
+     if it's missing (offline single-file play) the game falls back to same-browser
+     BroadcastChannel rooms automatically. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* =========================================================================
    Maxxis — 3D Space Explorer
@@ -278,7 +282,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v1.5';
+const GAME_VERSION = 'v1.6';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -1263,30 +1267,55 @@ function upsertPeer(m) {
 }
 function removePeer(id) { const p = peers[id]; if (p) { scene.remove(p.group); delete peers[id]; } }
 
+// v1.6: real internet multiplayer via Supabase Realtime, with a same-browser
+// BroadcastChannel fallback when Supabase isn't reachable (offline single file).
+const SUPA_URL = 'https://sqlydujyveuglnmujqpw.supabase.co';
+const SUPA_KEY = 'sb_publishable_TNH0EaF0-lSno-1zpx7zHg_9HBYjkoW';   // public/publishable — safe to embed
+let mpTransport = 'none';   // 'supabase' | 'broadcast'
+function mpOnMessage(m) { if (!m || m.id === myId) return; m.type === 'bye' ? removePeer(m.id) : upsertPeer(m); }
+
 function connectMultiplayer(pass, name, role) {
   myName = (name || '').trim() || (role === 'host' ? 'Host' : 'Pilot');
   mpRole = role;
-  try { net = new BroadcastChannel('space-explorer-mp-' + pass); }
-  catch (e) { net = null; return false; }
-  net.onmessage = ev => {
-    const m = ev.data; if (!m || m.id === myId) return;
-    if (m.type === 'bye') removePeer(m.id); else if (m.type === 'state') upsertPeer(m);
-  };
-  return true;
+  const chan = 'space-explorer-mp-' + pass;
+
+  // Preferred path: Supabase Realtime broadcast → friends anywhere on the internet
+  if (window.supabase && SUPA_URL.indexOf('http') === 0) {
+    try {
+      const sb = window.supabase.createClient(SUPA_URL, SUPA_KEY, { realtime: { params: { eventsPerSecond: 20 } } });
+      const rt = sb.channel(chan, { config: { broadcast: { self: false } } });
+      rt.on('broadcast', { event: 'mp' }, ({ payload }) => mpOnMessage(payload));
+      rt.subscribe();
+      net = { kind: 'supabase', send: msg => rt.send({ type: 'broadcast', event: 'mp', payload: msg }),
+              close: () => { try { rt.unsubscribe(); sb.removeAllChannels(); } catch (e) {} } };
+      mpTransport = 'supabase';
+      return true;
+    } catch (e) { /* fall through to BroadcastChannel */ }
+  }
+
+  // Fallback: same-browser tabs/windows (works fully offline)
+  try {
+    const bc = new BroadcastChannel(chan);
+    bc.onmessage = ev => mpOnMessage(ev.data);
+    net = { kind: 'broadcast', send: msg => bc.postMessage(msg), close: () => bc.close() };
+    mpTransport = 'broadcast';
+    return true;
+  } catch (e) { net = null; mpTransport = 'none'; return false; }
 }
 let mpLastSend = 0;
 function mpTick(now) {
   if (!net) return;
   if (now - mpLastSend > 80) {   // broadcast my state ~12x/sec
     mpLastSend = now; const q = ship.quaternion;
-    net.postMessage({ type: 'state', id: myId, name: myName, mode,
+    net.send({ type: 'state', id: myId, name: myName, mode,
       x: ship.position.x, y: ship.position.y, z: ship.position.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w });
   }
   for (const id in peers) if (now - peers[id].lastSeen > 3500) removePeer(id);   // drop the silent
   const others = Object.values(peers).map(p => p.name || 'Pilot');
-  ui.players.textContent = others.length ? ('👥 You + ' + others.join(', ')) : '';
+  ui.players.textContent = others.length
+    ? ('👥 You + ' + others.join(', ') + (mpTransport === 'supabase' ? '  🌐' : '  🖥️')) : '';
 }
-addEventListener('beforeunload', () => { if (net) try { net.postMessage({ type: 'bye', id: myId }); } catch (e) {} });
+addEventListener('beforeunload', () => { if (net) try { net.send({ type: 'bye', id: myId }); net.close && net.close(); } catch (e) {} });
 
 /* ---------- Start-screen multiplayer UI ---------- */
 let mpMode = 'single';
@@ -1296,14 +1325,19 @@ let mpMode = 'single';
     mpMode = btn.dataset.mode;
     [...modes.children].forEach(b => b.classList.toggle('sel', b === btn));
     fields.hidden = (mpMode === 'single');
+    const online = !!window.supabase;
+    const where = online ? 'Friends anywhere can <b>Join</b> with it. 🌐' : 'Same browser / local server (offline). 🖥️';
     if (mpMode === 'host') {
       if (!pass.value) pass.value = 'nova-' + Math.floor(1000 + Math.random() * 9000);   // suggest a password
-      hint.innerHTML = 'Share this password: <b>' + pass.value + '</b><br>Friends pick <b>Join</b> and type it (same browser / local server).';
+      hint.innerHTML = 'Share this password: <b>' + pass.value + '</b><br>' + where;
     } else if (mpMode === 'join') {
-      hint.innerHTML = "Type the host's network password to join their game.";
+      hint.innerHTML = "Type the host's network password to join their game.<br>" + where;
     }
   });
-  pass.addEventListener('input', () => { if (mpMode === 'host') hint.innerHTML = 'Share this password: <b>' + (pass.value || '…') + '</b><br>Friends pick <b>Join</b> and type it (same browser / local server).'; });
+  pass.addEventListener('input', () => { if (mpMode === 'host') {
+    const where = window.supabase ? 'Friends anywhere can <b>Join</b> with it. 🌐' : 'Same browser / local server (offline). 🖥️';
+    hint.innerHTML = 'Share this password: <b>' + (pass.value || '…') + '</b><br>' + where;
+  } });
 })();
 
 el('startBtn').addEventListener('click', () => {

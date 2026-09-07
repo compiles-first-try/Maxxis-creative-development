@@ -7,6 +7,18 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v1.6 — online (real internet multiplayer + hosting)
+- 🌐 **Real internet multiplayer** via Supabase Realtime: Host gets a password,
+  friends **anywhere** pick Join and type it — same shared universe, live ships.
+  (The universe is seeded, so everyone generates identical galaxies.)
+- 🖥️ Automatic **offline fallback**: if Supabase can't load (playing the offline
+  single file with no internet), multiplayer falls back to same-browser
+  BroadcastChannel rooms — no errors, it just works locally
+- 🔌 Ready to **host on Vercel** (static `index.html` + `vendor/`, `vercel.json`
+  added); a dedicated Supabase project stores the schema for player settings
+- 🏷️ The player list shows 🌐 (internet) or 🖥️ (local) so you know which mode
+  you're in
+
 ## v1.5 — living skies (star magnitudes & solar flares)
 - ⭐ Stars now vary in **size by magnitude**: small dwarfs are common, giants are
   rare (0.55×–2.6× the base size). Every system looks distinct
