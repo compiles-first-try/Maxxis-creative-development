@@ -282,7 +282,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v1.9.1';
+const GAME_VERSION = 'v1.9.2';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -1455,12 +1455,16 @@ function makeLabel(text) {
 function makeRemoteShip(name, idx) {
   const grp = new THREE.Group();
   const col = PEER_COLORS[idx % PEER_COLORS.length];
-  const body = new THREE.Mesh(new THREE.ConeGeometry(1.4, 7, 16), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.35 }));
+  const body = new THREE.Mesh(new THREE.ConeGeometry(14, 60, 14), new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.5, metalness: 0.4, roughness: 0.5 }));
   body.rotation.x = Math.PI / 2; grp.add(body);          // nose points +Z
-  const wing = new THREE.Mesh(new THREE.BoxGeometry(7, 0.3, 2), new THREE.MeshStandardMaterial({ color: col })); wing.position.z = -1.5; grp.add(wing);
-  const label = makeLabel(name); label.scale.set(80, 20, 1); label.position.set(0, 9, 0); grp.add(label);
-  grp.scale.setScalar(0.5); scene.add(grp);
-  return { group: grp, label };
+  const wing = new THREE.Mesh(new THREE.BoxGeometry(70, 5, 20), new THREE.MeshStandardMaterial({ color: col })); wing.position.z = -14; grp.add(wing);
+  // v1.9.2: a glowing beacon + name tag that hold a constant on-screen size, so you
+  // can spot & fly to teammates across a system (drawn on top: depthTest off).
+  const marker = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(hex(col)), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false }));
+  grp.add(marker);
+  const label = makeLabel(name); label.material.depthTest = false; grp.add(label);
+  scene.add(grp);
+  return { group: grp, body, marker, label };
 }
 function upsertPeer(m) {
   let p = peers[m.id];
@@ -1471,6 +1475,18 @@ function upsertPeer(m) {
   p.group.visible = (m.mode === 'space');                 // only render peers who are in space
 }
 function removePeer(id) { const p = peers[id]; if (p) { scene.remove(p.group); delete peers[id]; } }
+// v1.9.2: keep each teammate's beacon + name a readable on-screen size at any range
+function scalePeerMarkers() {
+  for (const id in peers) {
+    const p = peers[id]; if (!p.group.visible) continue;
+    const d = camera.position.distanceTo(p.group.position);
+    const ms = Math.max(140, d * 0.028);                  // beacon grows with distance → constant on screen
+    p.marker.scale.set(ms, ms, 1);
+    const lh = Math.max(70, d * 0.018);                   // name tag, kept above the beacon
+    p.label.scale.set(lh * 4, lh, 1);
+    p.label.position.set(0, ms * 0.6 + lh, 0);
+  }
+}
 
 // v1.6: real internet multiplayer via Supabase Realtime, with a same-browser
 // BroadcastChannel fallback when Supabase isn't reachable (offline single file).
@@ -1522,6 +1538,7 @@ function mpTick(now) {
       x: ship.position.x, y: ship.position.y, z: ship.position.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w });
   }
   for (const id in peers) if (now - peers[id].lastSeen > 3500) removePeer(id);   // drop the silent
+  scalePeerMarkers();                                     // keep teammate beacons visible at any range
   const others = Object.values(peers).map(p => p.name || 'Pilot');
   let line = '';
   if (mpTransport === 'supabase') {

@@ -7,6 +7,13 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v1.9.2 — see your teammates
+- 👀 Fixed remote players being invisible: their ships were only ~3 units tall in a
+  universe spanning millions of units, so a joined friend was an unseeable speck
+- 🔆 Each teammate now has a **glowing beacon + name tag that hold a constant
+  on-screen size** (like the system beacons), drawn on top so you can spot them
+  and fly to them from across a system; their ship body is bigger up close too
+
 ## v1.9.1 — multiplayer connection fix
 - 🔑 Switched the Supabase key to the classic anon (JWT) key, which is the most
   compatible with Realtime (the newer publishable key can be rejected by the
