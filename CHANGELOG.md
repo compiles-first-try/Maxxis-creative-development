@@ -7,6 +7,15 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v1.9.1 — multiplayer connection fix
+- 🔑 Switched the Supabase key to the classic anon (JWT) key, which is the most
+  compatible with Realtime (the newer publishable key can be rejected by the
+  realtime websocket) — fixes internet multiplayer not connecting
+- 📡 Multiplayer now only broadcasts once the channel is actually SUBSCRIBED
+- 🩺 The player HUD shows live connection status: "🌐 Connecting…", "🌐 Online —
+  waiting for a friend…", "⚠️ connection failed", or "🖥️ Local room" — so it's
+  clear whether you're connected
+
 ## v1.9 — life tiers & civilizations
 - 🛸 **The Sol system is now a Type II civilization** — land on any Sol world to
   find a glowing megastructure: a central spire + energy ring + towers

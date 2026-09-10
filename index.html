@@ -282,7 +282,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v1.9';
+const GAME_VERSION = 'v1.9.1';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -1475,8 +1475,10 @@ function removePeer(id) { const p = peers[id]; if (p) { scene.remove(p.group); d
 // v1.6: real internet multiplayer via Supabase Realtime, with a same-browser
 // BroadcastChannel fallback when Supabase isn't reachable (offline single file).
 const SUPA_URL = 'https://sqlydujyveuglnmujqpw.supabase.co';
-const SUPA_KEY = 'sb_publishable_TNH0EaF0-lSno-1zpx7zHg_9HBYjkoW';   // public/publishable — safe to embed
+// classic anon (JWT) key — public/safe to embed, and the most compatible with Realtime
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNxbHlkdWp5dmV1Z2xubXVqcXB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg3OTk0NDUsImV4cCI6MjEwNDM3NTQ0NX0.gmwJZKl6L54Uxh9X1xMT6lf5TdrmlC27Mol_i4sjKwY';
 let mpTransport = 'none';   // 'supabase' | 'broadcast'
+let mpStatus = '';          // 'connecting' | 'online' | 'error' | 'local'
 function mpOnMessage(m) { if (!m || m.id === myId) return; m.type === 'bye' ? removePeer(m.id) : upsertPeer(m); }
 
 function connectMultiplayer(pass, name, role) {
@@ -1490,10 +1492,14 @@ function connectMultiplayer(pass, name, role) {
       const sb = window.supabase.createClient(SUPA_URL, SUPA_KEY, { realtime: { params: { eventsPerSecond: 20 } } });
       const rt = sb.channel(chan, { config: { broadcast: { self: false } } });
       rt.on('broadcast', { event: 'mp' }, ({ payload }) => mpOnMessage(payload));
-      rt.subscribe();
-      net = { kind: 'supabase', send: msg => rt.send({ type: 'broadcast', event: 'mp', payload: msg }),
+      net = { kind: 'supabase', ready: false,
+              send: msg => { if (net.ready) rt.send({ type: 'broadcast', event: 'mp', payload: msg }); },
               close: () => { try { rt.unsubscribe(); sb.removeAllChannels(); } catch (e) {} } };
-      mpTransport = 'supabase';
+      mpTransport = 'supabase'; mpStatus = 'connecting';
+      rt.subscribe((status) => {   // report the real connection state so the HUD can show it
+        if (status === 'SUBSCRIBED') { net.ready = true; mpStatus = 'online'; }
+        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') { mpStatus = 'error'; }
+      });
       return true;
     } catch (e) { /* fall through to BroadcastChannel */ }
   }
@@ -1502,8 +1508,8 @@ function connectMultiplayer(pass, name, role) {
   try {
     const bc = new BroadcastChannel(chan);
     bc.onmessage = ev => mpOnMessage(ev.data);
-    net = { kind: 'broadcast', send: msg => bc.postMessage(msg), close: () => bc.close() };
-    mpTransport = 'broadcast';
+    net = { kind: 'broadcast', ready: true, send: msg => bc.postMessage(msg), close: () => bc.close() };
+    mpTransport = 'broadcast'; mpStatus = 'local';
     return true;
   } catch (e) { net = null; mpTransport = 'none'; return false; }
 }
@@ -1517,8 +1523,15 @@ function mpTick(now) {
   }
   for (const id in peers) if (now - peers[id].lastSeen > 3500) removePeer(id);   // drop the silent
   const others = Object.values(peers).map(p => p.name || 'Pilot');
-  ui.players.textContent = others.length
-    ? ('👥 You + ' + others.join(', ') + (mpTransport === 'supabase' ? '  🌐' : '  🖥️')) : '';
+  let line = '';
+  if (mpTransport === 'supabase') {
+    if (mpStatus === 'error') line = '⚠️ Multiplayer connection failed';
+    else if (others.length) line = '👥 You + ' + others.join(', ') + '  🌐';
+    else line = mpStatus === 'online' ? '🌐 Online — waiting for a friend…' : '🌐 Connecting…';
+  } else if (mpTransport === 'broadcast') {
+    line = others.length ? '👥 You + ' + others.join(', ') + '  🖥️' : '🖥️ Local room — waiting…';
+  }
+  ui.players.textContent = line;
 }
 addEventListener('beforeunload', () => { if (net) try { net.send({ type: 'bye', id: myId }); net.close && net.close(); } catch (e) {} });
 
