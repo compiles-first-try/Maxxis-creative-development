@@ -7,6 +7,15 @@ top of the `<script>` in `index.html`, then rebuild the standalone file.
 
 ---
 
+## v1.9.3 — smoother & surface multiplayer
+- ⚡ **3× the update rate** — ships now broadcast ~37×/sec (was ~12), plus
+  position/rotation **interpolation** between updates, so other players fly
+  smoothly instead of teleporting
+- 🪐 **See each other on planets** — when two players land on the *same* world you
+  now see each other's ships on the surface (matched by a stable body id from the
+  seeded universe); different planets stay separate
+- 🔧 Raised Supabase Realtime's events-per-second cap to match the faster tick
+
 ## v1.9.2 — see your teammates
 - 👀 Fixed remote players being invisible: their ships were only ~3 units tall in a
   universe spanning millions of units, so a joined friend was an unseeable speck

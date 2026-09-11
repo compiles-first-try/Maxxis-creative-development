@@ -291,7 +291,7 @@
    ========================================================================= */
 
 /* Bump this ONE line each time you improve the game (v0.1 → v0.2 → ...). */
-const GAME_VERSION = 'v1.9.2';
+const GAME_VERSION = 'v1.9.3';
 document.getElementById('ver').textContent = GAME_VERSION;
 
 /* Global "slow-mo" dial for orbits & spins. 1 = original, lower = slower. */
@@ -1008,6 +1008,7 @@ let aliensPresent = false;
 /* ===================== v1.9: LIFE TIERS & CIVILIZATIONS ===================== */
 // -1 none · 0 prehistoric (critters) · 1 Type 0 (huts) · 2 Type I (city) · 3 Type II (megastructure)
 let lifeTier = -1;
+let curBodyId = -1;   // v1.9.3: stable index of the body we're standing on (for surface multiplayer)
 const LIFE_TIERS = ['🦕 PREHISTORIC LIFE', '🛖 TYPE 0 CIVILIZATION', '🏙️ TYPE I CIVILIZATION', '🛸 TYPE II CIVILIZATION'];
 const surfaceCiv = new THREE.Group(); surfaceScene.add(surfaceCiv);
 // shared lit-window texture for cities
@@ -1183,6 +1184,7 @@ function tintColor(hex, f) {   // blend a color toward white by f (0..1)
 function enterSurface(body) {
   mode = 'surface';
   currentBody = body;
+  curBodyId = bodies.indexOf(body);   // v1.9.3: same value on every client (deterministic universe)
   if (!body.visited) { body.visited = true; visitedCount++; }
 
   // v1.8: biome — tint the ground, roll gentle hills, and flood a sea on liquid worlds
@@ -1261,7 +1263,7 @@ function exitSurface() {
   landCooldown = 2.0;                                  // don't instantly re-land
   ui.landedName.textContent = 'LEAVING ' + currentBody.name.toUpperCase();
   ui.landed.classList.add('show'); landedTimer = 1.2; snapCam = true;
-  currentBody = null;
+  currentBody = null; curBodyId = -1;
 }
 
 function updateSurface(dt) {
@@ -1472,26 +1474,40 @@ function makeRemoteShip(name, idx) {
   const marker = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(hex(col)), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false }));
   grp.add(marker);
   const label = makeLabel(name); label.material.depthTest = false; grp.add(label);
-  scene.add(grp);
-  return { group: grp, body, marker, label };
+  // v1.9.3: interpolation targets (smooth motion between the ~37 updates/sec)
+  return { group: grp, body, marker, label, tpos: new THREE.Vector3(), tquat: new THREE.Quaternion(), pmode: 'space', pbody: -1, parent: null, init: false };
 }
 function upsertPeer(m) {
   let p = peers[m.id];
   if (!p) { p = makeRemoteShip(m.name, Object.keys(peers).length); peers[m.id] = p; }
   p.name = m.name; p.lastSeen = performance.now();
-  p.group.position.set(m.x, m.y, m.z);
-  if (m.qx !== undefined) p.group.quaternion.set(m.qx, m.qy, m.qz, m.qw);
-  p.group.visible = (m.mode === 'space');                 // only render peers who are in space
+  p.pmode = m.mode; p.pbody = (m.body === undefined ? -1 : m.body);
+  p.tpos.set(m.x, m.y, m.z);
+  if (m.qx !== undefined) p.tquat.set(m.qx, m.qy, m.qz, m.qw);
+  if (!p.init) { p.group.position.copy(p.tpos); p.group.quaternion.copy(p.tquat); p.init = true; }   // snap first time
 }
-function removePeer(id) { const p = peers[id]; if (p) { scene.remove(p.group); delete peers[id]; } }
-// v1.9.2: keep each teammate's beacon + name a readable on-screen size at any range
-function scalePeerMarkers() {
+function removePeer(id) { const p = peers[id]; if (p) { if (p.group.parent) p.group.parent.remove(p.group); delete peers[id]; } }
+// v1.9.3: per-frame peer update — put each peer in the right room (space vs THIS
+// surface), interpolate toward their latest transform, and size their beacon/tag.
+function updatePeers() {
   for (const id in peers) {
-    const p = peers[id]; if (!p.group.visible) continue;
+    const p = peers[id];
+    // Can I see this peer? Same room, and (on a surface) the SAME planet as me.
+    const show = (p.pmode === 'space' && mode === 'space')
+              || (p.pmode === 'surface' && mode === 'surface' && p.pbody === curBodyId && curBodyId >= 0);
+    const wantParent = show ? (mode === 'space' ? scene : surfaceScene) : null;
+    if (p.parent !== wantParent) {
+      if (p.group.parent) p.group.parent.remove(p.group);
+      if (wantParent) wantParent.add(p.group);
+      p.parent = wantParent;
+    }
+    if (!show) continue;
+    p.group.position.lerp(p.tpos, 0.3);                    // smooth catch-up between ticks
+    p.group.quaternion.slerp(p.tquat, 0.3);
     const d = camera.position.distanceTo(p.group.position);
-    const ms = Math.max(140, d * 0.028);                  // beacon grows with distance → constant on screen
+    const ms = Math.max(140, d * 0.028);                  // beacon → constant on-screen size
     p.marker.scale.set(ms, ms, 1);
-    const lh = Math.max(70, d * 0.018);                   // name tag, kept above the beacon
+    const lh = Math.max(70, d * 0.018);
     p.label.scale.set(lh * 4, lh, 1);
     p.label.position.set(0, ms * 0.6 + lh, 0);
   }
@@ -1514,7 +1530,7 @@ function connectMultiplayer(pass, name, role) {
   // Preferred path: Supabase Realtime broadcast → friends anywhere on the internet
   if (window.supabase && SUPA_URL.indexOf('http') === 0) {
     try {
-      const sb = window.supabase.createClient(SUPA_URL, SUPA_KEY, { realtime: { params: { eventsPerSecond: 20 } } });
+      const sb = window.supabase.createClient(SUPA_URL, SUPA_KEY, { realtime: { params: { eventsPerSecond: 45 } } });
       const rt = sb.channel(chan, { config: { broadcast: { self: false } } });
       rt.on('broadcast', { event: 'mp' }, ({ payload }) => mpOnMessage(payload));
       net = { kind: 'supabase', ready: false,
@@ -1541,13 +1557,13 @@ function connectMultiplayer(pass, name, role) {
 let mpLastSend = 0;
 function mpTick(now) {
   if (!net) return;
-  if (now - mpLastSend > 80) {   // broadcast my state ~12x/sec
+  if (now - mpLastSend > 27) {   // v1.9.3: broadcast my state ~37x/sec (3x the old rate)
     mpLastSend = now; const q = ship.quaternion;
-    net.send({ type: 'state', id: myId, name: myName, mode,
+    net.send({ type: 'state', id: myId, name: myName, mode, body: (mode === 'surface' ? curBodyId : -1),
       x: ship.position.x, y: ship.position.y, z: ship.position.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w });
   }
   for (const id in peers) if (now - peers[id].lastSeen > 3500) removePeer(id);   // drop the silent
-  scalePeerMarkers();                                     // keep teammate beacons visible at any range
+  updatePeers();                                          // interpolate + place peers in the right room
   const others = Object.values(peers).map(p => p.name || 'Pilot');
   let line = '';
   if (mpTransport === 'supabase') {
