@@ -74,6 +74,9 @@ number until you reach it):
 | 🏛️ T2 Habitation Base | 5 iron · 2 silicon · 2 titanium | **500** | Even bigger glassy dome |
 | 🌧️ T1 Rain Generator | 2 quartz · 2 iron · 2 silicon | **1500** | Each adds **+5% rain chance** (2=10%, 3=15%, 4=20%) — rain speeds terraforming |
 | 🔆 T2 Solar Panel | 5 silicon · 2 iron | **1500** | Produces 25⚡ · bigger, darker |
+| 🌱 T1 Plant Generator | 3 silicon · 2 iron · 1 quartz | **3000** | Grows grass every 6s, a tree every 12s |
+| 🌿 T2 Plant Generator | 5 silicon · 3 iron · 2 quartz | **3500** | 2× grass & trees each cycle |
+| 🌳 T3 Plant Generator | 8 silicon · 5 iron · 2 titanium · 3 quartz | **4000** | 3× grass & trees each cycle |
 
 **The planet transforms as the Index climbs:**
 
@@ -82,6 +85,17 @@ number until you reach it):
 - **1500** → **Rain Generators** and the T2 Solar Panel unlock.
 - **2000** → the sky is **fully blue** and the **oceans are full** (water fills
   the valleys). 🌍
+- **3000** → **Plant Generators** unlock. Build them to grow grass and trees.
+- **🏆 Grow 10 full-size trees** → **you win!** You're teleported back to the
+  space station, and looking out the window you see a living, blue-and-green
+  terraformed Mars.
+
+### 🎛️ Two ways to play (menu at the start)
+
+- **🚀 Survival** — the full story: station → lasers → mine & build your way up.
+- **✦ Creative** — everything unlocked, **unlimited resources**. Mars still
+  starts barren, so you still have to terraform it (and grow 10 trees to win) —
+  just without the grind.
 
 Play it by opening **`Mars-Terraform.html`** (single offline file) or
 **`mars-terraform.html`** (dev version, uses `vendor/three.min.js`).

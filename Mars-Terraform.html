@@ -182,6 +182,27 @@
     border: none; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
   .closebtn { margin-top: 16px; font: inherit; color: #ffe9df; background: #3a140a; border: 1px solid #ff7a46;
     border-radius: 8px; padding: 8px 16px; cursor: pointer; }
+
+  /* ---------- Mode menu + win screen ---------- */
+  #modeMenu, #winScreen { position: fixed; inset: 0; z-index: 55; padding: 20px;
+    background: radial-gradient(circle at 50% 40%, #2a0c04, #050100 70%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  #winScreen { display: none; background: radial-gradient(circle at 50% 40%, #0b2a3a, #02060a 70%); }
+  #modeMenu h1, #winScreen h1 { font-size: 48px; color: #ff6a33; text-shadow: 0 0 30px rgba(255,80,20,0.6); letter-spacing: 2px; }
+  #winScreen h1 { color: #6dffae; text-shadow: 0 0 30px rgba(60,255,150,0.5); font-size: 40px; max-width: 900px; }
+  #modeMenu .tag, #winScreen .tag { font-size: 17px; opacity: 0.9; margin-top: 10px; max-width: 640px; line-height: 1.6; }
+  .modeRow { display: flex; gap: 20px; margin-top: 30px; flex-wrap: wrap; justify-content: center; }
+  .modeBtn { width: 300px; max-width: 86vw; text-align: left; font: inherit; color: #ffe9df; cursor: pointer;
+    background: rgba(28,10,5,0.9); border: 2px solid #ff7a46; border-radius: 16px; padding: 20px 22px;
+    transition: transform .12s, border-color .12s; }
+  .modeBtn:hover { transform: translateY(-3px); border-color: #ffd54f; }
+  .modeBtn .mt { font-size: 22px; font-weight: bold; color: #ffd27a; }
+  .modeBtn .md { font-size: 14px; opacity: 0.85; margin-top: 8px; line-height: 1.5; }
+  #creativeBtn { border-color: #3fa8ff; } #creativeBtn .mt { color: #8fd0ff; } #creativeBtn:hover { border-color: #9fe0ff; }
+  #againBtn { margin-top: 30px; font: inherit; font-size: 22px; font-weight: bold; color: #02150c;
+    background: linear-gradient(90deg,#8fffc0,#2fd07f); border: none; border-radius: 40px; padding: 14px 48px;
+    cursor: pointer; box-shadow: 0 6px 24px rgba(40,220,130,0.5); }
+  #againBtn:hover { filter: brightness(1.08); }
 </style>
 </head>
 <body>
@@ -227,8 +248,31 @@
 <div id="banner"><div class="t"></div><div class="s"></div></div>
 <div id="fade"></div>
 
-<!-- Start screen -->
-<div id="start">
+<!-- Mode menu (first screen) -->
+<div id="modeMenu">
+  <h1>MARS&nbsp;TERRAFORM</h1>
+  <div class="tag">Choose how you want to play.</div>
+  <div class="modeRow">
+    <button class="modeBtn" id="survivalBtn">
+      <div class="mt">🚀 SURVIVAL</div>
+      <div class="md">The full story. Start on the station, fire the lasers, then mine & build your way to a terraformed Mars.</div>
+    </button>
+    <button class="modeBtn" id="creativeBtn">
+      <div class="mt">✦ CREATIVE</div>
+      <div class="md">Everything unlocked, unlimited resources. Mars is still barren — terraform it your way. Grow 10 trees to win.</div>
+    </button>
+  </div>
+</div>
+
+<!-- Win screen -->
+<div id="winScreen">
+  <h1>🌍 YOU TERRAFORMED MARS!</h1>
+  <div class="tag">10 trees have grown — life has taken hold. Back aboard the station, you look out the window and see a living, blue-and-green world where a dead planet used to be.</div>
+  <button id="againBtn">▶ PLAY AGAIN</button>
+</div>
+
+<!-- Start screen (station briefing — Survival only) -->
+<div id="start" style="display:none">
   <h1>MARS&nbsp;TERRAFORM</h1>
   <div class="tag">You're stranded in a station orbiting a dead, barren Mars.
     Fire the terraforming lasers to warm the planet — then drop to the surface and bring it to life.</div>
@@ -637,11 +681,11 @@ function spawnRocks() {
 
 // resources, structures, build state
 const RES = { iron: 0, titanium: 0, silicon: 0, quartz: 0 };
-const build = { solars: [], drills: [], habitats: [], doors: [], chests: [], raingens: [] };
+const build = { solars: [], drills: [], habitats: [], doors: [], chests: [], raingens: [], plantgens: [] };
 let selectedBuild = null, buildPlacing = false, buildGhost = null;
 
 // milestone thresholds (Terraformation Index)
-const MS = { T2: 500, RAIN: 1500, FULL: 2000 };
+const MS = { T2: 500, RAIN: 1500, FULL: 2000, PLANT: 3000 };
 
 // buildables — `unlock` is the Index needed before it can be built
 const BUILDABLES = {
@@ -655,6 +699,9 @@ const BUILDABLES = {
   habitat2:{ name: 'T2 Habitation Base',emoji: '🏛️', cost: { iron: 5, silicon: 2, titanium: 2 }, unlock: MS.T2,   desc: 'Even bigger dome, glassy texture.' },
   raingen: { name: 'T1 Rain Generator', emoji: '🌧️', cost: { quartz: 2, iron: 2, silicon: 2 },   unlock: MS.RAIN, desc: 'Each one adds +5% chance of rain (speeds terraforming).' },
   solar2:  { name: 'T2 Solar Panel',    emoji: '🔆', cost: { silicon: 5, iron: 2 },              unlock: MS.RAIN, desc: 'Produces 25⚡ (bigger, darker).' },
+  plantgen: { name: 'T1 Plant Generator', emoji: '🌱', cost: { silicon: 3, iron: 2, quartz: 1 },             unlock: MS.PLANT, desc: 'Grows grass every 6s, trees every 12s. Grow 10 trees to win!' },
+  plantgen2:{ name: 'T2 Plant Generator', emoji: '🌿', cost: { silicon: 5, iron: 3, quartz: 2 },             unlock: 3500,     desc: '2× grass & trees each cycle.' },
+  plantgen3:{ name: 'T3 Plant Generator', emoji: '🌳', cost: { silicon: 8, iron: 5, titanium: 2, quartz: 3 }, unlock: 4000,     desc: '3× grass & trees each cycle.' },
 };
 
 // mining tool — a viewmodel parented to the camera, shown when equipped (X)
@@ -696,7 +743,7 @@ function requestLock() {
   canvas.requestPointerLock();
 }
 canvas.addEventListener('click', () => {
-  if (anyOverlay()) return;
+  if (anyOverlay() || STATE.phase === 'won') return;
   if (!pointerLocked) { requestLock(); return; }
   if (STATE.phase === 'station') {
     // locked + clicking = "use" → if aiming the armed button, fire
@@ -958,16 +1005,18 @@ function addTerraformIndex(n) { STATE.terraformIndex += n; el('tfIndex').textCon
 
 function refreshResHUD(prod) {
   const rain = (build.raingens && build.raingens.length) ? Math.min(build.raingens.length * 5, 20) : 0;
+  const v = k => STATE.creative ? '∞' : RES[k];
   el('resHud').innerHTML =
-    '<div class="row"><span>🪨 Iron</span><b>' + RES.iron + '</b></div>' +
-    '<div class="row"><span>⚙️ Titanium</span><b>' + RES.titanium + '</b></div>' +
-    '<div class="row"><span>🔷 Silicon</span><b>' + RES.silicon + '</b></div>' +
-    '<div class="row"><span>💎 Quartz</span><b>' + RES.quartz + '</b></div>' +
+    (STATE.creative ? '<div class="row" style="color:#6dffae">✦ CREATIVE</div>' : '') +
+    '<div class="row"><span>🪨 Iron</span><b>' + v('iron') + '</b></div>' +
+    '<div class="row"><span>⚙️ Titanium</span><b>' + v('titanium') + '</b></div>' +
+    '<div class="row"><span>🔷 Silicon</span><b>' + v('silicon') + '</b></div>' +
+    '<div class="row"><span>💎 Quartz</span><b>' + v('quartz') + '</b></div>' +
     '<div class="row energy"><span>⚡ Energy</span><b>' + (prod || 0) + '</b></div>' +
     (rain ? '<div class="row"><span>🌧️ Rain chance</span><b>' + rain + '%</b></div>' : '');
 }
-function canAfford(cost) { for (const k in cost) if (RES[k] < cost[k]) return false; return true; }
-function pay(cost) { for (const k in cost) RES[k] -= cost[k]; }
+function canAfford(cost) { if (STATE.creative) return true; for (const k in cost) if (RES[k] < cost[k]) return false; return true; }
+function pay(cost) { if (STATE.creative) return; for (const k in cost) RES[k] -= cost[k]; }
 
 let popTimer = 0;
 function popup(text, color) {
@@ -1017,7 +1066,7 @@ function renderBuild() {
   const list = el('buildList'); list.innerHTML = '';
   for (const key in BUILDABLES) {
     const b = BUILDABLES[key];
-    const locked = STATE.terraformIndex < (b.unlock || 0);
+    const locked = !STATE.creative && STATE.terraformIndex < (b.unlock || 0);
     const ok = !locked && canAfford(b.cost);
     const costStr = Object.keys(b.cost).map(k =>
       '<span class="' + (RES[k] >= b.cost[k] ? 'ok' : 'no') + '">' + b.cost[k] + ' ' + ROCK[k].emoji + '</span>').join('  ');
@@ -1040,6 +1089,9 @@ function structureGeo(key) {
   if (key === 'door')    return new THREE.BoxGeometry(1.0, 1.6, 0.3);
   if (key === 'chest2')  return new THREE.BoxGeometry(1.7, 1.3, 1.4);
   if (key === 'raingen') return new THREE.CylinderGeometry(0.5, 0.7, 2.6, 12);
+  if (key === 'plantgen')  return new THREE.CylinderGeometry(0.5, 0.7, 2.0, 12);
+  if (key === 'plantgen2') return new THREE.CylinderGeometry(0.6, 0.85, 2.4, 12);
+  if (key === 'plantgen3') return new THREE.CylinderGeometry(0.7, 1.0, 2.8, 12);
   return new THREE.BoxGeometry(1.2, 0.9, 1.0); // chest (T1)
 }
 function makeGhost(key) {
@@ -1049,7 +1101,7 @@ function makeGhost(key) {
   surface.add(buildGhost);
 }
 function chooseBuild(key) {
-  if (STATE.terraformIndex < (BUILDABLES[key].unlock || 0)) { popup('Locked — reach ' + BUILDABLES[key].unlock + ' Index', '#ff6a4a'); return; }
+  if (!STATE.creative && STATE.terraformIndex < (BUILDABLES[key].unlock || 0)) { popup('Locked — reach ' + BUILDABLES[key].unlock + ' Index', '#ff6a4a'); return; }
   if (!canAfford(BUILDABLES[key].cost)) { popup('Not enough materials', '#ff6a4a'); return; }
   selectedBuild = key; buildPlacing = true; makeGhost(key); toggleBuild();
 }
@@ -1119,6 +1171,18 @@ function createStructure(key, pos) {
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.18, 10, 20), new THREE.MeshStandardMaterial({ color: 0x9fd0ff, emissive: 0x2b7fff, emissiveIntensity: 0.7, metalness: 0.5, roughness: 0.3 }));
     ring.position.y = 2.6; ring.rotation.x = Math.PI / 2; g.add(base, ring);
     g.position.set(pos.x, gy, pos.z); surface.add(g); build.raingens.push({ mesh: g, ring });
+  } else if (key === 'plantgen' || key === 'plantgen2' || key === 'plantgen3') {
+    const tier = key === 'plantgen3' ? 3 : key === 'plantgen2' ? 2 : 1;
+    const h = 1.6 + tier * 0.4, bulbC = tier === 3 ? 0xffe26b : tier === 2 ? 0x2fd0a0 : 0x3fa83f;
+    const g = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.4 + tier * 0.1, 0.6 + tier * 0.1, h, 12),
+      new THREE.MeshStandardMaterial({ color: 0x5a6b50, metalness: 0.4, roughness: 0.6 }));
+    base.position.y = h / 2;
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.5 + tier * 0.12, 14, 12),
+      new THREE.MeshStandardMaterial({ color: bulbC, emissive: bulbC, emissiveIntensity: 0.6, roughness: 0.5 }));
+    bulb.position.y = h + 0.3; g.add(base, bulb);
+    g.position.set(pos.x, gy, pos.z); surface.add(g);
+    build.plantgens.push({ mesh: g, tier, bulb, grassTimer: 0, treeTimer: 0 });
   } else { // chest (T1) and chest2 (T2)
     const t2 = key === 'chest2';
     const m = new THREE.Mesh(new THREE.BoxGeometry(t2 ? 1.7 : 1.2, t2 ? 1.3 : 0.9, t2 ? 1.4 : 1.0),
@@ -1268,7 +1332,94 @@ function checkMilestones() {
     popup('🔓 Unlocked: Rain Generator & T2 Solar', '#ffd54f');
     showBanner('RAIN UNLOCKED', 'Build Rain Generators (B) — each adds +5% rain'); setTimeout(hideBanner, 4200); }
   if (!STATE.ms2000 && idx >= MS.FULL) { STATE.ms2000 = true;
-    showBanner('🌍 MARS TERRAFORMED', 'Blue skies · oceans full · you did it'); setTimeout(hideBanner, 5000); }
+    showBanner('🌍 MARS TERRAFORMED', 'Blue skies · oceans full · now bring life'); setTimeout(hideBanner, 5000); }
+  if (!STATE.ms3000 && idx >= MS.PLANT) { STATE.ms3000 = true;
+    popup('🌱 Plant Generators unlocked!', '#6dffae');
+    showBanner('PLANT LIFE UNLOCKED', 'Build Plant Generators (B) — grow 10 trees to WIN'); setTimeout(hideBanner, 4600); }
+}
+
+/* ---- plant generators: grass + trees, and the win condition ---- */
+const grasses = [], trees = []; let treesGrown = 0, winTriggered = false;
+const MAX_GRASS = 500, MAX_TREES = 60, WIN_TREES = 10;
+function plantSpot(gen, fn) {
+  const a = Math.random() * Math.PI * 2, r = 3 + Math.random() * 11;
+  const x = gen.mesh.position.x + Math.cos(a) * r, z = gen.mesh.position.z + Math.sin(a) * r;
+  const lim = SURF_SIZE / 2 - 6;
+  if (Math.abs(x) > lim || Math.abs(z) > lim) return;
+  if (surfH(x, z) < ocean.position.y + 0.4) return;   // not underwater
+  fn(x, z);
+}
+function spawnGrass(x, z) {
+  if (grasses.length >= MAX_GRASS) return;
+  const m = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.5, 5),
+    new THREE.MeshStandardMaterial({ color: 0x3fa83f, roughness: 1 }));
+  m.position.set(x, surfH(x, z) + 0.25, z); m.rotation.y = Math.random() * 6; surface.add(m); grasses.push(m);
+}
+function spawnTree(x, z) {
+  if (trees.length >= MAX_TREES) return;
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.22, 1.5, 6),
+    new THREE.MeshStandardMaterial({ color: 0x6b4423, roughness: 1 })); trunk.position.y = 0.75;
+  const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.1, 2.2, 8),
+    new THREE.MeshStandardMaterial({ color: 0x2f8f3f, roughness: 1 })); leaves.position.y = 2.2;
+  g.add(trunk, leaves); g.position.set(x, surfH(x, z), z); g.scale.setScalar(0.01); surface.add(g);
+  trees.push({ group: g, growth: 0, grown: false });
+}
+function updatePlants(dt) {
+  for (const pg of build.plantgens) {
+    if (pg.bulb) pg.bulb.material.emissiveIntensity = 0.5 + Math.sin(performance.now() * 0.004) * 0.3;
+    pg.grassTimer += dt; pg.treeTimer += dt;
+    if (pg.grassTimer >= 6)  { pg.grassTimer = 0; for (let k = 0; k < pg.tier; k++) plantSpot(pg, spawnGrass); }
+    if (pg.treeTimer  >= 12) { pg.treeTimer  = 0; for (let k = 0; k < pg.tier; k++) plantSpot(pg, spawnTree); }
+  }
+  for (const t of trees) {
+    if (t.growth < 1) {
+      t.growth = Math.min(1, t.growth + dt / 8);
+      t.group.scale.setScalar(Math.max(0.01, t.growth));
+      if (t.growth >= 1 && !t.grown) {
+        t.grown = true; treesGrown++;
+        popup('🌳 Tree grown (' + treesGrown + '/' + WIN_TREES + ')', '#6dffae');
+        if (treesGrown >= WIN_TREES) triggerWin();
+      }
+    }
+  }
+}
+
+/* ---- WIN: terraformed Mars, back to the station ---- */
+function marsTerraformedTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d');
+  g.fillStyle = '#1f5fa8'; g.fillRect(0, 0, 512, 512);                    // ocean
+  for (let i = 0; i < 16; i++) {                                          // green continents
+    g.fillStyle = 'rgba(' + (40 + Math.random() * 30 | 0) + ',' + (120 + Math.random() * 60 | 0) + ',' + (50 + Math.random() * 30 | 0) + ',0.95)';
+    g.beginPath(); g.ellipse(Math.random() * 512, Math.random() * 512, 30 + Math.random() * 70, 20 + Math.random() * 50, Math.random() * 6, 0, 7); g.fill();
+  }
+  g.fillStyle = '#eaf4ff';                                                // ice caps
+  g.beginPath(); g.ellipse(256, 8, 180, 36, 0, 0, 7); g.fill();
+  g.beginPath(); g.ellipse(256, 504, 180, 36, 0, 0, 7); g.fill();
+  for (let i = 0; i < 40; i++) {                                          // clouds
+    g.fillStyle = 'rgba(255,255,255,' + (0.18 + Math.random() * 0.25) + ')';
+    g.beginPath(); g.ellipse(Math.random() * 512, Math.random() * 512, 14 + Math.random() * 40, 8 + Math.random() * 16, 0, 0, 7); g.fill();
+  }
+  return new THREE.CanvasTexture(c);
+}
+let marsTerraformedTex = null;
+function triggerWin() {
+  if (winTriggered) return; winTriggered = true;
+  if (pointerLocked) document.exitPointerLock();
+  el('fade').classList.add('on');
+  setTimeout(() => { goToWonStation(); el('fade').classList.remove('on'); }, 1100);
+}
+function goToWonStation() {
+  STATE.phase = 'won';
+  surface.visible = false; station.visible = true;
+  if (!marsTerraformedTex) marsTerraformedTex = marsTerraformedTexture();
+  mars.material.map = marsTerraformedTex; mars.material.emissive.setHex(0x06263f);
+  mars.material.emissiveIntensity = 0.2; mars.material.needsUpdate = true;
+  marsGlow.visible = false;
+  camera.position.set(0, 2.6, 4); yaw = 0; pitch = 0.06;
+  el('resHud').style.display = 'none'; el('surfControls').style.display = 'none';
+  el('crosshair').style.display = 'none'; showPrompt('');
+  el('winScreen').style.display = 'flex';
 }
 
 /* ---- per-frame surface update ---- */
@@ -1284,6 +1435,7 @@ function updateSurface(dt) {
     if (d.timer >= period) { d.timer = 0; addTerraformIndex(gain); drillTick(d); }
   }
   updateWeather(dt);
+  updatePlants(dt);
   updateTerraformWorld();
   checkMilestones();
   if (buildPlacing) {
@@ -1306,7 +1458,7 @@ function updateSurface(dt) {
 const clock = new THREE.Clock();
 const vel = new THREE.Vector3();
 function updateMove(dt) {
-  if (STATE.phase === 'start' || anyOverlay()) return;
+  if (STATE.phase === 'start' || STATE.phase === 'won' || anyOverlay()) return;
   const speed = 7;
   const forward = (keys['KeyW'] ? 1 : 0) - (keys['KeyS'] ? 1 : 0);
   const strafe  = (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0);
@@ -1373,11 +1525,26 @@ animate();
    START
    ======================================================================= */
 renderInventory();
+// mode menu → Survival (full story) or Creative (sandbox)
+el('survivalBtn').addEventListener('click', () => {
+  STATE.mode = 'survival'; el('modeMenu').style.display = 'none'; el('start').style.display = 'flex';
+});
+el('creativeBtn').addEventListener('click', () => {
+  STATE.mode = 'creative'; STATE.creative = true;
+  el('modeMenu').style.display = 'none'; el('start').style.display = 'none';
+  teleportToSurface();
+  el('objText').innerHTML = '✦ Creative — everything unlocked, unlimited resources. Build drills to raise the Index, ' +
+                            'then Plant Generators (B) to grow <b>10 trees</b> and win.';
+  showBanner('✦ CREATIVE MODE', 'Everything unlocked · terraform Mars your way');
+  setTimeout(hideBanner, 3800);
+  requestLock();
+});
 el('playBtn').addEventListener('click', () => {
   el('start').style.display = 'none';
   STATE.phase = 'station';
   requestLock();
 });
+el('againBtn').addEventListener('click', () => location.reload());
 </script>
 </body>
 </html>
