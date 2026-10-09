@@ -1404,13 +1404,24 @@ function goToWonStation() {
   STATE.phase = 'won';
   surface.visible = false; station.visible = true;
   if (!marsTerraformedTex) marsTerraformedTex = marsTerraformedTexture();
-  mars.material.map = marsTerraformedTex; mars.material.emissive.setHex(0x06263f);
-  mars.material.emissiveIntensity = 0.2; mars.material.needsUpdate = true;
+  mars.material.map = marsTerraformedTex; mars.material.emissive.setHex(0x1a4a66);
+  mars.material.emissiveIntensity = 0.45; mars.material.needsUpdate = true;
   marsGlow.visible = false;
-  camera.position.set(0, 2.6, 4); yaw = 0; pitch = 0.06;
+  // frame the window on the living planet (animate() points the camera at Mars while phase==='won')
+  camera.position.set(0, 3, 7);   // inside the station, near the back wall, facing the window
   el('resHud').style.display = 'none'; el('surfControls').style.display = 'none';
-  el('crosshair').style.display = 'none'; showPrompt('');
-  el('winScreen').style.display = 'flex';
+  el('crosshair').style.display = 'none'; el('objective').style.display = 'none';
+  el('indexHud').style.display = 'none'; showPrompt('');
+  // keep the message near the top so it never blocks the view of Mars
+  el('banner').style.top = '14%';
+  let left = 10;
+  showBanner('🌍 YOU TERRAFORMED MARS!', 'Look out the window — returning to menu in ' + left + 's');
+  const iv = setInterval(() => {
+    left--;
+    if (left <= 0) { clearInterval(iv); location.reload(); return; }   // back to the mode menu
+    const s = el('banner').querySelector('.s');
+    if (s) s.textContent = 'Look out the window — returning to menu in ' + left + 's';
+  }, 1000);
 }
 
 /* ---- per-frame surface update ---- */
@@ -1485,7 +1496,8 @@ function animate() {
   const dt = Math.min(clock.getDelta(), 0.05);
 
   updateMove(dt);
-  applyLook();
+  if (STATE.phase === 'won') camera.lookAt(mars.position);   // stare out the window at the living planet
+  else applyLook();
 
   if (STATE.phase === 'station') {
     updateFocus();
