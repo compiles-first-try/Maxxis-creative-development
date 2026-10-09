@@ -40,6 +40,34 @@ heats up and changes texture, and you're **teleported to the surface**.
 | **Left-click + drag** | Move items between slots (only the ✋ hand slot can *use* an item) |
 | **Left-click** | Press the glowing Power Box button to fire the lasers |
 
+### 🌱 Chapter 2 — Terraform the surface
+
+Once you land, the real game begins. The ground has **hills and valleys**, and
+the valleys slowly **fill with water** as Mars terraforms. The **Terraformation
+Index** is now uncapped — it climbs as you mine and build.
+
+| Key / input | Action |
+|---|---|
+| **X** | Pull out / put away the **mining tool** (starts at Lv 1) |
+| **Click** | Mine the rock you're aiming at (or place a building) |
+| **M** | **Material map** — top-down view of where each rock is |
+| **B** | **Build menu** — craft & place structures |
+| **F** | Open a nearby **storage chest** |
+
+**Rocks** (mining-tool only): 🪨 Iron (gray, 1–2), ⚙️ Titanium (dark gray, 1–2),
+🔷 Silicon (blue, for glass, 1–3), and uncommon 💎 Quartz (found in valleys).
+
+**Buildables** (energy economy: solar panels power your drills — more machines
+need more panels):
+
+| Item | Cost | Does |
+|---|---|---|
+| 🛠️ T1 Pressure Drill | 2 iron · 1 titanium | Auto-mines nearby rocks (uses 8⚡) |
+| 🔋 T1 Solar Panel | 2 silicon · 1 iron | Produces 10⚡ |
+| 🏠 Habitation Module | 5 iron · 1 silicon | Supplies unlimited oxygen |
+| 🚪 Pressure Lock Door | 3 silicon · 1 titanium · 2 iron | Placed on a habitat for entry |
+| 📦 Storage Chest | 1 iron | 20 storage slots |
+
 Play it by opening **`Mars-Terraform.html`** (single offline file) or
 **`mars-terraform.html`** (dev version, uses `vendor/three.min.js`).
 

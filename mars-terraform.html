@@ -135,6 +135,52 @@
   }
   #playBtn:hover { filter: brightness(1.08); }
   #start .note { margin-top: 18px; font-size: 13px; opacity: 0.6; }
+
+  /* ---------- Chapter 2: resources / map / build / chest ---------- */
+  #resHud { bottom: 14px; right: 16px; font-size: 14px; line-height: 1.7; display: none; min-width: 170px;
+    background: rgba(30,8,4,0.6); border: 1px solid rgba(255,120,70,0.4); border-radius: 12px;
+    padding: 10px 14px; backdrop-filter: blur(4px); }
+  #resHud .row { display: flex; justify-content: space-between; gap: 16px; }
+  #resHud b { color: #ffd27a; }
+  #resHud .energy { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,120,70,0.3); }
+  #resHud .warn { color: #ff8a5a; font-size: 12px; margin-top: 4px; }
+  #surfControls { bottom: 14px; left: 16px; font-size: 13px; line-height: 1.8; display: none;
+    background: rgba(30,8,4,0.5); border: 1px solid rgba(255,120,70,0.3); border-radius: 12px;
+    padding: 10px 14px; backdrop-filter: blur(4px); z-index: 6; }
+  #minePop { position: fixed; left: 50%; top: 46%; transform: translate(-50%,-50%); font-size: 22px;
+    font-weight: bold; color: #6dffae; text-shadow: 0 0 10px #000; z-index: 8; opacity: 0;
+    transition: opacity .2s, top .6s ease-out; pointer-events: none; }
+  #mapOverlay, #buildOverlay, #chestOverlay { position: fixed; inset: 0; z-index: 20; display: none;
+    background: rgba(8,2,0,0.72); backdrop-filter: blur(3px); }
+  .panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+    background: rgba(28,10,5,0.96); border: 1px solid #ff7a46; border-radius: 16px; padding: 22px 26px;
+    box-shadow: 0 10px 50px rgba(0,0,0,0.7); max-width: 94vw; }
+  .panel h2 { color: #ffd27a; font-size: 20px; margin-bottom: 6px; }
+  .panel .sub { font-size: 13px; opacity: 0.8; margin-bottom: 14px; max-width: 460px; }
+  #mapCanvas { border: 1px solid #5a2414; border-radius: 8px; background: #2a140a; display: block; }
+  .maplegend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-size: 13px; }
+  .maplegend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+  .buildlist { display: flex; flex-direction: column; gap: 10px; width: 460px; max-width: 92vw; }
+  .builditem { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #5a2414;
+    border-radius: 10px; background: #1a0804; cursor: pointer; }
+  .builditem:hover { border-color: #ffd54f; background: #2a1108; }
+  .builditem.cant { opacity: 0.5; cursor: not-allowed; }
+  .builditem .bemoji { font-size: 28px; }
+  .builditem .bname { font-weight: bold; color: #ffe9df; }
+  .builditem .bdesc { font-size: 12px; opacity: 0.75; }
+  .builditem .bcost { margin-left: auto; font-size: 14px; text-align: right; white-space: nowrap; }
+  .bcost .ok { color: #6dffae; } .bcost .no { color: #ff6a4a; }
+  #chestSlots { display: grid; grid-template-columns: repeat(5, 64px); gap: 8px; margin-top: 12px; }
+  .cslot { width: 64px; height: 64px; border: 2px solid #5a2414; border-radius: 10px; background: #1a0804;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 24px; }
+  .cslot.filled { cursor: pointer; } .cslot.filled:hover { border-color: #ffd54f; }
+  .cslot .cnt { font-size: 12px; opacity: 0.9; }
+  .depositRow { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+  .depbtn { font: inherit; font-size: 13px; color: #1a0400; background: linear-gradient(90deg,#ffb347,#ff6a33);
+    border: none; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+  .closebtn { margin-top: 16px; font: inherit; color: #ffe9df; background: #3a140a; border: 1px solid #ff7a46;
+    border-radius: 8px; padding: 8px 16px; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -144,7 +190,7 @@
 
 <div id="indexHud" class="hud">
   <div class="lbl">Terraformation Index</div>
-  <div><span class="big" id="tfIndex">0</span> <span style="opacity:.6">/ 100</span></div>
+  <div><span class="big" id="tfIndex">0</span> <span style="opacity:.6" id="tfMax">/ 100</span></div>
 </div>
 
 <div id="objective" class="hud">
@@ -195,6 +241,44 @@
   <button id="playBtn">▶ ENTER THE STATION</button>
   <div class="note">Click to lock the mouse for looking around. Press <b>Esc</b> to free it.</div>
 </div>
+
+<!-- Chapter 2 HUD + overlays -->
+<div id="resHud" class="hud"></div>
+<div id="surfControls" class="hud">
+  <span class="key">Mouse</span> look · <span class="key">W A S D</span> move<br>
+  <span class="key">X</span> mining tool · <span class="key">Click</span> mine / place<br>
+  <span class="key">M</span> material map · <span class="key">B</span> build · <span class="key">F</span> open chest
+</div>
+<div id="minePop"></div>
+
+<div id="mapOverlay"><div class="panel">
+  <h2>🗺️ Material Map</h2>
+  <div class="sub">Where the rocks are. Dark-blue is valley / water — those low spots fill in as Mars terraforms.</div>
+  <canvas id="mapCanvas" width="440" height="440"></canvas>
+  <div class="maplegend">
+    <span><i class="dot" style="background:#9a9a9a"></i>Iron</span>
+    <span><i class="dot" style="background:#474d57"></i>Titanium</span>
+    <span><i class="dot" style="background:#3f74d6"></i>Silicon</span>
+    <span><i class="dot" style="background:#e7d6ff"></i>Quartz (valleys)</span>
+    <span><i class="dot" style="background:#ffd54f"></i>You · <i class="dot" style="background:#ffae5a"></i>Buildings</span>
+  </div>
+  <button class="closebtn" onclick="toggleMap()">Close (M)</button>
+</div></div>
+
+<div id="buildOverlay"><div class="panel">
+  <h2>🏗️ Build</h2>
+  <div class="sub">Spend materials to craft. Pick one you can afford, then click the ground to place it (Esc cancels).</div>
+  <div class="buildlist" id="buildList"></div>
+  <button class="closebtn" onclick="toggleBuild()">Close (B)</button>
+</div></div>
+
+<div id="chestOverlay"><div class="panel">
+  <h2>📦 Storage Chest</h2>
+  <div class="sub">20 slots. Deposit a material to tuck it away; click a filled slot to take it back.</div>
+  <div class="depositRow" id="depositRow"></div>
+  <div id="chestSlots"></div>
+  <button class="closebtn" onclick="toggleChest()">Close</button>
+</div></div>
 
 <script src="vendor/three.min.js"></script>
 <script>
@@ -458,35 +542,93 @@ function laserBeam(x) {
 const beams = [laserBeam(-5), laserBeam(5)];
 
 /* =======================================================================
-   SURFACE SCENE (built, hidden until teleport)
+   SURFACE SCENE — Chapter 2: terraform, mine, build (built, hidden until teleport)
    ======================================================================= */
+const SURF_SIZE = 320;
+// height field — rolling hills and valleys; queryable anywhere for placing/walking
+function surfH(x, z) {
+  return Math.sin(x * 0.045) * 3.2 + Math.cos(z * 0.04) * 3.0
+       + Math.sin((x + z) * 0.09) * 1.4 + Math.cos(x * 0.12 - z * 0.05) * 0.8;
+}
 const surface = new THREE.Group(); surface.visible = false; scene.add(surface);
+scene.add(camera);                       // so the mining-tool viewmodel (a camera child) renders
 surface.add(makeStars());
-surface.add(new THREE.AmbientLight(0xffb089, 0.8));
-const surfSun = new THREE.DirectionalLight(0xffd9b0, 1.1); surfSun.position.set(10, 20, 6); surface.add(surfSun);
-// warm reddish ground, bumpy
-const groundGeo = new THREE.PlaneGeometry(400, 400, 80, 80);
-for (let i = 0; i < groundGeo.attributes.position.count; i++) {
-  groundGeo.attributes.position.setZ(i, (Math.sin(i * 0.7) + Math.cos(i * 0.31)) * 0.4 + Math.random() * 0.5);
+surface.add(new THREE.AmbientLight(0xffc0a0, 0.85));
+const surfSun = new THREE.DirectionalLight(0xffe3c4, 1.2); surfSun.position.set(30, 50, 20); surface.add(surfSun);
+
+// terrain mesh from the height field
+const terGeo = new THREE.PlaneGeometry(SURF_SIZE, SURF_SIZE, 140, 140);
+terGeo.rotateX(-Math.PI / 2);
+{ const p = terGeo.attributes.position;
+  for (let i = 0; i < p.count; i++) p.setY(i, surfH(p.getX(i), p.getZ(i)));
+  terGeo.computeVertexNormals(); }
+const terTex = marsBarrenTexture(); terTex.wrapS = terTex.wrapT = THREE.RepeatWrapping; terTex.repeat.set(24, 24);
+const terrain = new THREE.Mesh(terGeo, new THREE.MeshStandardMaterial({ map: terTex, roughness: 1 }));
+surface.add(terrain);
+
+// water — rises over time to fill the valleys
+let waterY = -9, waterTarget = -2.6;
+const water = new THREE.Mesh(new THREE.PlaneGeometry(SURF_SIZE, SURF_SIZE),
+  new THREE.MeshStandardMaterial({ color: 0x2a6edb, transparent: true, opacity: 0.78, roughness: 0.2, metalness: 0.3 }));
+water.rotation.x = -Math.PI / 2; water.position.y = waterY; surface.add(water);
+
+// hazy sky dome
+surface.add(new THREE.Mesh(new THREE.SphereGeometry(600, 32, 32),
+  new THREE.MeshBasicMaterial({ color: 0x3a1608, side: THREE.BackSide })));
+
+// rock / material specs
+const ROCK = {
+  iron:     { color: 0x9a9a9a, emissive: 0x000000, min: 1, max: 2, label: 'Iron',     emoji: '🪨' },
+  titanium: { color: 0x474d57, emissive: 0x000000, min: 1, max: 2, label: 'Titanium', emoji: '⚙️' },
+  silicon:  { color: 0x3f74d6, emissive: 0x0a1f52, min: 1, max: 3, label: 'Silicon',  emoji: '🔷' },
+  quartz:   { color: 0xe7d6ff, emissive: 0x40306a, min: 1, max: 1, label: 'Quartz',   emoji: '💎' },
+};
+const rocks = [];       // { mesh, type, amount }
+const rockMeshes = [];  // flat list for raycasting
+function addRock(type, x, z) {
+  const s = ROCK[type], sz = 0.8 + Math.random() * 1.1;
+  const m = new THREE.Mesh(new THREE.DodecahedronGeometry(sz),
+    new THREE.MeshStandardMaterial({ color: s.color, emissive: s.emissive, emissiveIntensity: 0.5,
+                                     roughness: 0.85, metalness: 0.2 }));
+  m.position.set(x, surfH(x, z) + sz * 0.5, z);
+  m.rotation.set(Math.random(), Math.random(), Math.random());
+  const amount = s.min + Math.floor(Math.random() * (s.max - s.min + 1));
+  m.userData.rock = { type, amount };
+  surface.add(m); const r = { mesh: m, type, amount }; rocks.push(r); rockMeshes.push(m); return r;
 }
-groundGeo.computeVertexNormals();
-const ground = new THREE.Mesh(groundGeo,
-  new THREE.MeshStandardMaterial({ map: marsBarrenTexture(), roughness: 1 }));
-ground.material.map.wrapS = ground.material.map.wrapT = THREE.RepeatWrapping;
-ground.material.map.repeat.set(30, 30);
-ground.rotation.x = -Math.PI / 2; ground.position.y = -1; surface.add(ground);
-// a hazy warm sky dome
-const sky = new THREE.Mesh(new THREE.SphereGeometry(500, 32, 32),
-  new THREE.MeshBasicMaterial({ color: 0x3a1608, side: THREE.BackSide }));
-surface.add(sky);
-// a few distant rocks
-for (let i = 0; i < 40; i++) {
-  const r = new THREE.Mesh(new THREE.DodecahedronGeometry(1 + Math.random() * 3),
-    new THREE.MeshStandardMaterial({ color: 0x6b3320, roughness: 1 }));
-  r.position.set((Math.random() - 0.5) * 300, -0.5, (Math.random() - 0.5) * 300);
-  r.rotation.set(Math.random(), Math.random(), Math.random());
-  surface.add(r);
+function spawnRocks() {
+  const R = SURF_SIZE / 2 - 12;
+  const put = (type, n, valleyOnly) => { let placed = 0, guard = 0;
+    while (placed < n && guard < n * 50) { guard++;
+      const x = (Math.random() * 2 - 1) * R, z = (Math.random() * 2 - 1) * R, h = surfH(x, z);
+      if (valleyOnly && h > -3) continue;               // quartz only in valleys
+      if (!valleyOnly && h < waterTarget - 0.5) continue; // others not deep underwater
+      addRock(type, x, z); placed++; } };
+  put('iron', 46, false); put('titanium', 26, false); put('silicon', 32, false); put('quartz', 9, true);
 }
+
+// resources, structures, build state
+const RES = { iron: 0, titanium: 0, silicon: 0, quartz: 0 };
+const build = { solars: [], drills: [], habitats: [], doors: [], chests: [] };
+let selectedBuild = null, buildPlacing = false, buildGhost = null;
+const BUILDABLES = {
+  drill:   { name: 'T1 Pressure Drill', emoji: '🛠️', cost: { iron: 2, titanium: 1 },            desc: 'Auto-mines nearby rocks. Uses 8⚡.' },
+  solar:   { name: 'T1 Solar Panel',    emoji: '🔋', cost: { silicon: 2, iron: 1 },             desc: 'Produces 10⚡ to power machines.' },
+  habitat: { name: 'Habitation Module', emoji: '🏠', cost: { iron: 5, silicon: 1 },             desc: 'Supplies unlimited oxygen.' },
+  door:    { name: 'Pressure Lock Door',emoji: '🚪', cost: { silicon: 3, titanium: 1, iron: 2 }, desc: 'Placed on a habitat to allow entry.' },
+  chest:   { name: 'Storage Chest',     emoji: '📦', cost: { iron: 1 },                          desc: '20 separate storage slots.' },
+};
+
+// mining tool — a viewmodel parented to the camera, shown when equipped (X)
+let toolEquipped = false; const toolLevel = 1;
+const toolView = new THREE.Group();
+{ const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.55, 10),
+    new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.6, roughness: 0.4 }));
+  handle.rotation.z = 0.5;
+  const head = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.42, 12),
+    new THREE.MeshStandardMaterial({ color: 0xffcc44, metalness: 0.8, roughness: 0.3, emissive: 0x442200, emissiveIntensity: 0.4 }));
+  head.position.set(0.18, 0.3, 0); head.rotation.z = -0.9; toolView.add(handle, head); }
+toolView.position.set(0.5, -0.42, -1); toolView.visible = false; camera.add(toolView);
 
 /* =======================================================================
    FIRST-PERSON CONTROLS  (pointer lock look + WASD walk)
@@ -496,6 +638,13 @@ addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'KeyE' && STATE.phase !== 'start') { e.preventDefault(); toggleInventory(); }
   if (e.code === 'KeyF' && STATE.phase === 'station' && !invOpen) { e.preventDefault(); doInteract(); }
+  if (STATE.phase === 'surface') {
+    if (e.code === 'KeyX' && !anyOverlay()) { e.preventDefault(); toggleTool(); }
+    if (e.code === 'KeyM' && !buildOpen && !chestOpen && !invOpen) { e.preventDefault(); toggleMap(); }
+    if (e.code === 'KeyB' && !mapOpen && !chestOpen && !invOpen) { e.preventDefault(); toggleBuild(); }
+    if (e.code === 'KeyF' && !anyOverlay()) { e.preventDefault(); surfaceF(); }
+  }
+  if (e.code === 'Escape' && buildPlacing) cancelPlacing();
 });
 addEventListener('keyup', e => { keys[e.code] = false; });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
@@ -505,16 +654,21 @@ let pointerLocked = false;
 const canvas = renderer.domElement;
 
 function requestLock() {
-  if (STATE.phase === 'start' || invOpen) return;
+  if (STATE.phase === 'start' || anyOverlay()) return;
   canvas.requestPointerLock();
 }
 canvas.addEventListener('click', () => {
-  if (invOpen) return;
+  if (anyOverlay()) return;
   if (!pointerLocked) { requestLock(); return; }
-  // locked + clicking = "use" → if aiming the armed button, fire
-  if (STATE.phase === 'station' && STATE.focus && STATE.focus.userData.interact.kind === 'button' && STATE.buttonArmed)
-    startFiring();
+  if (STATE.phase === 'station') {
+    // locked + clicking = "use" → if aiming the armed button, fire
+    if (STATE.focus && STATE.focus.userData.interact.kind === 'button' && STATE.buttonArmed) startFiring();
+  } else if (STATE.phase === 'surface') {
+    if (buildPlacing) placeAtAim();
+    else if (toolEquipped) doMine();
+  }
 });
+canvas.addEventListener('contextmenu', e => { e.preventDefault(); if (buildPlacing) cancelPlacing(); });
 document.addEventListener('pointerlockchange', () => {
   pointerLocked = (document.pointerLockElement === canvas);
   el('crosshair').style.display = pointerLocked ? 'block' : 'none';
@@ -624,7 +778,7 @@ function toggleInventory() {
   invOpen = !invOpen;
   el('invOverlay').style.display = invOpen ? 'block' : 'none';
   if (invOpen) { if (pointerLocked) document.exitPointerLock(); renderInventory(); }
-  else if (STATE.phase !== 'surface') { requestLock(); }
+  else { requestLock(); }
 }
 function itemIcon(item) {
   if (!item) return null;
@@ -742,13 +896,268 @@ function teleportToSurface() {
   STATE.phase = 'surface';
   station.visible = false;
   surface.visible = true;
-  camera.position.set(0, 2.2, 0);
-  yaw = 0; pitch = -0.1;
-  el('objText').innerHTML = 'You made it. The lasers warmed Mars — now the real terraforming begins. ' +
-                            '<i>(More coming: water, air, plants, life.)</i>';
+  camera.position.set(0, surfH(0, 0) + 2.0, 0);
+  yaw = 0; pitch = -0.08;
+  spawnRocks();
+  el('tfMax').textContent = '';             // Terraformation Index is now uncapped
   el('tfIndex').textContent = STATE.terraformIndex;
-  showBanner('WELCOME TO MARS', 'Terraformation Index: ' + STATE.terraformIndex + ' / 100');
-  setTimeout(hideBanner, 3800);
+  el('resHud').style.display = 'block';
+  el('surfControls').style.display = 'block';
+  el('controls').style.display = 'none';
+  el('objText').innerHTML = 'Chapter 2 — Terraform Mars. Press <b>X</b> for your mining tool, ' +
+                            '<b>M</b> for the material map, <b>B</b> to build.';
+  refreshResHUD(0);
+  showBanner('CHAPTER 2 · TERRAFORM MARS', 'Mine materials · build your base · fill the valleys with water');
+  setTimeout(hideBanner, 4200);
+}
+
+/* =======================================================================
+   CHAPTER 2 — surface terraforming systems
+   ======================================================================= */
+let mapOpen = false, buildOpen = false, chestOpen = false, activeChest = null;
+function anyOverlay() { return invOpen || mapOpen || buildOpen || chestOpen; }
+function addTerraformIndex(n) { STATE.terraformIndex += n; el('tfIndex').textContent = STATE.terraformIndex; }
+
+function refreshResHUD(prod) {
+  const need = build.drills.length * 8;
+  el('resHud').innerHTML =
+    '<div class="row"><span>🪨 Iron</span><b>' + RES.iron + '</b></div>' +
+    '<div class="row"><span>⚙️ Titanium</span><b>' + RES.titanium + '</b></div>' +
+    '<div class="row"><span>🔷 Silicon</span><b>' + RES.silicon + '</b></div>' +
+    '<div class="row"><span>💎 Quartz</span><b>' + RES.quartz + '</b></div>' +
+    '<div class="row energy"><span>⚡ Energy</span><b>' + (prod || 0) + ' / ' + need + '</b></div>' +
+    (need > (prod || 0) ? '<div class="warn">⚠ Add solar panels to power every drill</div>' : '');
+}
+function canAfford(cost) { for (const k in cost) if (RES[k] < cost[k]) return false; return true; }
+function pay(cost) { for (const k in cost) RES[k] -= cost[k]; }
+
+let popTimer = 0;
+function popup(text, color) {
+  const p = el('minePop'); p.textContent = text; p.style.color = color || '#6dffae';
+  p.style.top = '46%'; p.style.opacity = '1'; popTimer = 1.0;
+  requestAnimationFrame(() => { p.style.top = '40%'; });
+}
+
+/* ---- mining tool ---- */
+function toggleTool() {
+  toolEquipped = !toolEquipped; toolView.visible = toolEquipped;
+  el('objText').innerHTML = toolEquipped
+    ? 'Mining tool out (Lv ' + toolLevel + '). Aim a rock and <b>click</b> to mine. <b>M</b> map · <b>B</b> build.'
+    : 'Mining tool away. Press <b>X</b> to pull it out again.';
+}
+const aimRay = new THREE.Raycaster();
+function aimRock() {
+  aimRay.setFromCamera(center, camera);
+  const hits = aimRay.intersectObjects(rockMeshes, false);
+  return (hits.length && hits[0].distance < 7) ? hits[0].object : null;
+}
+function removeRock(m) {
+  surface.remove(m);
+  let i = rocks.findIndex(r => r.mesh === m); if (i >= 0) rocks.splice(i, 1);
+  i = rockMeshes.indexOf(m); if (i >= 0) rockMeshes.splice(i, 1);
+}
+function doMine() {
+  const m = aimRock(); if (!m) return;
+  const rk = m.userData.rock;
+  RES[rk.type] += rk.amount; addTerraformIndex(1);
+  popup('+' + rk.amount + ' ' + ROCK[rk.type].emoji + ' ' + ROCK[rk.type].label);
+  removeRock(m);
+}
+
+/* ---- aiming helpers for placement ---- */
+const terRay = new THREE.Raycaster();
+function aimTerrain() { terRay.setFromCamera(center, camera); const h = terRay.intersectObject(terrain, false); return h.length ? h[0].point : null; }
+function aimObject(meshes) { if (!meshes.length) return null; terRay.setFromCamera(center, camera);
+  const h = terRay.intersectObjects(meshes, false); return h.length ? { point: h[0].point, mesh: h[0].object } : null; }
+
+/* ---- build menu + placement ---- */
+function toggleBuild() {
+  buildOpen = !buildOpen; el('buildOverlay').style.display = buildOpen ? 'block' : 'none';
+  if (buildOpen) { if (pointerLocked) document.exitPointerLock(); renderBuild(); } else requestLock();
+}
+function renderBuild() {
+  const list = el('buildList'); list.innerHTML = '';
+  for (const key in BUILDABLES) {
+    const b = BUILDABLES[key], ok = canAfford(b.cost);
+    const costStr = Object.keys(b.cost).map(k =>
+      '<span class="' + (RES[k] >= b.cost[k] ? 'ok' : 'no') + '">' + b.cost[k] + ' ' + ROCK[k].emoji + '</span>').join('  ');
+    const d = document.createElement('div'); d.className = 'builditem' + (ok ? '' : ' cant');
+    d.innerHTML = '<span class="bemoji">' + b.emoji + '</span>' +
+      '<span><span class="bname">' + b.name + '</span><br><span class="bdesc">' + b.desc + '</span></span>' +
+      '<span class="bcost">' + costStr + '</span>';
+    if (ok) d.onclick = () => chooseBuild(key);
+    list.appendChild(d);
+  }
+}
+function structureGeo(key) {
+  if (key === 'solar')   return new THREE.BoxGeometry(2.4, 0.15, 1.6);
+  if (key === 'drill')   return new THREE.CylinderGeometry(0.4, 0.6, 2.4, 10);
+  if (key === 'habitat') return new THREE.SphereGeometry(2.4, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+  if (key === 'door')    return new THREE.BoxGeometry(1.0, 1.6, 0.3);
+  return new THREE.BoxGeometry(1.2, 0.9, 1.0); // chest
+}
+function makeGhost(key) {
+  if (buildGhost) { surface.remove(buildGhost); buildGhost = null; }
+  buildGhost = new THREE.Mesh(structureGeo(key),
+    new THREE.MeshStandardMaterial({ color: 0x66ff99, transparent: true, opacity: 0.45 }));
+  surface.add(buildGhost);
+}
+function chooseBuild(key) {
+  if (!canAfford(BUILDABLES[key].cost)) { popup('Not enough materials', '#ff6a4a'); return; }
+  selectedBuild = key; buildPlacing = true; makeGhost(key); toggleBuild();
+}
+function updateGhost() {
+  if (!buildGhost) return;
+  const hit = (selectedBuild === 'door') ? aimObject(build.habitats.map(h => h.mesh)) : aimTerrain();
+  const pt = hit ? (hit.point || hit) : null;
+  if (pt) { buildGhost.visible = true; buildGhost.position.copy(pt); } else buildGhost.visible = false;
+}
+function cancelPlacing() {
+  buildPlacing = false; selectedBuild = null;
+  if (buildGhost) { surface.remove(buildGhost); buildGhost = null; }
+  showPrompt('');
+}
+function placeAtAim() {
+  const key = selectedBuild; if (!key) return;
+  if (!canAfford(BUILDABLES[key].cost)) { popup('Not enough materials', '#ff6a4a'); cancelPlacing(); return; }
+  let pos;
+  if (key === 'door') {
+    const hit = aimObject(build.habitats.map(h => h.mesh));
+    if (!hit) { popup('Doors go on a habitat', '#ff6a4a'); return; }
+    pos = hit.point;
+  } else {
+    const p = aimTerrain(); if (!p) return; pos = p;
+  }
+  pay(BUILDABLES[key].cost);
+  createStructure(key, pos); addTerraformIndex(5); popup('Built ' + BUILDABLES[key].name);
+  if (!canAfford(BUILDABLES[key].cost)) cancelPlacing();
+}
+function createStructure(key, pos) {
+  if (key === 'solar') {
+    const g = new THREE.Group();
+    const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1, 8), new THREE.MeshStandardMaterial({ color: 0x444444 }));
+    stand.position.y = 0.5;
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.12, 1.6),
+      new THREE.MeshStandardMaterial({ color: 0x1a3a8a, emissive: 0x0a1f52, emissiveIntensity: 0.5, metalness: 0.6, roughness: 0.3 }));
+    panel.position.y = 1.1; panel.rotation.x = -0.5; g.add(stand, panel);
+    g.position.set(pos.x, surfH(pos.x, pos.z), pos.z); surface.add(g); build.solars.push({ mesh: g });
+  } else if (key === 'drill') {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.6, 2.0, 10), new THREE.MeshStandardMaterial({ color: 0x7a4a2a, metalness: 0.5, roughness: 0.5 }));
+    body.position.y = 1.0;
+    const bit = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.8, 10), new THREE.MeshStandardMaterial({ color: 0xffcc44, metalness: 0.8, roughness: 0.3 }));
+    bit.position.y = 0.1; bit.rotation.x = Math.PI; g.add(body, bit);
+    g.position.set(pos.x, surfH(pos.x, pos.z), pos.z); surface.add(g); build.drills.push({ mesh: g, bit, timer: 0 });
+  } else if (key === 'habitat') {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(2.4, 18, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+      new THREE.MeshStandardMaterial({ color: 0xcfd6dd, metalness: 0.4, roughness: 0.4, side: THREE.DoubleSide }));
+    m.position.set(pos.x, surfH(pos.x, pos.z), pos.z); m.userData.habitat = true; surface.add(m); build.habitats.push({ mesh: m });
+  } else if (key === 'door') {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.6, 0.25),
+      new THREE.MeshStandardMaterial({ color: 0x334455, metalness: 0.7, roughness: 0.3, emissive: 0x112233, emissiveIntensity: 0.4 }));
+    m.position.copy(pos); surface.add(m); build.doors.push({ mesh: m });
+  } else { // chest
+    const m = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.9, 1.0),
+      new THREE.MeshStandardMaterial({ color: 0x8a5a2a, metalness: 0.3, roughness: 0.7 }));
+    m.position.set(pos.x, surfH(pos.x, pos.z) + 0.45, pos.z);
+    m.userData.chestRef = { storage: new Array(20).fill(null) };
+    surface.add(m); build.chests.push({ mesh: m });
+  }
+}
+
+/* ---- drills auto-mine while powered ---- */
+function nearestRock(pos, radius) {
+  let best = null, bd = radius;
+  for (const r of rocks) { const d = r.mesh.position.distanceTo(pos); if (d < bd) { bd = d; best = r; } }
+  return best;
+}
+function drillTick(d) {
+  const tgt = nearestRock(d.mesh.position, 28); if (!tgt) return;
+  RES[tgt.type] += 1; addTerraformIndex(1);
+  tgt.amount -= 1; tgt.mesh.userData.rock.amount = tgt.amount;
+  if (tgt.amount <= 0) removeRock(tgt.mesh);
+}
+
+/* ---- material map ---- */
+function toggleMap() {
+  mapOpen = !mapOpen; el('mapOverlay').style.display = mapOpen ? 'block' : 'none';
+  if (mapOpen) { if (pointerLocked) document.exitPointerLock(); drawMap(); } else requestLock();
+}
+function drawMap() {
+  const cv = el('mapCanvas'), g = cv.getContext('2d'), W = cv.width, H = cv.height, S = SURF_SIZE;
+  const toX = x => (x / S + 0.5) * W, toY = z => (z / S + 0.5) * H;
+  g.fillStyle = '#2a140a'; g.fillRect(0, 0, W, H);
+  const cell = S / 44;
+  for (let x = -S / 2; x < S / 2; x += cell) for (let z = -S / 2; z < S / 2; z += cell)
+    if (surfH(x, z) < waterTarget) { g.fillStyle = 'rgba(40,110,219,0.5)'; g.fillRect(toX(x), toY(z), W / 44 + 1, H / 44 + 1); }
+  for (const r of rocks) {
+    g.fillStyle = '#' + ROCK[r.type].color.toString(16).padStart(6, '0');
+    g.beginPath(); g.arc(toX(r.mesh.position.x), toY(r.mesh.position.z), 3, 0, 7); g.fill();
+  }
+  g.fillStyle = '#ffae5a';
+  for (const arr of [build.solars, build.drills, build.habitats, build.chests])
+    for (const s of arr) g.fillRect(toX(s.mesh.position.x) - 3, toY(s.mesh.position.z) - 3, 6, 6);
+  g.save(); g.translate(toX(camera.position.x), toY(camera.position.z)); g.rotate(-yaw);
+  g.fillStyle = '#ffd54f'; g.beginPath(); g.moveTo(0, -8); g.lineTo(6, 7); g.lineTo(-6, 7); g.closePath(); g.fill(); g.restore();
+}
+
+/* ---- storage chest ---- */
+function surfaceF() { const hit = aimObject(build.chests.map(c => c.mesh)); if (hit) openChest(hit.mesh.userData.chestRef); }
+function openChest(ref) {
+  activeChest = ref; chestOpen = true; el('chestOverlay').style.display = 'block';
+  if (pointerLocked) document.exitPointerLock(); renderChest();
+}
+function toggleChest() { chestOpen = false; activeChest = null; el('chestOverlay').style.display = 'none'; requestLock(); }
+function renderChest() {
+  if (!activeChest) return;
+  const dep = el('depositRow'); dep.innerHTML = '';
+  ['iron', 'titanium', 'silicon', 'quartz'].forEach(t => {
+    const btn = document.createElement('button'); btn.className = 'depbtn';
+    btn.innerHTML = 'Deposit ' + ROCK[t].emoji + ' ' + RES[t]; btn.onclick = () => depositAll(t); dep.appendChild(btn);
+  });
+  const grid = el('chestSlots'); grid.innerHTML = '';
+  for (let i = 0; i < 20; i++) {
+    const it = activeChest.storage[i], slot = document.createElement('div');
+    slot.className = 'cslot' + (it ? ' filled' : '');
+    if (it) { slot.innerHTML = ROCK[it.type].emoji + '<span class="cnt">' + it.count + '</span>'; slot.onclick = () => withdraw(i); }
+    grid.appendChild(slot);
+  }
+}
+function depositAll(type) {
+  if (RES[type] <= 0) return;
+  let slot = activeChest.storage.findIndex(s => s && s.type === type);
+  if (slot < 0) slot = activeChest.storage.findIndex(s => !s);
+  if (slot < 0) { popup('Chest full', '#ff6a4a'); return; }
+  if (!activeChest.storage[slot]) activeChest.storage[slot] = { type, count: 0 };
+  activeChest.storage[slot].count += RES[type]; RES[type] = 0; renderChest();
+}
+function withdraw(i) {
+  const it = activeChest.storage[i]; if (!it) return;
+  RES[it.type] += it.count; activeChest.storage[i] = null; renderChest();
+}
+
+/* ---- per-frame surface update ---- */
+function updateSurface(dt) {
+  if (waterY < waterTarget) { waterY = Math.min(waterTarget, waterY + dt * 0.06); water.position.y = waterY; }
+  const prod = build.solars.length * 10;
+  const powered = Math.min(build.drills.length, Math.floor(prod / 8));
+  for (let i = 0; i < build.drills.length; i++) {
+    const d = build.drills[i], on = i < powered;
+    if (d.bit) d.bit.rotation.y += (on ? 8 : 0) * dt;
+    if (on) { d.timer += dt; if (d.timer >= 2.5) { d.timer = 0; drillTick(d); } }
+  }
+  if (buildPlacing) {
+    updateGhost();
+    showPrompt('<span class="key">Click</span> place ' + BUILDABLES[selectedBuild].name + ' · <span class="key">Esc</span> cancel');
+  } else if (toolEquipped) {
+    const m = aimRock();
+    if (m) { const t = m.userData.rock.type; showPrompt('<span class="key">Click</span> mine ' + ROCK[t].emoji + ' ' + ROCK[t].label); }
+    else { const c = aimObject(build.chests.map(x => x.mesh)); showPrompt(c ? '<span class="key">F</span> open chest' : ''); }
+  } else {
+    const c = aimObject(build.chests.map(x => x.mesh)); showPrompt(c ? '<span class="key">F</span> open chest' : '');
+  }
+  if (popTimer > 0) { popTimer -= dt; if (popTimer <= 0) el('minePop').style.opacity = '0'; }
+  refreshResHUD(prod);
 }
 
 /* =======================================================================
@@ -757,7 +1166,7 @@ function teleportToSurface() {
 const clock = new THREE.Clock();
 const vel = new THREE.Vector3();
 function updateMove(dt) {
-  if (STATE.phase === 'start' || invOpen) return;
+  if (STATE.phase === 'start' || anyOverlay()) return;
   const speed = 7;
   const forward = (keys['KeyW'] ? 1 : 0) - (keys['KeyS'] ? 1 : 0);
   const strafe  = (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0);
@@ -775,7 +1184,11 @@ function updateMove(dt) {
     camera.position.z = Math.max(-ROOM.d / 2 + m, Math.min(ROOM.d / 2 - m, camera.position.z));
     camera.position.y = 2.6;
   } else {
-    camera.position.y = 2.2;
+    // surface: stay inside the map and walk along the terrain height
+    const lim = SURF_SIZE / 2 - 4;
+    camera.position.x = Math.max(-lim, Math.min(lim, camera.position.x));
+    camera.position.z = Math.max(-lim, Math.min(lim, camera.position.z));
+    camera.position.y = surfH(camera.position.x, camera.position.z) + 2.0;
   }
 }
 function applyLook() {
@@ -798,6 +1211,8 @@ function animate() {
     mars.rotation.y += dt * 0.02;
   } else if (STATE.phase === 'firing') {
     updateFiring(dt);
+  } else if (STATE.phase === 'surface') {
+    updateSurface(dt);
   }
 
   // fade / teleport sequencing
