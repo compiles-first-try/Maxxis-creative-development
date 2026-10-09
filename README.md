@@ -58,16 +58,30 @@ Every **5 minutes, two random rock types respawn** so you never run dry.
 **Rocks** (mining-tool only): 🪨 Iron (gray, 1–2), ⚙️ Titanium (dark gray, 1–2),
 🔷 Silicon (blue, for glass, 1–3), and uncommon 💎 Quartz (found in valleys).
 
-**Buildables** (energy economy: solar panels power your drills — more machines
-need more panels):
+**Buildables** — Tier 1 is available from the start; Tier 2 and the Rain
+Generator **unlock by Terraformation Index** (the build menu shows a 🔒 with the
+number until you reach it):
 
-| Item | Cost | Does |
-|---|---|---|
-| 🛠️ T1 Pressure Drill | 2 iron · 1 titanium | While powered, adds Terraform Index every 10s + mines nearby rocks (uses 8⚡; no power = no points) |
-| 🔋 T1 Solar Panel | 2 silicon · 1 iron | Produces 10⚡ |
-| 🏠 Habitation Module | 5 iron · 1 silicon | A solid dome (you can't walk through it) that supplies unlimited oxygen |
-| 🚪 Pressure Lock Door | 3 silicon · 1 titanium · 2 iron | Placed on a habitat — opens it up so you can walk inside |
-| 📦 Storage Chest | 1 iron | 20 storage slots |
+| Item | Cost | Unlocks at | Does |
+|---|---|---|---|
+| 🛠️ T1 Pressure Drill | 2 iron · 1 titanium | start | **+1 Index every 10s** (always, no power needed) + mines nearby rocks |
+| 🔋 T1 Solar Panel | 2 silicon · 1 iron | start | Produces 10⚡ |
+| 🏠 T1 Habitation Module | 5 iron · 1 silicon | start | Solid dome (can't walk through) · unlimited oxygen |
+| 🚪 Pressure Lock Door | 3 silicon · 1 titanium · 2 iron | start | Placed on a dome — opens it so you can walk inside |
+| 📦 T1 Storage Chest | 1 iron | start | 20 storage slots |
+| ⛏️ T2 Pressure Drill | 4 iron · 2 titanium | **500** | **+2 Index every 8s** · bigger, steel look |
+| 🧰 T2 Storage Chest | 2 iron · 1 silicon | **500** | 40 storage slots · bigger |
+| 🏛️ T2 Habitation Base | 5 iron · 2 silicon · 2 titanium | **500** | Even bigger glassy dome |
+| 🌧️ T1 Rain Generator | 2 quartz · 2 iron · 2 silicon | **1500** | Each adds **+5% rain chance** (2=10%, 3=15%, 4=20%) — rain speeds terraforming |
+| 🔆 T2 Solar Panel | 5 silicon · 2 iron | **1500** | Produces 25⚡ · bigger, darker |
+
+**The planet transforms as the Index climbs:**
+
+- **500** → the sky starts turning from dusty red toward **blue**, clouds fade
+  in, and Tier 2 unlocks.
+- **1500** → **Rain Generators** and the T2 Solar Panel unlock.
+- **2000** → the sky is **fully blue** and the **oceans are full** (water fills
+  the valleys). 🌍
 
 Play it by opening **`Mars-Terraform.html`** (single offline file) or
 **`mars-terraform.html`** (dev version, uses `vendor/three.min.js`).

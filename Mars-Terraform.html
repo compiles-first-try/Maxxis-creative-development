@@ -171,7 +171,8 @@
   .builditem .bdesc { font-size: 12px; opacity: 0.75; }
   .builditem .bcost { margin-left: auto; font-size: 14px; text-align: right; white-space: nowrap; }
   .bcost .ok { color: #6dffae; } .bcost .no { color: #ff6a4a; }
-  #chestSlots { display: grid; grid-template-columns: repeat(5, 64px); gap: 8px; margin-top: 12px; }
+  #chestSlots { display: grid; grid-template-columns: repeat(5, 64px); gap: 8px; margin-top: 12px;
+    max-height: 48vh; overflow-y: auto; }
   .cslot { width: 64px; height: 64px; border: 2px solid #5a2414; border-radius: 10px; background: #1a0804;
     display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 24px; }
   .cslot.filled { cursor: pointer; } .cslot.filled:hover { border-color: #ffd54f; }
@@ -274,7 +275,7 @@
 
 <div id="chestOverlay"><div class="panel">
   <h2>📦 Storage Chest</h2>
-  <div class="sub">20 slots. Deposit a material to tuck it away; click a filled slot to take it back.</div>
+  <div class="sub">Deposit a material to tuck it away; click a filled slot to take it back.</div>
   <div class="depositRow" id="depositRow"></div>
   <div id="chestSlots"></div>
   <button class="closebtn" onclick="toggleChest()">Close</button>
@@ -561,8 +562,8 @@ function surfH(x, z) {
 }
 const surface = new THREE.Group(); surface.visible = false; scene.add(surface);
 scene.add(camera);                       // so the mining-tool viewmodel (a camera child) renders
-surface.add(makeStars());
-surface.add(new THREE.AmbientLight(0xffc0a0, 0.85));
+const surfStars = makeStars(); surface.add(surfStars);
+const surfAmb = new THREE.AmbientLight(0xffc0a0, 0.85); surface.add(surfAmb);
 const surfSun = new THREE.DirectionalLight(0xffe3c4, 1.2); surfSun.position.set(30, 50, 20); surface.add(surfSun);
 
 // terrain mesh from the height field
@@ -575,12 +576,29 @@ const terTex = marsBarrenTexture(); terTex.wrapS = terTex.wrapT = THREE.RepeatWr
 const terrain = new THREE.Mesh(terGeo, new THREE.MeshStandardMaterial({ map: terTex, roughness: 1 }));
 surface.add(terrain);
 
-// valleys stay dry — low ground below this height is "valley" (where quartz hides)
+// valleys stay dry at first — low ground below this height is "valley" (where quartz hides);
+// oceans fill these back in as the Terraformation Index climbs past 500 toward 2000.
 const VALLEY_Y = -3;
 
-// hazy sky dome
-surface.add(new THREE.Mesh(new THREE.SphereGeometry(600, 32, 32),
-  new THREE.MeshBasicMaterial({ color: 0x3a1608, side: THREE.BackSide })));
+// sky dome — recolored from dusty-red to blue as Mars terraforms
+const SKY_RED = new THREE.Color(0x3a1608), SKY_BLUE = new THREE.Color(0x8fc2ff);
+const surfSky = new THREE.Mesh(new THREE.SphereGeometry(600, 32, 32),
+  new THREE.MeshBasicMaterial({ color: SKY_RED.clone(), side: THREE.BackSide }));
+surface.add(surfSky);
+
+// ocean — hidden far below until the Index crosses 500, then rises to fill the valleys (full at 2000)
+const ocean = new THREE.Mesh(new THREE.PlaneGeometry(SURF_SIZE, SURF_SIZE, 1, 1),
+  new THREE.MeshStandardMaterial({ color: 0x2a6edb, transparent: true, opacity: 0.82, roughness: 0.15, metalness: 0.35 }));
+ocean.rotation.x = -Math.PI / 2; ocean.position.y = -40; surface.add(ocean);
+
+// clouds — a layer of soft white puffs that fade in with the blue sky
+const clouds = new THREE.Group(); clouds.visible = false; surface.add(clouds);
+for (let i = 0; i < 26; i++) {
+  const c = new THREE.Mesh(new THREE.SphereGeometry(6 + Math.random() * 8, 10, 8),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0, roughness: 1 }));
+  c.position.set((Math.random() * 2 - 1) * 180, 45 + Math.random() * 25, (Math.random() * 2 - 1) * 180);
+  c.scale.y = 0.5; clouds.add(c);
+}
 
 // rock / material specs
 const ROCK = {
@@ -619,14 +637,24 @@ function spawnRocks() {
 
 // resources, structures, build state
 const RES = { iron: 0, titanium: 0, silicon: 0, quartz: 0 };
-const build = { solars: [], drills: [], habitats: [], doors: [], chests: [] };
+const build = { solars: [], drills: [], habitats: [], doors: [], chests: [], raingens: [] };
 let selectedBuild = null, buildPlacing = false, buildGhost = null;
+
+// milestone thresholds (Terraformation Index)
+const MS = { T2: 500, RAIN: 1500, FULL: 2000 };
+
+// buildables — `unlock` is the Index needed before it can be built
 const BUILDABLES = {
-  drill:   { name: 'T1 Pressure Drill', emoji: '🛠️', cost: { iron: 2, titanium: 1 },            desc: 'Auto-mines nearby rocks. Uses 8⚡.' },
-  solar:   { name: 'T1 Solar Panel',    emoji: '🔋', cost: { silicon: 2, iron: 1 },             desc: 'Produces 10⚡ to power machines.' },
-  habitat: { name: 'Habitation Module', emoji: '🏠', cost: { iron: 5, silicon: 1 },             desc: 'Supplies unlimited oxygen.' },
-  door:    { name: 'Pressure Lock Door',emoji: '🚪', cost: { silicon: 3, titanium: 1, iron: 2 }, desc: 'Placed on a habitat to allow entry.' },
-  chest:   { name: 'Storage Chest',     emoji: '📦', cost: { iron: 1 },                          desc: '20 separate storage slots.' },
+  drill:   { name: 'T1 Pressure Drill', emoji: '🛠️', cost: { iron: 2, titanium: 1 },             unlock: 0,       desc: '+1 Index every 10s + mines nearby rocks.' },
+  solar:   { name: 'T1 Solar Panel',    emoji: '🔋', cost: { silicon: 2, iron: 1 },              unlock: 0,       desc: 'Produces 10⚡.' },
+  habitat: { name: 'T1 Habitation Module', emoji: '🏠', cost: { iron: 5, silicon: 1 },           unlock: 0,       desc: 'Solid dome, unlimited oxygen.' },
+  door:    { name: 'Pressure Lock Door',emoji: '🚪', cost: { silicon: 3, titanium: 1, iron: 2 }, unlock: 0,       desc: 'Placed on a dome to open it up.' },
+  chest:   { name: 'T1 Storage Chest',  emoji: '📦', cost: { iron: 1 },                          unlock: 0,       desc: '20 storage slots.' },
+  drill2:  { name: 'T2 Pressure Drill', emoji: '⛏️', cost: { iron: 4, titanium: 2 },             unlock: MS.T2,   desc: '+2 Index every 8s (bigger, steel).' },
+  chest2:  { name: 'T2 Storage Chest',  emoji: '🧰', cost: { iron: 2, silicon: 1 },              unlock: MS.T2,   desc: '40 storage slots (bigger).' },
+  habitat2:{ name: 'T2 Habitation Base',emoji: '🏛️', cost: { iron: 5, silicon: 2, titanium: 2 }, unlock: MS.T2,   desc: 'Even bigger dome, glassy texture.' },
+  raingen: { name: 'T1 Rain Generator', emoji: '🌧️', cost: { quartz: 2, iron: 2, silicon: 2 },   unlock: MS.RAIN, desc: 'Each one adds +5% chance of rain (speeds terraforming).' },
+  solar2:  { name: 'T2 Solar Panel',    emoji: '🔆', cost: { silicon: 5, iron: 2 },              unlock: MS.RAIN, desc: 'Produces 25⚡ (bigger, darker).' },
 };
 
 // mining tool — a viewmodel parented to the camera, shown when equipped (X)
@@ -929,14 +957,14 @@ function anyOverlay() { return invOpen || mapOpen || buildOpen || chestOpen; }
 function addTerraformIndex(n) { STATE.terraformIndex += n; el('tfIndex').textContent = STATE.terraformIndex; }
 
 function refreshResHUD(prod) {
-  const need = build.drills.length * 8;
+  const rain = (build.raingens && build.raingens.length) ? Math.min(build.raingens.length * 5, 20) : 0;
   el('resHud').innerHTML =
     '<div class="row"><span>🪨 Iron</span><b>' + RES.iron + '</b></div>' +
     '<div class="row"><span>⚙️ Titanium</span><b>' + RES.titanium + '</b></div>' +
     '<div class="row"><span>🔷 Silicon</span><b>' + RES.silicon + '</b></div>' +
     '<div class="row"><span>💎 Quartz</span><b>' + RES.quartz + '</b></div>' +
-    '<div class="row energy"><span>⚡ Energy</span><b>' + (prod || 0) + ' / ' + need + '</b></div>' +
-    (need > (prod || 0) ? '<div class="warn">⚠ Add solar panels to power every drill</div>' : '');
+    '<div class="row energy"><span>⚡ Energy</span><b>' + (prod || 0) + '</b></div>' +
+    (rain ? '<div class="row"><span>🌧️ Rain chance</span><b>' + rain + '%</b></div>' : '');
 }
 function canAfford(cost) { for (const k in cost) if (RES[k] < cost[k]) return false; return true; }
 function pay(cost) { for (const k in cost) RES[k] -= cost[k]; }
@@ -988,23 +1016,31 @@ function toggleBuild() {
 function renderBuild() {
   const list = el('buildList'); list.innerHTML = '';
   for (const key in BUILDABLES) {
-    const b = BUILDABLES[key], ok = canAfford(b.cost);
+    const b = BUILDABLES[key];
+    const locked = STATE.terraformIndex < (b.unlock || 0);
+    const ok = !locked && canAfford(b.cost);
     const costStr = Object.keys(b.cost).map(k =>
       '<span class="' + (RES[k] >= b.cost[k] ? 'ok' : 'no') + '">' + b.cost[k] + ' ' + ROCK[k].emoji + '</span>').join('  ');
+    const right = locked ? '<span class="bcost"><span class="no">🔒 ' + b.unlock + ' Index</span></span>'
+                         : '<span class="bcost">' + costStr + '</span>';
     const d = document.createElement('div'); d.className = 'builditem' + (ok ? '' : ' cant');
     d.innerHTML = '<span class="bemoji">' + b.emoji + '</span>' +
-      '<span><span class="bname">' + b.name + '</span><br><span class="bdesc">' + b.desc + '</span></span>' +
-      '<span class="bcost">' + costStr + '</span>';
+      '<span><span class="bname">' + b.name + '</span><br><span class="bdesc">' + b.desc + '</span></span>' + right;
     if (ok) d.onclick = () => chooseBuild(key);
     list.appendChild(d);
   }
 }
 function structureGeo(key) {
   if (key === 'solar')   return new THREE.BoxGeometry(2.4, 0.15, 1.6);
+  if (key === 'solar2')  return new THREE.BoxGeometry(3.6, 0.2, 2.4);
   if (key === 'drill')   return new THREE.CylinderGeometry(0.4, 0.6, 2.4, 10);
+  if (key === 'drill2')  return new THREE.CylinderGeometry(0.6, 0.9, 3.4, 12);
   if (key === 'habitat') return new THREE.SphereGeometry(6, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+  if (key === 'habitat2')return new THREE.SphereGeometry(9, 28, 18, 0, Math.PI * 2, 0, Math.PI / 2);
   if (key === 'door')    return new THREE.BoxGeometry(1.0, 1.6, 0.3);
-  return new THREE.BoxGeometry(1.2, 0.9, 1.0); // chest
+  if (key === 'chest2')  return new THREE.BoxGeometry(1.7, 1.3, 1.4);
+  if (key === 'raingen') return new THREE.CylinderGeometry(0.5, 0.7, 2.6, 12);
+  return new THREE.BoxGeometry(1.2, 0.9, 1.0); // chest (T1)
 }
 function makeGhost(key) {
   if (buildGhost) { surface.remove(buildGhost); buildGhost = null; }
@@ -1013,6 +1049,7 @@ function makeGhost(key) {
   surface.add(buildGhost);
 }
 function chooseBuild(key) {
+  if (STATE.terraformIndex < (BUILDABLES[key].unlock || 0)) { popup('Locked — reach ' + BUILDABLES[key].unlock + ' Index', '#ff6a4a'); return; }
   if (!canAfford(BUILDABLES[key].cost)) { popup('Not enough materials', '#ff6a4a'); return; }
   selectedBuild = key; buildPlacing = true; makeGhost(key); toggleBuild();
 }
@@ -1045,34 +1082,49 @@ function placeAtAim() {
   if (!canAfford(BUILDABLES[key].cost)) cancelPlacing();
 }
 function createStructure(key, pos) {
-  if (key === 'solar') {
-    const g = new THREE.Group();
-    const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1, 8), new THREE.MeshStandardMaterial({ color: 0x444444 }));
-    stand.position.y = 0.5;
-    const panel = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.12, 1.6),
-      new THREE.MeshStandardMaterial({ color: 0x1a3a8a, emissive: 0x0a1f52, emissiveIntensity: 0.5, metalness: 0.6, roughness: 0.3 }));
-    panel.position.y = 1.1; panel.rotation.x = -0.5; g.add(stand, panel);
-    g.position.set(pos.x, surfH(pos.x, pos.z), pos.z); surface.add(g); build.solars.push({ mesh: g });
-  } else if (key === 'drill') {
-    const g = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.6, 2.0, 10), new THREE.MeshStandardMaterial({ color: 0x7a4a2a, metalness: 0.5, roughness: 0.5 }));
-    body.position.y = 1.0;
-    const bit = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.8, 10), new THREE.MeshStandardMaterial({ color: 0xffcc44, metalness: 0.8, roughness: 0.3 }));
+  const gy = surfH(pos.x, pos.z);
+  if (key === 'solar' || key === 'solar2') {
+    const t2 = key === 'solar2', g = new THREE.Group();
+    const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, t2 ? 1.4 : 1, 8), new THREE.MeshStandardMaterial({ color: 0x444444 }));
+    stand.position.y = (t2 ? 1.4 : 1) / 2;
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(t2 ? 3.6 : 2.4, 0.14, t2 ? 2.4 : 1.6),
+      new THREE.MeshStandardMaterial({ color: t2 ? 0x101826 : 0x1a3a8a, emissive: t2 ? 0x2b7fff : 0x0a1f52, emissiveIntensity: t2 ? 0.8 : 0.5, metalness: 0.7, roughness: 0.2 }));
+    panel.position.y = t2 ? 1.5 : 1.1; panel.rotation.x = -0.5; g.add(stand, panel);
+    g.position.set(pos.x, gy, pos.z); surface.add(g); build.solars.push({ mesh: g, out: t2 ? 25 : 10 });
+  } else if (key === 'drill' || key === 'drill2') {
+    const t2 = key === 'drill2', g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(t2 ? 0.6 : 0.4, t2 ? 0.9 : 0.6, t2 ? 2.8 : 2.0, 12),
+      new THREE.MeshStandardMaterial({ color: t2 ? 0x8691a0 : 0x7a4a2a, metalness: t2 ? 0.9 : 0.5, roughness: t2 ? 0.2 : 0.5 }));
+    body.position.y = (t2 ? 2.8 : 2.0) / 2;
+    const bit = new THREE.Mesh(new THREE.ConeGeometry(t2 ? 0.45 : 0.3, t2 ? 1.1 : 0.8, 12),
+      new THREE.MeshStandardMaterial({ color: t2 ? 0x55e0ff : 0xffcc44, metalness: 0.85, roughness: 0.25, emissive: t2 ? 0x0a4055 : 0x332000, emissiveIntensity: 0.5 }));
     bit.position.y = 0.1; bit.rotation.x = Math.PI; g.add(body, bit);
-    g.position.set(pos.x, surfH(pos.x, pos.z), pos.z); surface.add(g); build.drills.push({ mesh: g, bit, timer: 0 });
-  } else if (key === 'habitat') {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(6, 28, 18, 0, Math.PI * 2, 0, Math.PI / 2),
-      new THREE.MeshStandardMaterial({ color: 0xcfd6dd, metalness: 0.4, roughness: 0.4, side: THREE.DoubleSide }));
-    m.position.set(pos.x, surfH(pos.x, pos.z), pos.z); m.userData.habitat = true; surface.add(m); build.habitats.push({ mesh: m, hasDoor: false });
+    g.position.set(pos.x, gy, pos.z); surface.add(g);
+    build.drills.push({ mesh: g, bit, timer: 0, tier: t2 ? 2 : 1 });
+  } else if (key === 'habitat' || key === 'habitat2') {
+    const t2 = key === 'habitat2', R = t2 ? 9 : 6;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(R, 30, 20, 0, Math.PI * 2, 0, Math.PI / 2),
+      new THREE.MeshStandardMaterial({ color: t2 ? 0x8fded0 : 0xcfd6dd, metalness: t2 ? 0.2 : 0.4, roughness: t2 ? 0.1 : 0.4,
+                                       transparent: t2, opacity: t2 ? 0.75 : 1, side: THREE.DoubleSide }));
+    m.position.set(pos.x, gy, pos.z); m.userData.habitat = true; surface.add(m);
+    build.habitats.push({ mesh: m, hasDoor: false, radius: R });
   } else if (key === 'door') {
     const m = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.6, 0.25),
       new THREE.MeshStandardMaterial({ color: 0x334455, metalness: 0.7, roughness: 0.3, emissive: 0x112233, emissiveIntensity: 0.4 }));
     m.position.copy(pos); surface.add(m); build.doors.push({ mesh: m });
-  } else { // chest
-    const m = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.9, 1.0),
-      new THREE.MeshStandardMaterial({ color: 0x8a5a2a, metalness: 0.3, roughness: 0.7 }));
-    m.position.set(pos.x, surfH(pos.x, pos.z) + 0.45, pos.z);
-    m.userData.chestRef = { storage: new Array(20).fill(null) };
+  } else if (key === 'raingen') {
+    const g = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 2.4, 12), new THREE.MeshStandardMaterial({ color: 0x4a6a8a, metalness: 0.6, roughness: 0.4 }));
+    base.position.y = 1.2;
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.18, 10, 20), new THREE.MeshStandardMaterial({ color: 0x9fd0ff, emissive: 0x2b7fff, emissiveIntensity: 0.7, metalness: 0.5, roughness: 0.3 }));
+    ring.position.y = 2.6; ring.rotation.x = Math.PI / 2; g.add(base, ring);
+    g.position.set(pos.x, gy, pos.z); surface.add(g); build.raingens.push({ mesh: g, ring });
+  } else { // chest (T1) and chest2 (T2)
+    const t2 = key === 'chest2';
+    const m = new THREE.Mesh(new THREE.BoxGeometry(t2 ? 1.7 : 1.2, t2 ? 1.3 : 0.9, t2 ? 1.4 : 1.0),
+      new THREE.MeshStandardMaterial({ color: t2 ? 0x556677 : 0x8a5a2a, metalness: t2 ? 0.8 : 0.3, roughness: t2 ? 0.25 : 0.7 }));
+    m.position.set(pos.x, gy + (t2 ? 0.65 : 0.45), pos.z);
+    m.userData.chestRef = { storage: new Array(t2 ? 40 : 20).fill(null) };
     surface.add(m); build.chests.push({ mesh: m });
   }
 }
@@ -1107,7 +1159,7 @@ function drawMap() {
     g.beginPath(); g.arc(toX(r.mesh.position.x), toY(r.mesh.position.z), 3, 0, 7); g.fill();
   }
   g.fillStyle = '#ffae5a';
-  for (const arr of [build.solars, build.drills, build.habitats, build.chests])
+  for (const arr of [build.solars, build.drills, build.habitats, build.chests, build.raingens])
     for (const s of arr) g.fillRect(toX(s.mesh.position.x) - 3, toY(s.mesh.position.z) - 3, 6, 6);
   g.save(); g.translate(toX(camera.position.x), toY(camera.position.z)); g.rotate(-yaw);
   g.fillStyle = '#ffd54f'; g.beginPath(); g.moveTo(0, -8); g.lineTo(6, 7); g.lineTo(-6, 7); g.closePath(); g.fill(); g.restore();
@@ -1128,7 +1180,7 @@ function renderChest() {
     btn.innerHTML = 'Deposit ' + ROCK[t].emoji + ' ' + RES[t]; btn.onclick = () => depositAll(t); dep.appendChild(btn);
   });
   const grid = el('chestSlots'); grid.innerHTML = '';
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < activeChest.storage.length; i++) {
     const it = activeChest.storage[i], slot = document.createElement('div');
     slot.className = 'cslot' + (it ? ' filled' : '');
     if (it) { slot.innerHTML = ROCK[it.type].emoji + '<span class="cnt">' + it.count + '</span>'; slot.onclick = () => withdraw(i); }
@@ -1149,16 +1201,16 @@ function withdraw(i) {
 }
 
 /* ---- habitat dome collision (keep the player out unless it has a door) ---- */
-const DOME_R = 6.6;
 function collideDomes() {
   for (const h of build.habitats) {
     if (h.hasDoor) continue;                 // a door makes the dome enterable
+    const R = (h.radius || 6) + 0.6;
     const dx = camera.position.x - h.mesh.position.x;
     const dz = camera.position.z - h.mesh.position.z;
     const d = Math.hypot(dx, dz);
-    if (d < DOME_R && d > 1e-4) {            // push back out to the dome wall
-      camera.position.x = h.mesh.position.x + (dx / d) * DOME_R;
-      camera.position.z = h.mesh.position.z + (dz / d) * DOME_R;
+    if (d < R && d > 1e-4) {                  // push back out to the dome wall
+      camera.position.x = h.mesh.position.x + (dx / d) * R;
+      camera.position.z = h.mesh.position.z + (dz / d) * R;
     }
   }
 }
@@ -1174,22 +1226,66 @@ function respawnRocks() {
   popup('⛏️ New ' + picks.map(t => ROCK[t].emoji + ' ' + ROCK[t].label).join(' & ') + ' deposits appeared', '#ffd54f');
 }
 
+/* ---- terraforming world: rain, sky, ocean, clouds, milestones ---- */
+const RAIN_N = 1200;
+const rainGeo = new THREE.BufferGeometry();
+const rainPos = new Float32Array(RAIN_N * 3);
+for (let i = 0; i < RAIN_N; i++) { rainPos[i * 3] = (Math.random() * 2 - 1) * 60; rainPos[i * 3 + 1] = Math.random() * 40; rainPos[i * 3 + 2] = (Math.random() * 2 - 1) * 60; }
+rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+const rain = new THREE.Points(rainGeo, new THREE.PointsMaterial({ color: 0x9fd0ff, size: 0.35, transparent: true, opacity: 0.7 }));
+rain.visible = false; surface.add(rain);
+let rainTimer = 0, rainActive = 0, rainIdxAccum = 0;
+function rainChancePct() { return Math.min(build.raingens.length * 5, 20); }
+function updateWeather(dt) {
+  for (const rg of build.raingens) rg.ring.rotation.z += dt * (rainActive > 0 ? 3 : 0.6);
+  if (build.raingens.length > 0 && rainActive <= 0) {
+    rainTimer += dt;
+    if (rainTimer >= 20) { rainTimer = 0; if (Math.random() * 100 < rainChancePct()) { rainActive = 15; popup('🌧️ Rain! Terraforming faster', '#9fd0ff'); } }
+  }
+  if (rainActive > 0) {
+    rainActive -= dt; rain.visible = true; rain.position.set(camera.position.x, 0, camera.position.z);
+    const p = rainGeo.attributes.position;
+    for (let i = 0; i < RAIN_N; i++) { let y = p.getY(i) - 40 * dt; if (y < 0) y += 40; p.setY(i, y); }
+    p.needsUpdate = true;
+    rainIdxAccum += dt; if (rainIdxAccum >= 1) { rainIdxAccum = 0; addTerraformIndex(2); }
+  } else rain.visible = false;
+}
+function updateTerraformWorld() {
+  const p = Math.max(0, Math.min(1, (STATE.terraformIndex - MS.T2) / (MS.FULL - MS.T2))); // 0 at 500 → 1 at 2000
+  surfSky.material.color.copy(SKY_RED).lerp(SKY_BLUE, p);
+  surfAmb.intensity = 0.85 + p * 0.3;
+  surfStars.material.transparent = true; surfStars.material.opacity = 1 - p;
+  clouds.visible = p > 0.001;
+  if (clouds.visible) for (const c of clouds.children) c.material.opacity = p * 0.85;
+  ocean.position.y = -9 + p * 7.5;          // hidden under terrain → fills valleys by 2000
+}
+function checkMilestones() {
+  const idx = STATE.terraformIndex;
+  if (!STATE.ms500 && idx >= MS.T2) { STATE.ms500 = true;
+    popup('🔓 Tier 2 unlocked — the sky is changing!', '#ffd54f');
+    showBanner('TIER 2 UNLOCKED', 'T2 Drill · T2 Chest · T2 Base (press B) — skies turning blue'); setTimeout(hideBanner, 4200); }
+  if (!STATE.ms1500 && idx >= MS.RAIN) { STATE.ms1500 = true;
+    popup('🔓 Unlocked: Rain Generator & T2 Solar', '#ffd54f');
+    showBanner('RAIN UNLOCKED', 'Build Rain Generators (B) — each adds +5% rain'); setTimeout(hideBanner, 4200); }
+  if (!STATE.ms2000 && idx >= MS.FULL) { STATE.ms2000 = true;
+    showBanner('🌍 MARS TERRAFORMED', 'Blue skies · oceans full · you did it'); setTimeout(hideBanner, 5000); }
+}
+
 /* ---- per-frame surface update ---- */
 function updateSurface(dt) {
   // every 5 minutes, two random rock types respawn
   respawnTimer += dt;
   if (respawnTimer >= 300) { respawnTimer = 0; respawnRocks(); }
-  // drills: a POWERED T1 drill adds Terraformation Index every 10s (none if under-powered)
-  const prod = build.solars.length * 10;
-  const powered = Math.min(build.drills.length, Math.floor(prod / 8));
-  for (let i = 0; i < build.drills.length; i++) {
-    const d = build.drills[i], on = i < powered;
-    if (d.bit) d.bit.rotation.y += (on ? 8 : 0) * dt;
-    if (on) {
-      d.timer += dt;
-      if (d.timer >= 10) { d.timer = 0; addTerraformIndex(5); drillTick(d); }  // +index, and mine a nearby rock if any
-    }
+  // drills always run: T1 = +1 Index / 10s, T2 = +2 Index / 8s (no power needed)
+  for (const d of build.drills) {
+    if (d.bit) d.bit.rotation.y += (d.tier === 2 ? 11 : 8) * dt;
+    d.timer += dt;
+    const period = d.tier === 2 ? 8 : 10, gain = d.tier === 2 ? 2 : 1;
+    if (d.timer >= period) { d.timer = 0; addTerraformIndex(gain); drillTick(d); }
   }
+  updateWeather(dt);
+  updateTerraformWorld();
+  checkMilestones();
   if (buildPlacing) {
     updateGhost();
     showPrompt('<span class="key">Click</span> place ' + BUILDABLES[selectedBuild].name + ' · <span class="key">Esc</span> cancel');
@@ -1201,7 +1297,7 @@ function updateSurface(dt) {
     const c = aimObject(build.chests.map(x => x.mesh)); showPrompt(c ? '<span class="key">F</span> open chest' : '');
   }
   if (popTimer > 0) { popTimer -= dt; if (popTimer <= 0) el('minePop').style.opacity = '0'; }
-  refreshResHUD(prod);
+  refreshResHUD(build.solars.reduce((s, x) => s + (x.out || 10), 0));
 }
 
 /* =======================================================================
