@@ -23,6 +23,26 @@ The hosted version is just `index.html` + `vendor/` served as static files (see
 internet multiplayer. The downloadable **`Space-Explorer.html`** remains a single
 offline file for double-click play.
 
+## 🔴 Also in this repo: Mars Terraform (intro level)
+
+A second game lives here too. You're stranded in a station **orbiting a barren
+Mars** at **Terraformation Index 0**. Float around in first person, find the
+**2 missing batteries**, drag one into your **✋ hand slot**, feed both into the
+**Power Box**, then **click the button** — the lasers fire for 5 seconds, Mars
+heats up and changes texture, and you're **teleported to the surface**.
+
+| Key / input | Action |
+|---|---|
+| **Mouse** | Look (click to lock the pointer) |
+| **W A S D** | Move around the station |
+| **F** | Pick up a battery · insert it into the Power Box |
+| **E** | Open / close your 10-slot inventory |
+| **Left-click + drag** | Move items between slots (only the ✋ hand slot can *use* an item) |
+| **Left-click** | Press the glowing Power Box button to fire the lasers |
+
+Play it by opening **`Mars-Terraform.html`** (single offline file) or
+**`mars-terraform.html`** (dev version, uses `vendor/three.min.js`).
+
 ## ▶️ Play it
 
 **No install.** Open **`Space-Explorer.html`** in any modern browser

@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Maxxis — Mars Terraform</title>
+<style>
+  :root { color-scheme: dark; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000;
+               font-family: 'Trebuchet MS', system-ui, sans-serif; color: #ffe9df; }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; }
+
+  /* ---------- Crosshair ---------- */
+  #crosshair {
+    position: fixed; left: 50%; top: 50%; width: 10px; height: 10px;
+    margin: -5px 0 0 -5px; border: 2px solid rgba(255,255,255,0.85);
+    border-radius: 50%; pointer-events: none; z-index: 5;
+    box-shadow: 0 0 6px rgba(0,0,0,0.8); display: none;
+  }
+
+  /* ---------- Top HUD ---------- */
+  .hud { position: fixed; pointer-events: none; user-select: none; z-index: 6; }
+  #indexHud {
+    top: 14px; left: 16px; font-size: 15px; line-height: 1.5;
+    background: rgba(30,8,4,0.55); border: 1px solid rgba(255,120,70,0.4);
+    border-radius: 12px; padding: 10px 16px; backdrop-filter: blur(4px);
+  }
+  #indexHud .big { font-size: 26px; font-weight: bold; color: #ffd27a; }
+  #indexHud .lbl { font-size: 12px; letter-spacing: 1px; opacity: 0.8; text-transform: uppercase; }
+
+  #objective {
+    top: 14px; right: 16px; max-width: 260px; text-align: right; font-size: 14px; line-height: 1.5;
+    background: rgba(30,8,4,0.55); border: 1px solid rgba(255,120,70,0.4);
+    border-radius: 12px; padding: 10px 16px; backdrop-filter: blur(4px);
+  }
+  #objective .title { color: #ffd27a; font-weight: bold; font-size: 15px; margin-bottom: 4px; }
+
+  /* ---------- Interaction prompt ---------- */
+  #prompt {
+    position: fixed; left: 50%; bottom: 22%; transform: translateX(-50%);
+    font-size: 18px; z-index: 6; pointer-events: none; opacity: 0;
+    transition: opacity .12s; text-shadow: 0 0 8px #000;
+  }
+  #prompt.show { opacity: 1; }
+  .key {
+    display: inline-block; min-width: 24px; text-align: center; padding: 2px 8px;
+    margin: 0 2px; border-radius: 6px; background: #3a140a; border: 1px solid #ff7a46;
+    color: #fff; font-weight: bold;
+  }
+
+  /* ---------- Controls hint (bottom-left) ---------- */
+  #controls {
+    bottom: 14px; left: 16px; font-size: 13px; line-height: 1.8;
+    background: rgba(30,8,4,0.5); border: 1px solid rgba(255,120,70,0.3);
+    border-radius: 12px; padding: 10px 14px; backdrop-filter: blur(4px); z-index: 6;
+  }
+
+  /* ---------- Firing progress ---------- */
+  #firing {
+    position: fixed; left: 50%; bottom: 60px; transform: translateX(-50%);
+    width: 320px; text-align: center; z-index: 7; display: none;
+  }
+  #firing .cap { font-size: 16px; color: #ffd27a; margin-bottom: 8px; text-shadow: 0 0 8px #000; }
+  #fireBarOuter { width: 100%; height: 14px; border: 1px solid #ff7a46; border-radius: 8px;
+                  overflow: hidden; background: #2a0c05; }
+  #fireBar { height: 100%; width: 0%; background: linear-gradient(90deg,#ff3d00,#ffd54f,#fff); }
+
+  /* ---------- Inventory overlay ---------- */
+  #invOverlay {
+    position: fixed; inset: 0; z-index: 20; display: none;
+    background: rgba(8,2,0,0.72); backdrop-filter: blur(3px);
+  }
+  #invPanel {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+    background: rgba(28,10,5,0.96); border: 1px solid #ff7a46; border-radius: 16px;
+    padding: 22px 26px 26px; width: 560px; max-width: 92vw;
+    box-shadow: 0 10px 50px rgba(0,0,0,0.7);
+  }
+  #invPanel h2 { color: #ffd27a; font-size: 20px; margin-bottom: 4px; }
+  #invPanel .sub { font-size: 13px; opacity: 0.8; margin-bottom: 16px; }
+  #handRow, #bagGrid { display: flex; gap: 10px; flex-wrap: wrap; }
+  #bagGrid { margin-top: 14px; }
+  .slot {
+    width: 92px; height: 92px; border-radius: 12px; background: #1a0804;
+    border: 2px solid #5a2414; display: flex; align-items: center; justify-content: center;
+    position: relative; cursor: default; flex: 0 0 auto;
+  }
+  .slot.hand { border-color: #ffd27a; box-shadow: 0 0 14px rgba(255,210,122,0.4); background: #241105; }
+  .slot .slotlbl {
+    position: absolute; top: 4px; left: 0; right: 0; text-align: center;
+    font-size: 10px; letter-spacing: 1px; opacity: 0.6; text-transform: uppercase; pointer-events: none;
+  }
+  .slot.drophover { border-color: #ffd54f; background: #33180a; }
+  .item {
+    width: 70px; height: 70px; border-radius: 10px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; cursor: grab; user-select: none;
+    font-size: 30px; line-height: 1;
+  }
+  .item .nm { font-size: 10px; margin-top: 3px; opacity: 0.9; }
+  .item.battery { background: radial-gradient(circle at 40% 30%, #6dffae, #0b7a43); color: #04381f;
+                  box-shadow: 0 0 12px rgba(80,255,170,0.5); }
+  #invHint { margin-top: 18px; font-size: 13px; opacity: 0.85; text-align: center; }
+  #dragGhost { position: fixed; pointer-events: none; z-index: 40; opacity: 0.9;
+               transform: translate(-50%,-50%); display: none; }
+
+  /* ---------- Big center banner ---------- */
+  #banner {
+    position: fixed; left: 50%; top: 42%; transform: translate(-50%,-50%) scale(0.85);
+    text-align: center; z-index: 25; opacity: 0; transition: opacity .5s, transform .5s;
+    pointer-events: none;
+  }
+  #banner.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+  #banner .t { font-size: 44px; font-weight: bold; color: #ffd27a; text-shadow: 0 0 20px rgba(255,120,40,0.7); }
+  #banner .s { font-size: 18px; margin-top: 10px; opacity: 0.9; }
+
+  /* ---------- Fade ---------- */
+  #fade { position: fixed; inset: 0; background: #000; z-index: 30; opacity: 0;
+          transition: opacity 1s; pointer-events: none; }
+  #fade.on { opacity: 1; }
+
+  /* ---------- Start screen ---------- */
+  #start {
+    position: fixed; inset: 0; z-index: 50; background: radial-gradient(circle at 50% 40%, #2a0c04, #050100 70%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+  }
+  #start h1 { font-size: 54px; color: #ff6a33; text-shadow: 0 0 30px rgba(255,80,20,0.6); letter-spacing: 2px; }
+  #start .tag { font-size: 18px; opacity: 0.85; margin-top: 10px; max-width: 560px; line-height: 1.6; }
+  #start .steps { margin-top: 24px; font-size: 15px; line-height: 2; opacity: 0.9; text-align: left; }
+  #playBtn {
+    margin-top: 30px; font: inherit; font-size: 22px; font-weight: bold; color: #1a0400;
+    background: linear-gradient(90deg,#ffb347,#ff6a33); border: none; border-radius: 40px;
+    padding: 14px 48px; cursor: pointer; box-shadow: 0 6px 24px rgba(255,90,30,0.5);
+  }
+  #playBtn:hover { filter: brightness(1.08); }
+  #start .note { margin-top: 18px; font-size: 13px; opacity: 0.6; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="crosshair"></div>
+
+<div id="indexHud" class="hud">
+  <div class="lbl">Terraformation Index</div>
+  <div><span class="big" id="tfIndex">0</span> <span style="opacity:.6">/ 100</span></div>
+</div>
+
+<div id="objective" class="hud">
+  <div class="title">🎯 Objective</div>
+  <div id="objText">Find the 2 missing batteries drifting around the station.</div>
+</div>
+
+<div id="prompt"></div>
+
+<div id="controls" class="hud">
+  <span class="key">Mouse</span> look &nbsp; <span class="key">W A S D</span> move<br>
+  <span class="key">F</span> pick up / insert &nbsp; <span class="key">E</span> inventory<br>
+  <span class="key">Click</span> use button / drag items
+</div>
+
+<div id="firing">
+  <div class="cap">🔴 LASERS FIRING — heating Mars…</div>
+  <div id="fireBarOuter"><div id="fireBar"></div></div>
+</div>
+
+<!-- Inventory -->
+<div id="invOverlay">
+  <div id="invPanel">
+    <h2>🎒 Inventory</h2>
+    <div class="sub">Drag items with the mouse. An item only <b>works</b> while it sits in the ✋ HAND slot.</div>
+    <div id="handRow"></div>
+    <div id="bagGrid"></div>
+    <div id="invHint">Put a <b>battery</b> in the ✋ hand slot, close with <span class="key">E</span>, then walk to the Power Box and press <span class="key">F</span>.</div>
+  </div>
+</div>
+<div id="dragGhost"></div>
+
+<div id="banner"><div class="t"></div><div class="s"></div></div>
+<div id="fade"></div>
+
+<!-- Start screen -->
+<div id="start">
+  <h1>MARS&nbsp;TERRAFORM</h1>
+  <div class="tag">You're stranded in a station orbiting a dead, barren Mars.
+    Fire the terraforming lasers to warm the planet — then drop to the surface and bring it to life.</div>
+  <div class="steps">
+    🔋 Find the <b>2 batteries</b> floating around the station &nbsp;(walk up, press <b>F</b>)<br>
+    🎒 Open your <b>inventory</b> with <b>E</b> — drag a battery into the <b>✋ hand slot</b><br>
+    ⚡ Feed both into the <b>Power Box</b> (press <b>F</b> at the box)<br>
+    🔴 <b>Click</b> the glowing button — lasers fire, Mars heats up<br>
+    🪂 Get <b>teleported to the surface</b> of Mars
+  </div>
+  <button id="playBtn">▶ ENTER THE STATION</button>
+  <div class="note">Click to lock the mouse for looking around. Press <b>Esc</b> to free it.</div>
+</div>
+
+<script src="vendor/three.min.js"></script>
+<script>
+"use strict";
+/* =======================================================================
+   MARS TERRAFORM — intro level
+   A first-person station orbiting Mars: find 2 batteries, load the power
+   box, fire the lasers, heat the planet, teleport to the surface.
+   Built on Three.js r128 (same engine as Space Explorer).
+   ======================================================================= */
+
+/* ---------- tiny DOM helper ---------- */
+const el = id => document.getElementById(id);
+
+/* ---------- renderer / scene / camera ---------- */
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+el('app').appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x05060b);
+
+const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 2000);
+camera.position.set(0, 2.6, 6);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+/* =======================================================================
+   PROCEDURAL TEXTURES  (canvas → so the game needs no image files)
+   ======================================================================= */
+function marsBarrenTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 512;
+  const g = c.getContext('2d');
+  g.fillStyle = '#7a3a24'; g.fillRect(0, 0, 512, 512);
+  // dusty blotches
+  for (let i = 0; i < 1600; i++) {
+    const x = Math.random() * 512, y = Math.random() * 512, r = 2 + Math.random() * 26;
+    const shade = Math.random();
+    g.fillStyle = shade < 0.5 ? 'rgba(60,26,14,0.35)' : 'rgba(170,96,60,0.30)';
+    g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  }
+  // craters
+  for (let i = 0; i < 40; i++) {
+    const x = Math.random() * 512, y = Math.random() * 512, r = 6 + Math.random() * 20;
+    g.strokeStyle = 'rgba(40,18,10,0.6)'; g.lineWidth = 2;
+    g.beginPath(); g.arc(x, y, r, 0, 7); g.stroke();
+    g.fillStyle = 'rgba(40,18,10,0.25)'; g.beginPath(); g.arc(x, y, r * 0.8, 0, 7); g.fill();
+  }
+  const t = new THREE.CanvasTexture(c); return t;
+}
+function marsHotTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 512;
+  const g = c.getContext('2d');
+  g.fillStyle = '#b5401a'; g.fillRect(0, 0, 512, 512);
+  // glowing magma cracks
+  for (let i = 0; i < 90; i++) {
+    g.strokeStyle = 'rgba(255,' + (120 + Math.random() * 100 | 0) + ',30,0.9)';
+    g.lineWidth = 1 + Math.random() * 3; g.beginPath();
+    let x = Math.random() * 512, y = Math.random() * 512; g.moveTo(x, y);
+    for (let s = 0; s < 6; s++) { x += (Math.random() - 0.5) * 60; y += (Math.random() - 0.5) * 60; g.lineTo(x, y); }
+    g.stroke();
+  }
+  for (let i = 0; i < 400; i++) {
+    const x = Math.random() * 512, y = Math.random() * 512, r = 2 + Math.random() * 14;
+    g.fillStyle = 'rgba(255,210,90,0.25)'; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  }
+  const t = new THREE.CanvasTexture(c); return t;
+}
+function metalTexture(base) {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = base; g.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 1400; i++) {
+    const x = Math.random() * 256, y = Math.random() * 256;
+    g.fillStyle = 'rgba(255,255,255,' + (Math.random() * 0.05) + ')';
+    g.fillRect(x, y, 2, 2);
+  }
+  g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = 2;
+  for (let i = 0; i <= 256; i += 64) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i, 256); g.stroke();
+    g.beginPath(); g.moveTo(0, i); g.lineTo(256, i); g.stroke(); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
+}
+
+/* =======================================================================
+   STARFIELD  (shared by both scenes)
+   ======================================================================= */
+function makeStars() {
+  const n = 2500, pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const r = 400 + Math.random() * 600;
+    const th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
+    pos[i * 3]     = r * Math.sin(ph) * Math.cos(th);
+    pos[i * 3 + 1] = r * Math.cos(ph);
+    pos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  return new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffffff, size: 1.4, sizeAttenuation: false }));
+}
+
+/* =======================================================================
+   GAME STATE
+   ======================================================================= */
+const STATE = {
+  phase: 'start',            // 'start' | 'station' | 'firing' | 'surface'
+  terraformIndex: 0,
+  batteriesInBox: 0,
+  buttonArmed: false,
+  interactables: [],         // world meshes you can look at
+  focus: null,               // currently-aimed interactable
+  fireT: 0,
+};
+// Inventory: 10 slots. Slot 0 = HAND. Each slot is null or { type:'battery' }.
+const INV = new Array(10).fill(null);
+const ROOM = { w: 26, h: 7, d: 18 };   // interior half-extents used below
+
+/* =======================================================================
+   STATION SCENE
+   ======================================================================= */
+const station = new THREE.Group();
+scene.add(station);
+const stars = makeStars(); station.add(stars);
+
+// lighting
+station.add(new THREE.AmbientLight(0x6b5048, 0.7));
+const key = new THREE.DirectionalLight(0xffd9c0, 0.9); key.position.set(6, 12, 8); station.add(key);
+const fill = new THREE.PointLight(0x88aaff, 0.6, 60); fill.position.set(0, 5, 0); station.add(fill);
+
+// ----- room shell: built as separate walls so the front wall can hold a
+//       REAL window opening that Mars shows through -----
+const HW = ROOM.w / 2, HD = ROOM.d / 2, FY = -1, CY = ROOM.h - 1, MIDY = (FY + CY) / 2;
+const wallTex = metalTexture('#3a4453'); wallTex.repeat.set(4, 2);
+const floorTex = metalTexture('#2b323d'); floorTex.repeat.set(6, 4);
+const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, metalness: 0.4, roughness: 0.7, side: THREE.DoubleSide });
+function wall(w, h, pos, rotY) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), wallMat.clone());
+  m.position.copy(pos); if (rotY) m.rotation.y = rotY; station.add(m); return m;
+}
+// floor + ceiling
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.w, ROOM.d),
+  new THREE.MeshStandardMaterial({ map: floorTex, metalness: 0.5, roughness: 0.6 }));
+floor.rotation.x = -Math.PI / 2; floor.position.y = FY; station.add(floor);
+const ceil = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.w, ROOM.d), wallMat.clone());
+ceil.rotation.x = Math.PI / 2; ceil.position.y = CY; station.add(ceil);
+// back (+Z) and side walls
+wall(ROOM.w, ROOM.h, new THREE.Vector3(0, MIDY, HD), Math.PI);
+wall(ROOM.d, ROOM.h, new THREE.Vector3(-HW, MIDY, 0), Math.PI / 2);
+wall(ROOM.d, ROOM.h, new THREE.Vector3(HW, MIDY, 0), -Math.PI / 2);
+// front (-Z) wall as 4 panels framing a window hole (x:-7.5..7.5, y:0.5..5)
+const holeHW = 7.5, holeB = 0.5, holeT = 5;
+wall(HW - holeHW, ROOM.h, new THREE.Vector3(-(holeHW + HW) / 2, MIDY, -HD));       // left panel
+wall(HW - holeHW, ROOM.h, new THREE.Vector3((holeHW + HW) / 2, MIDY, -HD));        // right panel
+wall(holeHW * 2, CY - holeT, new THREE.Vector3(0, (CY + holeT) / 2, -HD));         // top panel
+wall(holeHW * 2, holeB - FY, new THREE.Vector3(0, (holeB + FY) / 2, -HD));         // bottom panel
+// window frame trim (thin bright bars around the opening)
+const trimMat = new THREE.MeshStandardMaterial({ color: 0x1b2430, metalness: 0.7, roughness: 0.4 });
+[[0, holeT, holeHW * 2 + 0.3, 0.3], [0, holeB, holeHW * 2 + 0.3, 0.3],
+ [-holeHW, (holeT + holeB) / 2, 0.3, holeT - holeB], [holeHW, (holeT + holeB) / 2, 0.3, holeT - holeB]]
+  .forEach(([x, y, w, h]) => {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.4), trimMat);
+    bar.position.set(x, y, -HD + 0.05); station.add(bar);
+  });
+// faint glass across the opening
+const glass = new THREE.Mesh(new THREE.PlaneGeometry(holeHW * 2, holeT - holeB),
+  new THREE.MeshStandardMaterial({ color: 0x9fd0ff, transparent: true, opacity: 0.05,
+                                   metalness: 1, roughness: 0 }));
+glass.position.set(0, (holeT + holeB) / 2, -HD + 0.1); station.add(glass);
+
+// Mars — two layers so we can crossfade barren → hot
+const marsBarren = marsBarrenTexture();
+const marsHot = marsHotTexture();
+const marsMat = new THREE.MeshStandardMaterial({ map: marsBarren, roughness: 1, metalness: 0,
+                                                 emissive: 0x3a1203, emissiveIntensity: 0.18 });
+const mars = new THREE.Mesh(new THREE.SphereGeometry(26, 64, 64), marsMat);
+mars.position.set(-4, 3, -72); station.add(mars);
+const marsHotMat = new THREE.MeshStandardMaterial({ map: marsHot, transparent: true, opacity: 0,
+                                                    emissive: 0xff4400, emissiveIntensity: 0, roughness: 1 });
+const marsGlow = new THREE.Mesh(new THREE.SphereGeometry(26.15, 64, 64), marsHotMat);
+marsGlow.position.copy(mars.position); station.add(marsGlow);
+const sun = new THREE.PointLight(0xffe9c0, 1.2, 0); sun.position.set(40, 30, -40); station.add(sun);
+
+// ----- props: a few crates to hide batteries behind -----
+const crateMat = new THREE.MeshStandardMaterial({ map: metalTexture('#55402a'), metalness: 0.3, roughness: 0.8 });
+function crate(x, z, s) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(s, s, s), crateMat);
+  m.position.set(x, -1 + s / 2, z); station.add(m); return m;
+}
+crate(-9, 4, 1.8); crate(-8, 5.6, 1.4); crate(9.5, -3, 2);
+crate(10, 5, 1.6); crate(-10.5, -5, 1.8);
+
+// ----- the batteries (world pickups) -----
+function makeBatteryMesh() {
+  const grp = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.9, 20),
+    new THREE.MeshStandardMaterial({ color: 0x0b7a43, emissive: 0x1fae63, emissiveIntensity: 0.6,
+                                     metalness: 0.5, roughness: 0.4 }));
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.18, 16),
+    new THREE.MeshStandardMaterial({ color: 0xcfcfcf, metalness: 0.9, roughness: 0.2 }));
+  cap.position.y = 0.54; grp.add(body, cap);
+  const halo = new THREE.PointLight(0x55ffaa, 0.8, 5); grp.add(halo);
+  return grp;
+}
+const batteryMeshes = [];
+function spawnBattery(x, y, z) {
+  const b = makeBatteryMesh(); b.position.set(x, y, z);
+  b.userData.interact = { kind: 'battery' };
+  station.add(b); batteryMeshes.push(b); STATE.interactables.push(b);
+}
+spawnBattery(-9, -0.2, 5.4);     // tucked near crates, left
+spawnBattery(10.4, 1.1, -3);     // floating by the right crates
+
+// ----- Power Box (on the right wall, facing in) -----
+const powerBox = new THREE.Group();
+powerBox.position.set(ROOM.w / 2 - 1.2, 2.2, 2);
+const boxBody = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.4, 1.6),
+  new THREE.MeshStandardMaterial({ color: 0x27303d, metalness: 0.7, roughness: 0.4 }));
+powerBox.add(boxBody);
+// two sockets on the face (-X, toward room center)
+const socketMat = () => new THREE.MeshStandardMaterial({ color: 0x120a06, emissive: 0x000000,
+                                                         metalness: 0.6, roughness: 0.5 });
+const socketA = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.33, 0.3, 20), socketMat());
+const socketB = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.33, 0.3, 20), socketMat());
+socketA.rotation.z = Math.PI / 2; socketB.rotation.z = Math.PI / 2;
+socketA.position.set(-0.85, 0.45, -0.4); socketB.position.set(-0.85, 0.45, 0.4);
+powerBox.add(socketA, socketB);
+// the fire button
+const button = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.2, 24),
+  new THREE.MeshStandardMaterial({ color: 0x551111, emissive: 0x220000, emissiveIntensity: 0.4,
+                                   metalness: 0.5, roughness: 0.4 }));
+button.rotation.z = Math.PI / 2; button.position.set(-0.85, -0.5, 0);
+powerBox.add(button);
+// a little screen
+const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.5),
+  new THREE.MeshBasicMaterial({ color: 0x113322 }));
+screen.position.set(-0.81, 1.0, 0); screen.rotation.y = -Math.PI / 2; powerBox.add(screen);
+station.add(powerBox);
+// interaction zones
+powerBox.userData.interact = { kind: 'powerbox' };
+button.userData.interact = { kind: 'button' };
+STATE.interactables.push(powerBox, button);
+
+// laser emitters (two pods near the window) — fire at Mars when active
+const laserMat = new THREE.MeshBasicMaterial({ color: 0x55ddff });
+function laserBeam(x) {
+  const len = 70;
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, len, 8), laserMat.clone());
+  m.material.transparent = true; m.material.opacity = 0;
+  // position between window pod and Mars
+  const from = new THREE.Vector3(x, 2.6, -ROOM.d / 2 + 0.5);
+  const to = mars.position.clone();
+  const mid = from.clone().lerp(to, 0.5); m.position.copy(mid);
+  m.lookAt(to); m.rotateX(Math.PI / 2);
+  m.scale.y = from.distanceTo(to) / len;
+  station.add(m); return m;
+}
+const beams = [laserBeam(-5), laserBeam(5)];
+
+/* =======================================================================
+   SURFACE SCENE (built, hidden until teleport)
+   ======================================================================= */
+const surface = new THREE.Group(); surface.visible = false; scene.add(surface);
+surface.add(makeStars());
+surface.add(new THREE.AmbientLight(0xffb089, 0.8));
+const surfSun = new THREE.DirectionalLight(0xffd9b0, 1.1); surfSun.position.set(10, 20, 6); surface.add(surfSun);
+// warm reddish ground, bumpy
+const groundGeo = new THREE.PlaneGeometry(400, 400, 80, 80);
+for (let i = 0; i < groundGeo.attributes.position.count; i++) {
+  groundGeo.attributes.position.setZ(i, (Math.sin(i * 0.7) + Math.cos(i * 0.31)) * 0.4 + Math.random() * 0.5);
+}
+groundGeo.computeVertexNormals();
+const ground = new THREE.Mesh(groundGeo,
+  new THREE.MeshStandardMaterial({ map: marsBarrenTexture(), roughness: 1 }));
+ground.material.map.wrapS = ground.material.map.wrapT = THREE.RepeatWrapping;
+ground.material.map.repeat.set(30, 30);
+ground.rotation.x = -Math.PI / 2; ground.position.y = -1; surface.add(ground);
+// a hazy warm sky dome
+const sky = new THREE.Mesh(new THREE.SphereGeometry(500, 32, 32),
+  new THREE.MeshBasicMaterial({ color: 0x3a1608, side: THREE.BackSide }));
+surface.add(sky);
+// a few distant rocks
+for (let i = 0; i < 40; i++) {
+  const r = new THREE.Mesh(new THREE.DodecahedronGeometry(1 + Math.random() * 3),
+    new THREE.MeshStandardMaterial({ color: 0x6b3320, roughness: 1 }));
+  r.position.set((Math.random() - 0.5) * 300, -0.5, (Math.random() - 0.5) * 300);
+  r.rotation.set(Math.random(), Math.random(), Math.random());
+  surface.add(r);
+}
+
+/* =======================================================================
+   FIRST-PERSON CONTROLS  (pointer lock look + WASD walk)
+   ======================================================================= */
+const keys = {};
+addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'KeyE' && STATE.phase !== 'start') { e.preventDefault(); toggleInventory(); }
+  if (e.code === 'KeyF' && STATE.phase === 'station' && !invOpen) { e.preventDefault(); doInteract(); }
+});
+addEventListener('keyup', e => { keys[e.code] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+let yaw = 0, pitch = 0;
+let pointerLocked = false;
+const canvas = renderer.domElement;
+
+function requestLock() {
+  if (STATE.phase === 'start' || invOpen) return;
+  canvas.requestPointerLock();
+}
+canvas.addEventListener('click', () => {
+  if (invOpen) return;
+  if (!pointerLocked) { requestLock(); return; }
+  // locked + clicking = "use" → if aiming the armed button, fire
+  if (STATE.phase === 'station' && STATE.focus && STATE.focus.userData.interact.kind === 'button' && STATE.buttonArmed)
+    startFiring();
+});
+document.addEventListener('pointerlockchange', () => {
+  pointerLocked = (document.pointerLockElement === canvas);
+  el('crosshair').style.display = pointerLocked ? 'block' : 'none';
+});
+addEventListener('mousemove', e => {
+  if (!pointerLocked) return;
+  yaw   -= e.movementX * 0.0022;
+  pitch -= e.movementY * 0.0022;
+  pitch = Math.max(-1.3, Math.min(1.3, pitch));
+});
+
+/* =======================================================================
+   INTERACTION (raycast from screen center)
+   ======================================================================= */
+const ray = new THREE.Raycaster();
+const center = new THREE.Vector2(0, 0);
+function updateFocus() {
+  STATE.focus = null;
+  if (STATE.phase !== 'station' || invOpen) { showPrompt(''); return; }
+  ray.setFromCamera(center, camera);
+  const hits = ray.intersectObjects(STATE.interactables, true);
+  let best = null, bestDist = Infinity;
+  for (const h of hits) {
+    if (h.distance > 4.5) continue;                   // must be close
+    let o = h.object;
+    while (o && !o.userData.interact) o = o.parent;   // climb to tagged group
+    if (!o) continue;
+    const d = camera.position.distanceTo(o.getWorldPosition(new THREE.Vector3()));
+    if (d < bestDist) { bestDist = d; best = o; }
+  }
+  STATE.focus = best;
+  // prompt text
+  if (!best) { showPrompt(''); return; }
+  const k = best.userData.interact.kind;
+  const hand = INV[0];
+  if (k === 'battery') showPrompt('<span class="key">F</span> pick up battery');
+  else if (k === 'powerbox') {
+    if (STATE.batteriesInBox >= 2) showPrompt('Power Box is fully charged ⚡');
+    else if (hand && hand.type === 'battery') showPrompt('<span class="key">F</span> insert battery into Power Box');
+    else showPrompt('Need a battery in your ✋ hand slot (press <span class="key">E</span>)');
+  }
+  else if (k === 'button') {
+    if (STATE.buttonArmed) showPrompt('<span class="key">Click</span> FIRE THE LASERS 🔴');
+    else showPrompt('Button needs 2 batteries in the Power Box');
+  }
+}
+function doInteract() {
+  const f = STATE.focus; if (!f) return;
+  const k = f.userData.interact.kind;
+  if (k === 'battery') {
+    const slot = firstFreeSlot();
+    if (slot === -1) { flashObjective('Inventory full!'); return; }
+    INV[slot] = { type: 'battery' };
+    station.remove(f);
+    const idx = STATE.interactables.indexOf(f); if (idx >= 0) STATE.interactables.splice(idx, 1);
+    const bi = batteryMeshes.indexOf(f); if (bi >= 0) batteryMeshes.splice(bi, 1);
+    renderInventory();
+    const left = batteryMeshes.length;
+    flashObjective(left > 0 ? 'Battery secured! ' + left + ' more to find.' :
+      'Both batteries found! Open inventory (E), put one in the ✋ hand slot, then feed the Power Box.');
+    if (left === 0) el('objText').innerHTML = 'Open <b>E</b> inventory → drag a battery to the <b>✋ hand slot</b> → press <b>F</b> at the Power Box.';
+  }
+  else if (k === 'powerbox') {
+    const hand = INV[0];
+    if (STATE.batteriesInBox >= 2) return;
+    if (hand && hand.type === 'battery') {
+      INV[0] = null;
+      STATE.batteriesInBox++;
+      (STATE.batteriesInBox === 1 ? socketA : socketB).material.emissive.setHex(0x1fae63);
+      (STATE.batteriesInBox === 1 ? socketA : socketB).material.emissiveIntensity = 0.8;
+      renderInventory();
+      if (STATE.batteriesInBox >= 2) {
+        STATE.buttonArmed = true;
+        button.material.color.setHex(0xff2222);
+        button.material.emissive.setHex(0xff1100);
+        button.material.emissiveIntensity = 1.0;
+        screen.material.color.setHex(0x33aa55);
+        flashObjective('Power Box charged! Look at the red button and CLICK to fire the lasers.');
+        el('objText').innerHTML = 'Look at the glowing red button and <b>CLICK</b> to fire the terraforming lasers.';
+      } else {
+        flashObjective('1 battery in. One more to go — grab the other, hand-slot it, insert it.');
+      }
+    }
+  }
+}
+function firstFreeSlot() { for (let i = 0; i < INV.length; i++) if (!INV[i]) return i; return -1; }
+
+/* =======================================================================
+   PROMPT / OBJECTIVE helpers
+   ======================================================================= */
+const promptEl = el('prompt');
+function showPrompt(html) {
+  if (!html) { promptEl.classList.remove('show'); return; }
+  promptEl.innerHTML = html; promptEl.classList.add('show');
+}
+let objTimer = 0;
+function flashObjective(msg) {
+  const o = el('objText'); o.dataset.flash = msg;
+  o.innerHTML = '✅ ' + msg; objTimer = 3.2;
+}
+
+/* =======================================================================
+   INVENTORY UI  (10 slots, slot 0 = hand, drag & drop)
+   ======================================================================= */
+let invOpen = false;
+function toggleInventory() {
+  invOpen = !invOpen;
+  el('invOverlay').style.display = invOpen ? 'block' : 'none';
+  if (invOpen) { if (pointerLocked) document.exitPointerLock(); renderInventory(); }
+  else if (STATE.phase !== 'surface') { requestLock(); }
+}
+function itemIcon(item) {
+  if (!item) return null;
+  const d = document.createElement('div');
+  d.className = 'item ' + item.type;
+  d.innerHTML = (item.type === 'battery' ? '🔋' : '❓') + '<span class="nm">' + item.type + '</span>';
+  d.draggable = false;
+  return d;
+}
+function buildSlot(i) {
+  const s = document.createElement('div');
+  s.className = 'slot' + (i === 0 ? ' hand' : '');
+  s.dataset.slot = i;
+  const lbl = document.createElement('div'); lbl.className = 'slotlbl';
+  lbl.textContent = i === 0 ? '✋ HAND' : i;
+  s.appendChild(lbl);
+  const icon = itemIcon(INV[i]);
+  if (icon) { icon.dataset.slot = i; s.appendChild(icon); attachDrag(icon); }
+  return s;
+}
+function renderInventory() {
+  const hand = el('handRow'), bag = el('bagGrid');
+  hand.innerHTML = ''; bag.innerHTML = '';
+  hand.appendChild(buildSlot(0));
+  for (let i = 1; i < INV.length; i++) bag.appendChild(buildSlot(i));
+}
+
+/* ----- drag & drop (pointer based, works with mouse) ----- */
+let drag = null; // { from, item, ghost }
+const ghost = el('dragGhost');
+function attachDrag(iconEl) {
+  iconEl.addEventListener('mousedown', e => {
+    e.preventDefault();
+    const from = +iconEl.dataset.slot;
+    if (!INV[from]) return;
+    drag = { from, item: INV[from] };
+    ghost.innerHTML = ''; const g = itemIcon(INV[from]); ghost.appendChild(g);
+    ghost.style.display = 'block'; moveGhost(e);
+    iconEl.style.opacity = '0.3';
+  });
+}
+function moveGhost(e) { ghost.style.left = e.clientX + 'px'; ghost.style.top = e.clientY + 'px'; }
+addEventListener('mousemove', e => {
+  if (!drag) return;
+  moveGhost(e);
+  // hover highlight
+  document.querySelectorAll('.slot').forEach(s => s.classList.remove('drophover'));
+  const t = slotUnder(e); if (t) t.classList.add('drophover');
+});
+addEventListener('mouseup', e => {
+  if (!drag) return;
+  const t = slotUnder(e);
+  if (t) {
+    const to = +t.dataset.slot;
+    if (to !== drag.from) {
+      const tmp = INV[to]; INV[to] = INV[drag.from]; INV[drag.from] = tmp; // swap
+    }
+  }
+  drag = null; ghost.style.display = 'none';
+  renderInventory();
+});
+function slotUnder(e) {
+  const stack = document.elementsFromPoint(e.clientX, e.clientY);
+  for (const n of stack) if (n.classList && n.classList.contains('slot')) return n;
+  return null;
+}
+
+/* =======================================================================
+   FIRING SEQUENCE
+   ======================================================================= */
+function startFiring() {
+  if (STATE.phase !== 'station') return;
+  STATE.phase = 'firing';
+  STATE.fireT = 0;
+  showPrompt('');
+  el('firing').style.display = 'block';
+  el('objText').innerHTML = 'Lasers firing… hold tight.';
+  button.material.emissiveIntensity = 1.6;
+}
+function updateFiring(dt) {
+  STATE.fireT += dt;
+  const p = Math.min(STATE.fireT / 5, 1);         // 5-second laser
+  el('fireBar').style.width = (p * 100) + '%';
+  STATE.terraformIndex = Math.round(p * 25);       // first laser warms it to 25
+  el('tfIndex').textContent = STATE.terraformIndex;
+  // beams visible + flicker
+  for (const b of beams) b.material.opacity = 0.5 + Math.random() * 0.5;
+  // Mars heats up: glow layer fades in, emissive climbs, tint toward orange
+  marsHotMat.opacity = p;
+  marsHotMat.emissiveIntensity = p * 1.4;
+  marsMat.emissiveIntensity = p * 0.6;
+  marsMat.emissive.setRGB(p * 0.6, p * 0.18, 0);
+  mars.rotation.y += dt * 0.15; marsGlow.rotation.y = mars.rotation.y;
+  // gentle camera shake
+  camera.position.x += (Math.random() - 0.5) * 0.02 * p;
+  if (p >= 1) finishFiring();
+}
+let fadeStage = 0, fadeT = 0;
+function finishFiring() {
+  if (fadeStage !== 0) return;
+  for (const b of beams) b.material.opacity = 0;
+  el('firing').style.display = 'none';
+  fadeStage = 1; fadeT = 0;
+  el('fade').classList.add('on');
+  showBanner('MARS IS HEATING', 'Teleporting to the surface…');
+}
+function showBanner(t, s) {
+  el('banner').querySelector('.t').textContent = t;
+  el('banner').querySelector('.s').textContent = s;
+  el('banner').classList.add('show');
+}
+function hideBanner() { el('banner').classList.remove('show'); }
+
+function teleportToSurface() {
+  STATE.phase = 'surface';
+  station.visible = false;
+  surface.visible = true;
+  camera.position.set(0, 2.2, 0);
+  yaw = 0; pitch = -0.1;
+  el('objText').innerHTML = 'You made it. The lasers warmed Mars — now the real terraforming begins. ' +
+                            '<i>(More coming: water, air, plants, life.)</i>';
+  el('tfIndex').textContent = STATE.terraformIndex;
+  showBanner('WELCOME TO MARS', 'Terraformation Index: ' + STATE.terraformIndex + ' / 100');
+  setTimeout(hideBanner, 3800);
+}
+
+/* =======================================================================
+   MOVEMENT + MAIN LOOP
+   ======================================================================= */
+const clock = new THREE.Clock();
+const vel = new THREE.Vector3();
+function updateMove(dt) {
+  if (STATE.phase === 'start' || invOpen) return;
+  const speed = 7;
+  const forward = (keys['KeyW'] ? 1 : 0) - (keys['KeyS'] ? 1 : 0);
+  const strafe  = (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0);
+  // direction from yaw (walk on the floor plane)
+  const sin = Math.sin(yaw), cos = Math.cos(yaw);
+  const dx = (-sin * forward + cos * strafe);
+  const dz = (-cos * forward - sin * strafe);
+  const len = Math.hypot(dx, dz) || 1;
+  camera.position.x += (dx / len) * speed * dt * (forward || strafe ? 1 : 0);
+  camera.position.z += (dz / len) * speed * dt * (forward || strafe ? 1 : 0);
+  // keep inside the room (station only)
+  if (STATE.phase === 'station' || STATE.phase === 'firing') {
+    const m = 1.2;
+    camera.position.x = Math.max(-ROOM.w / 2 + m, Math.min(ROOM.w / 2 - m, camera.position.x));
+    camera.position.z = Math.max(-ROOM.d / 2 + m, Math.min(ROOM.d / 2 - m, camera.position.z));
+    camera.position.y = 2.6;
+  } else {
+    camera.position.y = 2.2;
+  }
+}
+function applyLook() {
+  const e = new THREE.Euler(pitch, yaw, 0, 'YXZ');
+  camera.quaternion.setFromEuler(e);
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  updateMove(dt);
+  applyLook();
+
+  if (STATE.phase === 'station') {
+    updateFocus();
+    // bob batteries + spin
+    for (const b of batteryMeshes) { b.rotation.y += dt * 1.2; b.position.y += Math.sin(performance.now() * 0.002 + b.id) * 0.0015; }
+    button.material.emissiveIntensity = STATE.buttonArmed ? (0.8 + Math.sin(performance.now() * 0.006) * 0.4) : 0.4;
+    mars.rotation.y += dt * 0.02;
+  } else if (STATE.phase === 'firing') {
+    updateFiring(dt);
+  }
+
+  // fade / teleport sequencing
+  if (fadeStage === 1) { fadeT += dt; if (fadeT > 1.2) { teleportToSurface(); fadeStage = 2; fadeT = 0; } }
+  else if (fadeStage === 2) { fadeT += dt; if (fadeT > 0.3) { el('fade').classList.remove('on'); fadeStage = 3; } }
+
+  // objective flash timeout → restore
+  if (objTimer > 0) { objTimer -= dt; if (objTimer <= 0 && STATE.phase === 'station') {
+    // leave the standing objective text as whatever was last set by logic
+  } }
+
+  renderer.render(scene, camera);
+}
+animate();
+
+/* =======================================================================
+   START
+   ======================================================================= */
+renderInventory();
+el('playBtn').addEventListener('click', () => {
+  el('start').style.display = 'none';
+  STATE.phase = 'station';
+  requestLock();
+});
+</script>
+</body>
+</html>
