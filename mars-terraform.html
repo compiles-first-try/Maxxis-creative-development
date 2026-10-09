@@ -203,6 +203,38 @@
     background: linear-gradient(90deg,#8fffc0,#2fd07f); border: none; border-radius: 40px; padding: 14px 48px;
     cursor: pointer; box-shadow: 0 6px 24px rgba(40,220,130,0.5); }
   #againBtn:hover { filter: brightness(1.08); }
+
+  /* ---------- Touch controls (mobile) ---------- */
+  html, body { touch-action: none; -webkit-user-select: none; -webkit-touch-callout: none; overscroll-behavior: none; }
+  #touchUI { position: fixed; inset: 0; z-index: 10; pointer-events: none; display: none; }
+  body.touch #touchUI { display: block; }
+  body.touch #controls, body.touch #surfControls, body.touch #start .note { display: none !important; }
+  #joy { position: absolute; left: 22px; bottom: 26px; width: 128px; height: 128px; border-radius: 50%;
+    background: rgba(255,255,255,0.07); border: 2px solid rgba(255,180,120,0.45); pointer-events: auto; touch-action: none; }
+  #joyThumb { position: absolute; left: 39px; top: 39px; width: 50px; height: 50px; border-radius: 50%;
+    background: rgba(255,170,90,0.55); border: 2px solid #ffd27a; }
+  #tbtns { position: absolute; right: 16px; bottom: 26px; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
+  .tbtnRow { display: flex; gap: 10px; }
+  .tbtn { pointer-events: auto; touch-action: none; width: 62px; height: 62px; border-radius: 50%;
+    background: rgba(58,20,10,0.82); border: 2px solid #ff7a46; color: #ffe9df; font: inherit; font-size: 12px; font-weight: bold;
+    display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; }
+  .tbtn:active { background: rgba(120,50,20,0.9); }
+  .tbtn.use { width: 84px; height: 84px; font-size: 15px; background: rgba(110,40,10,0.88); border-color: #ffd54f; }
+
+  @media (max-width: 760px) {
+    #indexHud { font-size: 12px; padding: 7px 11px; } #indexHud .big { font-size: 21px; }
+    #objective { font-size: 12px; padding: 7px 11px; max-width: 170px; } #objective .title { font-size: 13px; }
+    #resHud { font-size: 12px; padding: 7px 10px; min-width: 120px; top: 92px; left: 12px; right: auto; bottom: auto; }
+    #banner .t { font-size: 30px; } #banner .s { font-size: 14px; }
+    #start h1, #modeMenu h1, #winScreen h1 { font-size: 32px; }
+    #start .tag, #modeMenu .tag, #winScreen .tag, #winScreen h1 { font-size: 15px; }
+    #start .steps { font-size: 13px; }
+    .modeRow { flex-direction: column; gap: 12px; } .modeBtn { width: 86vw; }
+    #invPanel, .panel { padding: 16px; } #mapCanvas { width: 78vw; height: 78vw; }
+    .slot { width: 15vw; height: 15vw; max-width: 72px; max-height: 72px; }
+    #chestSlots { grid-template-columns: repeat(4, 56px); }
+    #firing { width: 80vw; }
+  }
 </style>
 </head>
 <body>
@@ -324,6 +356,25 @@
   <div id="chestSlots"></div>
   <button class="closebtn" onclick="toggleChest()">Close</button>
 </div></div>
+
+<!-- Touch controls (shown only on touch devices) -->
+<div id="touchUI">
+  <div id="joy"><div id="joyThumb"></div></div>
+  <div id="tbtns">
+    <div class="tbtnRow">
+      <button class="tbtn" data-act="M">MAP</button>
+      <button class="tbtn" data-act="B">BUILD</button>
+    </div>
+    <div class="tbtnRow">
+      <button class="tbtn" data-act="X">TOOL</button>
+      <button class="tbtn" data-act="E">BAG</button>
+    </div>
+    <div class="tbtnRow">
+      <button class="tbtn" data-act="F">F</button>
+      <button class="tbtn use" data-act="USE">USE</button>
+    </div>
+  </div>
+</div>
 
 <script src="vendor/three.min.js"></script>
 <script>
@@ -728,26 +779,32 @@ addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 let yaw = 0, pitch = 0;
 let pointerLocked = false;
 const canvas = renderer.domElement;
+const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+if (isTouch) document.body.classList.add('touch');
+const touchMove = { f: 0, s: 0 };        // analog move vector from the joystick
 
 function requestLock() {
-  if (STATE.phase === 'start' || anyOverlay()) return;
+  if (isTouch || STATE.phase === 'start' || anyOverlay()) return;   // no pointer lock on touch
   canvas.requestPointerLock();
 }
-canvas.addEventListener('click', () => {
+// the "use" action (same as a left-click in the world): fire / mine / place
+function doUse() {
   if (anyOverlay() || STATE.phase === 'won') return;
-  if (!pointerLocked) { requestLock(); return; }
   if (STATE.phase === 'station') {
-    // locked + clicking = "use" → if aiming the armed button, fire
     if (STATE.focus && STATE.focus.userData.interact.kind === 'button' && STATE.buttonArmed) startFiring();
   } else if (STATE.phase === 'surface') {
     if (buildPlacing) placeAtAim();
     else if (toolEquipped) doMine();
   }
+}
+canvas.addEventListener('click', () => {
+  if (anyOverlay() || STATE.phase === 'won') return;
+  if (!pointerLocked && !isTouch) { requestLock(); return; }
+  doUse();
 });
 canvas.addEventListener('contextmenu', e => { e.preventDefault(); if (buildPlacing) cancelPlacing(); });
 document.addEventListener('pointerlockchange', () => {
   pointerLocked = (document.pointerLockElement === canvas);
-  el('crosshair').style.display = pointerLocked ? 'block' : 'none';
 });
 addEventListener('mousemove', e => {
   if (!pointerLocked) return;
@@ -755,6 +812,60 @@ addEventListener('mousemove', e => {
   pitch -= e.movementY * 0.0022;
   pitch = Math.max(-1.3, Math.min(1.3, pitch));
 });
+
+/* ----- touch: drag to look, left joystick to move, buttons for actions ----- */
+if (isTouch) {
+  // look: any touch on the canvas that isn't the joystick/buttons
+  let lookId = null, lastX = 0, lastY = 0;
+  canvas.addEventListener('touchstart', e => {
+    if (STATE.phase === 'start' || STATE.phase === 'won' || anyOverlay()) return;
+    const t = e.changedTouches[0]; lookId = t.identifier; lastX = t.clientX; lastY = t.clientY;
+  }, { passive: true });
+  canvas.addEventListener('touchmove', e => {
+    if (lookId === null) return;
+    for (const t of e.changedTouches) if (t.identifier === lookId) {
+      yaw   -= (t.clientX - lastX) * 0.006;
+      pitch -= (t.clientY - lastY) * 0.006;
+      pitch = Math.max(-1.3, Math.min(1.3, pitch));
+      lastX = t.clientX; lastY = t.clientY;
+    }
+  }, { passive: true });
+  const endLook = e => { for (const t of e.changedTouches) if (t.identifier === lookId) lookId = null; };
+  canvas.addEventListener('touchend', endLook); canvas.addEventListener('touchcancel', endLook);
+
+  // joystick
+  const joy = el('joy'), thumb = el('joyThumb'); let joyId = null;
+  const JR = 44;
+  function joySet(t) {
+    const r = joy.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    let dx = t.clientX - cx, dy = t.clientY - cy;
+    const d = Math.hypot(dx, dy); if (d > JR) { dx = dx / d * JR; dy = dy / d * JR; }
+    thumb.style.left = (39 + dx) + 'px'; thumb.style.top = (39 + dy) + 'px';
+    touchMove.s = dx / JR; touchMove.f = -dy / JR;
+  }
+  joy.addEventListener('touchstart', e => { e.preventDefault(); joyId = e.changedTouches[0].identifier; joySet(e.changedTouches[0]); }, { passive: false });
+  joy.addEventListener('touchmove', e => { e.preventDefault(); for (const t of e.changedTouches) if (t.identifier === joyId) joySet(t); }, { passive: false });
+  const joyEnd = e => { for (const t of e.changedTouches) if (t.identifier === joyId) { joyId = null; touchMove.f = touchMove.s = 0; thumb.style.left = '39px'; thumb.style.top = '39px'; } };
+  joy.addEventListener('touchend', joyEnd); joy.addEventListener('touchcancel', joyEnd);
+
+  // action buttons
+  function doAct(act) {
+    if (act === 'USE') { doUse(); return; }
+    if (act === 'E') { if (STATE.phase !== 'start') toggleInventory(); return; }
+    if (act === 'F') {
+      if (STATE.phase === 'station' && !invOpen) doInteract();
+      else if (STATE.phase === 'surface' && !anyOverlay()) surfaceF();
+      return;
+    }
+    if (STATE.phase !== 'surface') return;
+    if (act === 'X' && !anyOverlay()) toggleTool();
+    if (act === 'M' && !buildOpen && !chestOpen && !invOpen) toggleMap();
+    if (act === 'B' && !mapOpen && !chestOpen && !invOpen) toggleBuild();
+  }
+  document.querySelectorAll('.tbtn').forEach(b => {
+    b.addEventListener('touchstart', e => { e.preventDefault(); doAct(b.dataset.act); }, { passive: false });
+  });
+}
 
 /* =======================================================================
    INTERACTION (raycast from screen center)
@@ -882,45 +993,42 @@ function renderInventory() {
   for (let i = 1; i < INV.length; i++) bag.appendChild(buildSlot(i));
 }
 
-/* ----- drag & drop (pointer based, works with mouse) ----- */
-let drag = null; // { from, item, ghost }
+/* ----- drag & drop (works with mouse AND touch) ----- */
+let drag = null; // { from, item }
 const ghost = el('dragGhost');
-function attachDrag(iconEl) {
-  iconEl.addEventListener('mousedown', e => {
-    e.preventDefault();
-    const from = +iconEl.dataset.slot;
-    if (!INV[from]) return;
-    drag = { from, item: INV[from] };
-    ghost.innerHTML = ''; const g = itemIcon(INV[from]); ghost.appendChild(g);
-    ghost.style.display = 'block'; moveGhost(e);
-    iconEl.style.opacity = '0.3';
-  });
+function startDrag(iconEl, pt) {
+  const from = +iconEl.dataset.slot;
+  if (!INV[from]) return;
+  drag = { from, item: INV[from] };
+  ghost.innerHTML = ''; ghost.appendChild(itemIcon(INV[from]));
+  ghost.style.display = 'block'; moveGhost(pt);
+  iconEl.style.opacity = '0.3';
 }
-function moveGhost(e) { ghost.style.left = e.clientX + 'px'; ghost.style.top = e.clientY + 'px'; }
-addEventListener('mousemove', e => {
-  if (!drag) return;
-  moveGhost(e);
-  // hover highlight
+function moveGhost(pt) {
+  ghost.style.left = pt.clientX + 'px'; ghost.style.top = pt.clientY + 'px';
   document.querySelectorAll('.slot').forEach(s => s.classList.remove('drophover'));
-  const t = slotUnder(e); if (t) t.classList.add('drophover');
-});
-addEventListener('mouseup', e => {
-  if (!drag) return;
-  const t = slotUnder(e);
-  if (t) {
-    const to = +t.dataset.slot;
-    if (to !== drag.from) {
-      const tmp = INV[to]; INV[to] = INV[drag.from]; INV[drag.from] = tmp; // swap
-    }
-  }
-  drag = null; ghost.style.display = 'none';
-  renderInventory();
-});
-function slotUnder(e) {
-  const stack = document.elementsFromPoint(e.clientX, e.clientY);
+  const t = slotUnder(pt); if (t) t.classList.add('drophover');
+}
+function endDrag(pt) {
+  const t = slotUnder(pt);
+  if (t) { const to = +t.dataset.slot;
+    if (to !== drag.from) { const tmp = INV[to]; INV[to] = INV[drag.from]; INV[drag.from] = tmp; } }
+  drag = null; ghost.style.display = 'none'; renderInventory();
+}
+function slotUnder(pt) {
+  ghost.style.pointerEvents = 'none';
+  const stack = document.elementsFromPoint(pt.clientX, pt.clientY);
   for (const n of stack) if (n.classList && n.classList.contains('slot')) return n;
   return null;
 }
+function attachDrag(iconEl) {
+  iconEl.addEventListener('mousedown', e => { e.preventDefault(); startDrag(iconEl, e); });
+  iconEl.addEventListener('touchstart', e => { e.preventDefault(); startDrag(iconEl, e.changedTouches[0]); }, { passive: false });
+}
+addEventListener('mousemove', e => { if (drag) moveGhost(e); });
+addEventListener('mouseup',   e => { if (drag) endDrag(e); });
+addEventListener('touchmove', e => { if (drag) { e.preventDefault(); moveGhost(e.changedTouches[0]); } }, { passive: false });
+addEventListener('touchend',  e => { if (drag) endDrag(e.changedTouches[0]); });
 
 /* =======================================================================
    FIRING SEQUENCE
@@ -1462,15 +1570,17 @@ const vel = new THREE.Vector3();
 function updateMove(dt) {
   if (STATE.phase === 'start' || STATE.phase === 'won' || anyOverlay()) return;
   const speed = 7;
-  const forward = (keys['KeyW'] ? 1 : 0) - (keys['KeyS'] ? 1 : 0);
-  const strafe  = (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0);
+  // keyboard + touch joystick combined
+  const forward = (keys['KeyW'] ? 1 : 0) - (keys['KeyS'] ? 1 : 0) + touchMove.f;
+  const strafe  = (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0) + touchMove.s;
+  const moving = (Math.abs(forward) + Math.abs(strafe)) > 0.05;
   // direction from yaw (walk on the floor plane)
   const sin = Math.sin(yaw), cos = Math.cos(yaw);
   const dx = (-sin * forward + cos * strafe);
   const dz = (-cos * forward - sin * strafe);
   const len = Math.hypot(dx, dz) || 1;
-  camera.position.x += (dx / len) * speed * dt * (forward || strafe ? 1 : 0);
-  camera.position.z += (dz / len) * speed * dt * (forward || strafe ? 1 : 0);
+  camera.position.x += (dx / len) * speed * dt * (moving ? 1 : 0);
+  camera.position.z += (dz / len) * speed * dt * (moving ? 1 : 0);
   // keep inside the room (station only)
   if (STATE.phase === 'station' || STATE.phase === 'firing') {
     const m = 1.2;
@@ -1519,6 +1629,10 @@ function animate() {
   if (objTimer > 0) { objTimer -= dt; if (objTimer <= 0 && STATE.phase === 'station') {
     // leave the standing objective text as whatever was last set by logic
   } }
+
+  // crosshair: visible during gameplay whether looking by pointer-lock or touch
+  const inPlay = STATE.phase === 'station' || STATE.phase === 'firing' || STATE.phase === 'surface';
+  el('crosshair').style.display = ((pointerLocked || isTouch) && inPlay && !anyOverlay()) ? 'block' : 'none';
 
   renderer.render(scene, camera);
 }

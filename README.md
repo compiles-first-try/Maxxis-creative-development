@@ -97,6 +97,13 @@ number until you reach it):
   starts barren, so you still have to terraform it (and grow 10 trees to win) —
   just without the grind.
 
+### 📱 Mobile / touch
+
+Works on phones and tablets. On a touch screen you get an on-screen **joystick**
+(bottom-left) to move, **drag anywhere** to look around, and tap buttons
+(bottom-right) for **USE** (mine / place / fire), **F**, **BAG**, **TOOL**,
+**MAP**, and **BUILD**. Inventory drag-and-drop works with your finger too.
+
 Play it by opening **`Mars-Terraform.html`** (single offline file) or
 **`mars-terraform.html`** (dev version, uses `vendor/three.min.js`).
 
