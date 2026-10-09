@@ -42,9 +42,10 @@ heats up and changes texture, and you're **teleported to the surface**.
 
 ### 🌱 Chapter 2 — Terraform the surface
 
-Once you land, the real game begins. The ground has **hills and valleys**, and
-the valleys slowly **fill with water** as Mars terraforms. The **Terraformation
-Index** is now uncapped — it climbs as you mine and build.
+Once you land, the real game begins. The ground has **hills and valleys** (the
+low valleys are where **Quartz** hides). The **Terraformation Index** is now
+uncapped — it climbs as you mine and build, and a powered drill keeps raising it.
+Every **5 minutes, two random rock types respawn** so you never run dry.
 
 | Key / input | Action |
 |---|---|
@@ -62,10 +63,10 @@ need more panels):
 
 | Item | Cost | Does |
 |---|---|---|
-| 🛠️ T1 Pressure Drill | 2 iron · 1 titanium | Auto-mines nearby rocks (uses 8⚡) |
+| 🛠️ T1 Pressure Drill | 2 iron · 1 titanium | While powered, adds Terraform Index every 10s + mines nearby rocks (uses 8⚡; no power = no points) |
 | 🔋 T1 Solar Panel | 2 silicon · 1 iron | Produces 10⚡ |
-| 🏠 Habitation Module | 5 iron · 1 silicon | Supplies unlimited oxygen |
-| 🚪 Pressure Lock Door | 3 silicon · 1 titanium · 2 iron | Placed on a habitat for entry |
+| 🏠 Habitation Module | 5 iron · 1 silicon | A solid dome (you can't walk through it) that supplies unlimited oxygen |
+| 🚪 Pressure Lock Door | 3 silicon · 1 titanium · 2 iron | Placed on a habitat — opens it up so you can walk inside |
 | 📦 Storage Chest | 1 iron | 20 storage slots |
 
 Play it by opening **`Mars-Terraform.html`** (single offline file) or

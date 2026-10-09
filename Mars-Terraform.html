@@ -253,7 +253,7 @@
 
 <div id="mapOverlay"><div class="panel">
   <h2>🗺️ Material Map</h2>
-  <div class="sub">Where the rocks are. Dark-blue is valley / water — those low spots fill in as Mars terraforms.</div>
+  <div class="sub">Where the rocks are. Purple is low ground (valleys) — that's where Quartz hides.</div>
   <canvas id="mapCanvas" width="440" height="440"></canvas>
   <div class="maplegend">
     <span><i class="dot" style="background:#9a9a9a"></i>Iron</span>
@@ -575,11 +575,8 @@ const terTex = marsBarrenTexture(); terTex.wrapS = terTex.wrapT = THREE.RepeatWr
 const terrain = new THREE.Mesh(terGeo, new THREE.MeshStandardMaterial({ map: terTex, roughness: 1 }));
 surface.add(terrain);
 
-// water — rises over time to fill the valleys
-let waterY = -9, waterTarget = -2.6;
-const water = new THREE.Mesh(new THREE.PlaneGeometry(SURF_SIZE, SURF_SIZE),
-  new THREE.MeshStandardMaterial({ color: 0x2a6edb, transparent: true, opacity: 0.78, roughness: 0.2, metalness: 0.3 }));
-water.rotation.x = -Math.PI / 2; water.position.y = waterY; surface.add(water);
+// valleys stay dry — low ground below this height is "valley" (where quartz hides)
+const VALLEY_Y = -3;
 
 // hazy sky dome
 surface.add(new THREE.Mesh(new THREE.SphereGeometry(600, 32, 32),
@@ -605,15 +602,19 @@ function addRock(type, x, z) {
   m.userData.rock = { type, amount };
   surface.add(m); const r = { mesh: m, type, amount }; rocks.push(r); rockMeshes.push(m); return r;
 }
+function spawnBatch(type, n) {
+  const R = SURF_SIZE / 2 - 12, valleyOnly = (type === 'quartz');
+  let placed = 0, guard = 0;
+  while (placed < n && guard < n * 50) { guard++;
+    const x = (Math.random() * 2 - 1) * R, z = (Math.random() * 2 - 1) * R, h = surfH(x, z);
+    if (Math.hypot(x, z) < 12) continue;        // keep the landing spot clear
+    if (valleyOnly && h > VALLEY_Y) continue;   // quartz only in valleys
+    if (!valleyOnly && h < -5) continue;        // keep the others off the deepest valley floors
+    addRock(type, x, z); placed++;
+  }
+}
 function spawnRocks() {
-  const R = SURF_SIZE / 2 - 12;
-  const put = (type, n, valleyOnly) => { let placed = 0, guard = 0;
-    while (placed < n && guard < n * 50) { guard++;
-      const x = (Math.random() * 2 - 1) * R, z = (Math.random() * 2 - 1) * R, h = surfH(x, z);
-      if (valleyOnly && h > -3) continue;               // quartz only in valleys
-      if (!valleyOnly && h < waterTarget - 0.5) continue; // others not deep underwater
-      addRock(type, x, z); placed++; } };
-  put('iron', 46, false); put('titanium', 26, false); put('silicon', 32, false); put('quartz', 9, true);
+  spawnBatch('iron', 46); spawnBatch('titanium', 26); spawnBatch('silicon', 32); spawnBatch('quartz', 9);
 }
 
 // resources, structures, build state
@@ -916,7 +917,7 @@ function teleportToSurface() {
   el('objText').innerHTML = 'Chapter 2 — Terraform Mars. Press <b>X</b> for your mining tool, ' +
                             '<b>M</b> for the material map, <b>B</b> to build.';
   refreshResHUD(0);
-  showBanner('CHAPTER 2 · TERRAFORM MARS', 'Mine materials · build your base · fill the valleys with water');
+  showBanner('CHAPTER 2 · TERRAFORM MARS', 'Mine materials · build your base · grow the Terraform Index');
   setTimeout(hideBanner, 4200);
 }
 
@@ -1001,7 +1002,7 @@ function renderBuild() {
 function structureGeo(key) {
   if (key === 'solar')   return new THREE.BoxGeometry(2.4, 0.15, 1.6);
   if (key === 'drill')   return new THREE.CylinderGeometry(0.4, 0.6, 2.4, 10);
-  if (key === 'habitat') return new THREE.SphereGeometry(2.4, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+  if (key === 'habitat') return new THREE.SphereGeometry(6, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2);
   if (key === 'door')    return new THREE.BoxGeometry(1.0, 1.6, 0.3);
   return new THREE.BoxGeometry(1.2, 0.9, 1.0); // chest
 }
@@ -1029,16 +1030,18 @@ function cancelPlacing() {
 function placeAtAim() {
   const key = selectedBuild; if (!key) return;
   if (!canAfford(BUILDABLES[key].cost)) { popup('Not enough materials', '#ff6a4a'); cancelPlacing(); return; }
-  let pos;
+  let pos, doorHabitat = null;
   if (key === 'door') {
     const hit = aimObject(build.habitats.map(h => h.mesh));
     if (!hit) { popup('Doors go on a habitat', '#ff6a4a'); return; }
     pos = hit.point;
+    doorHabitat = build.habitats.find(h => h.mesh === hit.mesh);
   } else {
     const p = aimTerrain(); if (!p) return; pos = p;
   }
   pay(BUILDABLES[key].cost);
   createStructure(key, pos); addTerraformIndex(5); popup('Built ' + BUILDABLES[key].name);
+  if (doorHabitat) doorHabitat.hasDoor = true;   // dome is now enterable
   if (!canAfford(BUILDABLES[key].cost)) cancelPlacing();
 }
 function createStructure(key, pos) {
@@ -1058,9 +1061,9 @@ function createStructure(key, pos) {
     bit.position.y = 0.1; bit.rotation.x = Math.PI; g.add(body, bit);
     g.position.set(pos.x, surfH(pos.x, pos.z), pos.z); surface.add(g); build.drills.push({ mesh: g, bit, timer: 0 });
   } else if (key === 'habitat') {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(2.4, 18, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+    const m = new THREE.Mesh(new THREE.SphereGeometry(6, 28, 18, 0, Math.PI * 2, 0, Math.PI / 2),
       new THREE.MeshStandardMaterial({ color: 0xcfd6dd, metalness: 0.4, roughness: 0.4, side: THREE.DoubleSide }));
-    m.position.set(pos.x, surfH(pos.x, pos.z), pos.z); m.userData.habitat = true; surface.add(m); build.habitats.push({ mesh: m });
+    m.position.set(pos.x, surfH(pos.x, pos.z), pos.z); m.userData.habitat = true; surface.add(m); build.habitats.push({ mesh: m, hasDoor: false });
   } else if (key === 'door') {
     const m = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.6, 0.25),
       new THREE.MeshStandardMaterial({ color: 0x334455, metalness: 0.7, roughness: 0.3, emissive: 0x112233, emissiveIntensity: 0.4 }));
@@ -1081,8 +1084,8 @@ function nearestRock(pos, radius) {
   return best;
 }
 function drillTick(d) {
-  const tgt = nearestRock(d.mesh.position, 28); if (!tgt) return;
-  RES[tgt.type] += 1; addTerraformIndex(1);
+  const tgt = nearestRock(d.mesh.position, 28); if (!tgt) return;  // index is added by the caller
+  RES[tgt.type] += 1;
   tgt.amount -= 1; tgt.mesh.userData.rock.amount = tgt.amount;
   if (tgt.amount <= 0) removeRock(tgt.mesh);
 }
@@ -1098,7 +1101,7 @@ function drawMap() {
   g.fillStyle = '#2a140a'; g.fillRect(0, 0, W, H);
   const cell = S / 44;
   for (let x = -S / 2; x < S / 2; x += cell) for (let z = -S / 2; z < S / 2; z += cell)
-    if (surfH(x, z) < waterTarget) { g.fillStyle = 'rgba(40,110,219,0.5)'; g.fillRect(toX(x), toY(z), W / 44 + 1, H / 44 + 1); }
+    if (surfH(x, z) < VALLEY_Y) { g.fillStyle = 'rgba(120,96,170,0.35)'; g.fillRect(toX(x), toY(z), W / 44 + 1, H / 44 + 1); }
   for (const r of rocks) {
     g.fillStyle = '#' + ROCK[r.type].color.toString(16).padStart(6, '0');
     g.beginPath(); g.arc(toX(r.mesh.position.x), toY(r.mesh.position.z), 3, 0, 7); g.fill();
@@ -1145,15 +1148,47 @@ function withdraw(i) {
   RES[it.type] += it.count; activeChest.storage[i] = null; renderChest();
 }
 
+/* ---- habitat dome collision (keep the player out unless it has a door) ---- */
+const DOME_R = 6.6;
+function collideDomes() {
+  for (const h of build.habitats) {
+    if (h.hasDoor) continue;                 // a door makes the dome enterable
+    const dx = camera.position.x - h.mesh.position.x;
+    const dz = camera.position.z - h.mesh.position.z;
+    const d = Math.hypot(dx, dz);
+    if (d < DOME_R && d > 1e-4) {            // push back out to the dome wall
+      camera.position.x = h.mesh.position.x + (dx / d) * DOME_R;
+      camera.position.z = h.mesh.position.z + (dz / d) * DOME_R;
+    }
+  }
+}
+
+/* ---- periodic rock respawn: every 5 minutes, 2 random types appear ---- */
+let respawnTimer = 0;
+const ROCK_TYPES = ['iron', 'titanium', 'silicon', 'quartz'];
+function respawnRocks() {
+  const pool = ROCK_TYPES.slice();
+  const picks = [];
+  for (let k = 0; k < 2; k++) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+  for (const t of picks) spawnBatch(t, t === 'quartz' ? 6 : 12);
+  popup('⛏️ New ' + picks.map(t => ROCK[t].emoji + ' ' + ROCK[t].label).join(' & ') + ' deposits appeared', '#ffd54f');
+}
+
 /* ---- per-frame surface update ---- */
 function updateSurface(dt) {
-  if (waterY < waterTarget) { waterY = Math.min(waterTarget, waterY + dt * 0.06); water.position.y = waterY; }
+  // every 5 minutes, two random rock types respawn
+  respawnTimer += dt;
+  if (respawnTimer >= 300) { respawnTimer = 0; respawnRocks(); }
+  // drills: a POWERED T1 drill adds Terraformation Index every 10s (none if under-powered)
   const prod = build.solars.length * 10;
   const powered = Math.min(build.drills.length, Math.floor(prod / 8));
   for (let i = 0; i < build.drills.length; i++) {
     const d = build.drills[i], on = i < powered;
     if (d.bit) d.bit.rotation.y += (on ? 8 : 0) * dt;
-    if (on) { d.timer += dt; if (d.timer >= 2.5) { d.timer = 0; drillTick(d); } }
+    if (on) {
+      d.timer += dt;
+      if (d.timer >= 10) { d.timer = 0; addTerraformIndex(5); drillTick(d); }  // +index, and mine a nearby rock if any
+    }
   }
   if (buildPlacing) {
     updateGhost();
@@ -1197,6 +1232,7 @@ function updateMove(dt) {
     const lim = SURF_SIZE / 2 - 4;
     camera.position.x = Math.max(-lim, Math.min(lim, camera.position.x));
     camera.position.z = Math.max(-lim, Math.min(lim, camera.position.z));
+    collideDomes();                        // solid habitat domes (unless they have a door)
     camera.position.y = surfH(camera.position.x, camera.position.z) + 2.0;
   }
 }
