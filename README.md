@@ -52,7 +52,9 @@ never run dry.
 Step away from it and you've got **60 seconds of oxygen** (shown top-centre) —
 get back to the capsule, or inside a **Habitation Module** (build one with a
 door), to refill. Run out and you're rescued back to the capsule. In **Creative**
-mode oxygen is infinite.
+mode oxygen is infinite. **At Terraformation Index 2,800 the whole planet's air
+becomes breathable** — the suit timer disappears and you have **infinite oxygen
+everywhere**, free to roam without a capsule or base. 🌬️
 
 | Key / input | Action |
 |---|---|
@@ -104,6 +106,8 @@ Trees from Plant Generators now sprout **anywhere on dry land** across the map
 - **1500** → **Rain Generators** and the T2 Solar Panel unlock.
 - **2000** → the sky is **fully blue** and the **oceans are full** (water fills
   the valleys). 🌍
+- **2800** → the **air becomes breathable** — infinite oxygen everywhere, no more
+  suit timer. 🌬️
 - **3000** → **Plant Generators** unlock. Build them to grow grass and trees.
 - **4250** → **T3 Chest** and **T2 Rain Generator** unlock.
 - **4500** → the **ground turns green** around the water's edge over time

@@ -780,7 +780,7 @@ const build = { solars: [], drills: [], habitats: [], doors: [], chests: [], rai
 let selectedBuild = null, buildPlacing = false, buildGhost = null, placeRotation = 0;
 
 // milestone thresholds (Terraformation Index)
-const MS = { T2: 500, RAIN: 1500, FULL: 2000, PLANT: 3000, CHEST3: 4250, GRASS: 4500, T3: 5000 };
+const MS = { T2: 500, RAIN: 1500, FULL: 2000, AIR: 2800, PLANT: 3000, CHEST3: 4250, GRASS: 4500, T3: 5000 };
 
 // buildables — `unlock` is the Index needed before it can be built
 const BUILDABLES = {
@@ -1544,6 +1544,9 @@ function checkMilestones() {
     showBanner('RAIN UNLOCKED', 'Build Rain Generators (B) — each adds +5% rain'); setTimeout(hideBanner, 4200); }
   if (!STATE.ms2000 && idx >= MS.FULL) { STATE.ms2000 = true;
     showBanner('🌍 MARS TERRAFORMED', 'Blue skies · oceans full · now bring life'); setTimeout(hideBanner, 5000); }
+  if (!STATE.ms2800 && idx >= MS.AIR) { STATE.ms2800 = true;
+    popup('🌬️ The air is now breathable — oxygen is infinite!', '#9fe8ff');
+    showBanner('THE AIR IS BREATHABLE', 'Infinite oxygen everywhere — roam free, no more suit timer'); setTimeout(hideBanner, 5000); }
   if (!STATE.ms3000 && idx >= MS.PLANT) { STATE.ms3000 = true;
     popup('🌱 Plant Generators unlocked!', '#6dffae');
     showBanner('PLANT LIFE UNLOCKED', 'Build Plant Generators (B) — grow grass & trees'); setTimeout(hideBanner, 4600); }
@@ -1688,8 +1691,13 @@ function inSafeZone() {
     if (Math.hypot(camera.position.x - h.mesh.position.x, camera.position.z - h.mesh.position.z) < (h.radius || 6)) return true;
   return false;
 }
+function airBreathable() { return STATE.terraformIndex >= MS.AIR; }   // 2800 Index → the whole planet has breathable air
 function updateOxygen(dt) {
   if (STATE.creative) { el('oxHud').innerHTML = '🫧 Oxygen: <b>∞</b>'; el('oxHud').classList.remove('low'); return; }
+  if (airBreathable()) {   // air is breathable everywhere — no countdown, no death
+    oxygen = OX_MAX;
+    el('oxHud').innerHTML = '🌬️ Air: <b>Breathable</b>'; el('oxHud').classList.remove('low'); return;
+  }
   if (inSafeZone()) {
     oxygen = Math.min(OX_MAX, oxygen + dt * 20);
     el('oxHud').innerHTML = '🛡️ Oxygen: <b>SAFE</b>'; el('oxHud').classList.remove('low');
