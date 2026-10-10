@@ -95,22 +95,22 @@ Trees from Plant Generators now sprout **anywhere on dry land** across the map
   the valleys). 🌍
 - **3000** → **Plant Generators** unlock. Build them to grow grass and trees.
 - **4250** → **T3 Chest** and **T2 Rain Generator** unlock.
+- **4500** → the **ground turns green** around the water's edge over time
+  (needs a **Plant Generator**, and grass only spreads where water has actually
+  appeared, creeping outward as the oceans rise).
 - **5000** → **Tier 3** unlocks: T3 Drill, T3 Solar, T3 Base.
-- **13,000** → the **ground turns green** around the water's edge over time
-  (grass only spreads where water has actually appeared, and creeps outward as
-  the oceans rise).
 - **🏆 Two ways to win / end the game:**
   - **Grow 10 full-size trees**, or
-  - **Reach 20,000 Terraformation Index**.
+  - **Reach 30,000 Terraformation Index**.
 
   Either one ends the game: you're teleported back to the space station, and
   looking out the window you see a living, blue-and-green terraformed Mars
   (10-second look, then back to the menu).
 
 > **v0.5 big update:** Tier 3 everything (drill, solar, chest, habitat base) +
-> a T2 Rain Generator, trees now sprout anywhere on the map (max 20), the
-> 20,000-Index ending, and the shoreline grass (now a little darker) spreads
-> from Index 13,000.
+> a T2 Rain Generator, trees now sprout anywhere on the map (max 20), a
+> 30,000-Index ending, and the shoreline grass (a little darker) spreads from
+> Index 4,500 once you've built a Plant Generator.
 
 ### 🎛️ Two ways to play (menu at the start)
 

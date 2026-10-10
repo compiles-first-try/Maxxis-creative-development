@@ -734,7 +734,7 @@ const build = { solars: [], drills: [], habitats: [], doors: [], chests: [], rai
 let selectedBuild = null, buildPlacing = false, buildGhost = null;
 
 // milestone thresholds (Terraformation Index)
-const MS = { T2: 500, RAIN: 1500, FULL: 2000, PLANT: 3000, CHEST3: 4250, T3: 5000, GRASS: 13000 };
+const MS = { T2: 500, RAIN: 1500, FULL: 2000, PLANT: 3000, CHEST3: 4250, GRASS: 4500, T3: 5000 };
 
 // buildables — `unlock` is the Index needed before it can be built
 const BUILDABLES = {
@@ -1566,7 +1566,7 @@ function goToWonStation() {
   // keep the message near the top so it never blocks the view of Mars
   el('banner').style.top = '14%';
   const title = winReason === 'index' ? '🌍 MARS FULLY TERRAFORMED!' : '🌍 YOU TERRAFORMED MARS!';
-  const how = winReason === 'index' ? '20,000 Terraformation Index reached — ' : 'Life has taken hold — ';
+  const how = winReason === 'index' ? '30,000 Terraformation Index reached — ' : 'Life has taken hold — ';
   let left = 10;
   showBanner(title, how + 'returning to menu in ' + left + 's');
   const iv = setInterval(() => {
@@ -1614,7 +1614,7 @@ function updateSurface(dt) {
   updateGreening(dt);
   updateTerraformWorld();
   checkMilestones();
-  if (STATE.terraformIndex >= 20000) triggerWin('index');   // reaching 20,000 ends the game
+  if (STATE.terraformIndex >= 30000) triggerWin('index');   // reaching 30,000 ends the game
   if (buildPlacing) {
     updateGhost();
     showPrompt('<span class="key">Click</span> place ' + BUILDABLES[selectedBuild].name + ' · <span class="key">Esc</span> cancel');
