@@ -1,0 +1,2052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Maxxis — Mars Terraform</title>
+<style>
+  :root { color-scheme: dark; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000;
+               font-family: 'Trebuchet MS', system-ui, sans-serif; color: #ffe9df; }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; }
+
+  /* ---------- Crosshair ---------- */
+  #crosshair {
+    position: fixed; left: 50%; top: 50%; width: 10px; height: 10px;
+    margin: -5px 0 0 -5px; border: 2px solid rgba(255,255,255,0.85);
+    border-radius: 50%; pointer-events: none; z-index: 5;
+    box-shadow: 0 0 6px rgba(0,0,0,0.8); display: none;
+  }
+
+  /* ---------- Top HUD ---------- */
+  .hud { position: fixed; pointer-events: none; user-select: none; z-index: 6; }
+  #indexHud {
+    top: 14px; left: 16px; font-size: 15px; line-height: 1.5;
+    background: rgba(30,8,4,0.55); border: 1px solid rgba(255,120,70,0.4);
+    border-radius: 12px; padding: 10px 16px; backdrop-filter: blur(4px);
+  }
+  #indexHud .big { font-size: 26px; font-weight: bold; color: #ffd27a; }
+  #indexHud .lbl { font-size: 12px; letter-spacing: 1px; opacity: 0.8; text-transform: uppercase; }
+
+  #objective {
+    top: 14px; right: 16px; max-width: 260px; text-align: right; font-size: 14px; line-height: 1.5;
+    background: rgba(30,8,4,0.55); border: 1px solid rgba(255,120,70,0.4);
+    border-radius: 12px; padding: 10px 16px; backdrop-filter: blur(4px);
+  }
+  #objective .title { color: #ffd27a; font-weight: bold; font-size: 15px; margin-bottom: 4px; }
+
+  /* ---------- Interaction prompt ---------- */
+  #prompt {
+    position: fixed; left: 50%; bottom: 22%; transform: translateX(-50%);
+    font-size: 18px; z-index: 6; pointer-events: none; opacity: 0;
+    transition: opacity .12s; text-shadow: 0 0 8px #000;
+  }
+  #prompt.show { opacity: 1; }
+  .key {
+    display: inline-block; min-width: 24px; text-align: center; padding: 2px 8px;
+    margin: 0 2px; border-radius: 6px; background: #3a140a; border: 1px solid #ff7a46;
+    color: #fff; font-weight: bold;
+  }
+
+  /* ---------- Controls hint (bottom-left) ---------- */
+  #controls {
+    bottom: 14px; left: 16px; font-size: 13px; line-height: 1.8;
+    background: rgba(30,8,4,0.5); border: 1px solid rgba(255,120,70,0.3);
+    border-radius: 12px; padding: 10px 14px; backdrop-filter: blur(4px); z-index: 6;
+  }
+
+  /* ---------- Firing progress ---------- */
+  #firing {
+    position: fixed; left: 50%; bottom: 60px; transform: translateX(-50%);
+    width: 320px; text-align: center; z-index: 7; display: none;
+  }
+  #firing .cap { font-size: 16px; color: #ffd27a; margin-bottom: 8px; text-shadow: 0 0 8px #000; }
+  #fireBarOuter { width: 100%; height: 14px; border: 1px solid #ff7a46; border-radius: 8px;
+                  overflow: hidden; background: #2a0c05; }
+  #fireBar { height: 100%; width: 0%; background: linear-gradient(90deg,#ff3d00,#ffd54f,#fff); }
+
+  /* ---------- Inventory overlay ---------- */
+  #invOverlay {
+    position: fixed; inset: 0; z-index: 20; display: none;
+    background: rgba(8,2,0,0.72); backdrop-filter: blur(3px);
+  }
+  #invPanel {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+    background: rgba(28,10,5,0.96); border: 1px solid #ff7a46; border-radius: 16px;
+    padding: 22px 26px 26px; width: 560px; max-width: 92vw;
+    box-shadow: 0 10px 50px rgba(0,0,0,0.7);
+  }
+  #invPanel h2 { color: #ffd27a; font-size: 20px; margin-bottom: 4px; }
+  #invPanel .sub { font-size: 13px; opacity: 0.8; margin-bottom: 16px; }
+  #handRow, #bagGrid { display: flex; gap: 10px; flex-wrap: wrap; }
+  #bagGrid { margin-top: 14px; }
+  .slot {
+    width: 92px; height: 92px; border-radius: 12px; background: #1a0804;
+    border: 2px solid #5a2414; display: flex; align-items: center; justify-content: center;
+    position: relative; cursor: default; flex: 0 0 auto;
+  }
+  .slot.hand { border-color: #ffd27a; box-shadow: 0 0 14px rgba(255,210,122,0.4); background: #241105; }
+  .slot .slotlbl {
+    position: absolute; top: 4px; left: 0; right: 0; text-align: center;
+    font-size: 10px; letter-spacing: 1px; opacity: 0.6; text-transform: uppercase; pointer-events: none;
+  }
+  .slot.drophover { border-color: #ffd54f; background: #33180a; }
+  .item {
+    width: 70px; height: 70px; border-radius: 10px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; cursor: grab; user-select: none;
+    font-size: 30px; line-height: 1;
+  }
+  .item .nm { font-size: 10px; margin-top: 3px; opacity: 0.9; }
+  .item.battery { background: radial-gradient(circle at 40% 30%, #6dffae, #0b7a43); color: #04381f;
+                  box-shadow: 0 0 12px rgba(80,255,170,0.5); }
+  #invHint { margin-top: 18px; font-size: 13px; opacity: 0.85; text-align: center; }
+  #dragGhost { position: fixed; pointer-events: none; z-index: 40; opacity: 0.9;
+               transform: translate(-50%,-50%); display: none; }
+
+  /* ---------- Big center banner ---------- */
+  #banner {
+    position: fixed; left: 50%; top: 42%; transform: translate(-50%,-50%) scale(0.85);
+    text-align: center; z-index: 25; opacity: 0; transition: opacity .5s, transform .5s;
+    pointer-events: none;
+  }
+  #banner.show { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+  #banner .t { font-size: 44px; font-weight: bold; color: #ffd27a; text-shadow: 0 0 20px rgba(255,120,40,0.7); }
+  #banner .s { font-size: 18px; margin-top: 10px; opacity: 0.9; }
+
+  /* ---------- Fade ---------- */
+  #fade { position: fixed; inset: 0; background: #000; z-index: 30; opacity: 0;
+          transition: opacity 1s; pointer-events: none; }
+  #fade.on { opacity: 1; }
+
+  /* ---------- Start screen ---------- */
+  #start {
+    position: fixed; inset: 0; z-index: 50; background: radial-gradient(circle at 50% 40%, #2a0c04, #050100 70%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+  }
+  #start h1 { font-size: 54px; color: #ff6a33; text-shadow: 0 0 30px rgba(255,80,20,0.6); letter-spacing: 2px; }
+  #start .tag { font-size: 18px; opacity: 0.85; margin-top: 10px; max-width: 560px; line-height: 1.6; }
+  #start .steps { margin-top: 24px; font-size: 15px; line-height: 2; opacity: 0.9; text-align: left; }
+  #playBtn {
+    margin-top: 30px; font: inherit; font-size: 22px; font-weight: bold; color: #1a0400;
+    background: linear-gradient(90deg,#ffb347,#ff6a33); border: none; border-radius: 40px;
+    padding: 14px 48px; cursor: pointer; box-shadow: 0 6px 24px rgba(255,90,30,0.5);
+  }
+  #playBtn:hover { filter: brightness(1.08); }
+  #start .note { margin-top: 18px; font-size: 13px; opacity: 0.6; }
+
+  /* ---------- Chapter 2: resources / map / build / chest ---------- */
+  #resHud { bottom: 14px; right: 16px; font-size: 14px; line-height: 1.7; display: none; min-width: 170px;
+    background: rgba(30,8,4,0.6); border: 1px solid rgba(255,120,70,0.4); border-radius: 12px;
+    padding: 10px 14px; backdrop-filter: blur(4px); }
+  #resHud .row { display: flex; justify-content: space-between; gap: 16px; }
+  #resHud b { color: #ffd27a; }
+  #resHud .energy { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,120,70,0.3); }
+  #resHud .warn { color: #ff8a5a; font-size: 12px; margin-top: 4px; }
+  #surfControls { bottom: 14px; left: 16px; font-size: 13px; line-height: 1.8; display: none;
+    background: rgba(30,8,4,0.5); border: 1px solid rgba(255,120,70,0.3); border-radius: 12px;
+    padding: 10px 14px; backdrop-filter: blur(4px); z-index: 6; }
+  #minePop { position: fixed; left: 50%; top: 46%; transform: translate(-50%,-50%); font-size: 22px;
+    font-weight: bold; color: #6dffae; text-shadow: 0 0 10px #000; z-index: 8; opacity: 0;
+    transition: opacity .2s, top .6s ease-out; pointer-events: none; }
+  #mapOverlay, #buildOverlay, #chestOverlay { position: fixed; inset: 0; z-index: 20; display: none;
+    background: rgba(8,2,0,0.72); backdrop-filter: blur(3px); }
+  .panel { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+    background: rgba(28,10,5,0.96); border: 1px solid #ff7a46; border-radius: 16px; padding: 22px 26px;
+    box-shadow: 0 10px 50px rgba(0,0,0,0.7); max-width: 94vw; }
+  .panel h2 { color: #ffd27a; font-size: 20px; margin-bottom: 6px; }
+  .panel .sub { font-size: 13px; opacity: 0.8; margin-bottom: 14px; max-width: 460px; }
+  #mapCanvas { border: 1px solid #5a2414; border-radius: 8px; background: #2a140a; display: block; }
+  .maplegend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-size: 13px; }
+  .maplegend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+  .buildlist { display: flex; flex-direction: column; gap: 10px; width: 460px; max-width: 92vw; }
+  .builditem { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #5a2414;
+    border-radius: 10px; background: #1a0804; cursor: pointer; }
+  .builditem:hover { border-color: #ffd54f; background: #2a1108; }
+  .builditem.cant { opacity: 0.5; cursor: not-allowed; }
+  .builditem .bemoji { font-size: 28px; }
+  .builditem .bname { font-weight: bold; color: #ffe9df; }
+  .builditem .bdesc { font-size: 12px; opacity: 0.75; }
+  .builditem .bcost { margin-left: auto; font-size: 14px; text-align: right; white-space: nowrap; }
+  .bcost .ok { color: #6dffae; } .bcost .no { color: #ff6a4a; }
+  #chestSlots { display: grid; grid-template-columns: repeat(5, 64px); gap: 8px; margin-top: 12px;
+    max-height: 48vh; overflow-y: auto; }
+  .cslot { width: 64px; height: 64px; border: 2px solid #5a2414; border-radius: 10px; background: #1a0804;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 24px; }
+  .cslot.filled { cursor: pointer; } .cslot.filled:hover { border-color: #ffd54f; }
+  .cslot .cnt { font-size: 12px; opacity: 0.9; }
+  .depositRow { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+  .depbtn { font: inherit; font-size: 13px; color: #1a0400; background: linear-gradient(90deg,#ffb347,#ff6a33);
+    border: none; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+  .closebtn { margin-top: 16px; font: inherit; color: #ffe9df; background: #3a140a; border: 1px solid #ff7a46;
+    border-radius: 8px; padding: 8px 16px; cursor: pointer; }
+
+  /* ---------- Mode menu + win screen ---------- */
+  #modeMenu, #winScreen { position: fixed; inset: 0; z-index: 55; padding: 20px;
+    background: radial-gradient(circle at 50% 40%, #2a0c04, #050100 70%);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  #winScreen { display: none; background: radial-gradient(circle at 50% 40%, #0b2a3a, #02060a 70%); }
+  #modeMenu h1, #winScreen h1 { font-size: 48px; color: #ff6a33; text-shadow: 0 0 30px rgba(255,80,20,0.6); letter-spacing: 2px; }
+  #winScreen h1 { color: #6dffae; text-shadow: 0 0 30px rgba(60,255,150,0.5); font-size: 40px; max-width: 900px; }
+  #modeMenu .tag, #winScreen .tag { font-size: 17px; opacity: 0.9; margin-top: 10px; max-width: 640px; line-height: 1.6; }
+  .modeRow { display: flex; gap: 20px; margin-top: 30px; flex-wrap: wrap; justify-content: center; }
+  .modeBtn { width: 300px; max-width: 86vw; text-align: left; font: inherit; color: #ffe9df; cursor: pointer;
+    background: rgba(28,10,5,0.9); border: 2px solid #ff7a46; border-radius: 16px; padding: 20px 22px;
+    transition: transform .12s, border-color .12s; }
+  .modeBtn:hover { transform: translateY(-3px); border-color: #ffd54f; }
+  .modeBtn .mt { font-size: 22px; font-weight: bold; color: #ffd27a; }
+  .modeBtn .md { font-size: 14px; opacity: 0.85; margin-top: 8px; line-height: 1.5; }
+  #creativeBtn { border-color: #3fa8ff; } #creativeBtn .mt { color: #8fd0ff; } #creativeBtn:hover { border-color: #9fe0ff; }
+  #hardcoreBtn { border-color: #ff3b3b; } #hardcoreBtn .mt { color: #ff8a7a; } #hardcoreBtn:hover { border-color: #ff6a6a; }
+  #relaxedBtn { border-color: #3fd98a; } #relaxedBtn .mt { color: #8fffc0; } #relaxedBtn:hover { border-color: #9fffcf; }
+  #againBtn { margin-top: 30px; font: inherit; font-size: 22px; font-weight: bold; color: #02150c;
+    background: linear-gradient(90deg,#8fffc0,#2fd07f); border: none; border-radius: 40px; padding: 14px 48px;
+    cursor: pointer; box-shadow: 0 6px 24px rgba(40,220,130,0.5); }
+  #againBtn:hover { filter: brightness(1.08); }
+
+  /* ---------- Oxygen HUD + damage flash ---------- */
+  #oxHud { top: 14px; left: 50%; transform: translateX(-50%); font-size: 15px; display: none; text-align: center;
+    background: rgba(8,20,30,0.6); border: 1px solid rgba(90,180,255,0.5); border-radius: 12px;
+    padding: 8px 16px; backdrop-filter: blur(4px); z-index: 6; }
+  #oxHud b { color: #9fd0ff; }
+  #oxHud.low { border-color: #ff5a3c; animation: oxpulse .6s infinite alternate; }
+  #oxHud.low b { color: #ff8a6a; }
+  @keyframes oxpulse { from { background: rgba(60,10,6,0.55); } to { background: rgba(120,20,10,0.75); } }
+  #redflash { position: fixed; inset: 0; z-index: 9; pointer-events: none; opacity: 0; transition: opacity .25s;
+    background: radial-gradient(circle at 50% 50%, rgba(255,0,0,0) 35%, rgba(180,0,0,0.6) 100%); }
+  #redflash.on { opacity: 1; }
+  /* mining progress bar (hold to mine ~5s) */
+  #mineHud { position: fixed; top: 54%; left: 50%; transform: translateX(-50%); z-index: 7; display: none;
+    width: 190px; text-align: center; pointer-events: none; }
+  #mineHud .lbl { font-size: 13px; color: #ffe0a0; margin-bottom: 5px; text-shadow: 0 1px 3px #000; }
+  #mineTrack { height: 12px; border-radius: 8px; background: rgba(10,16,22,0.65);
+    border: 1px solid rgba(255,190,110,0.6); overflow: hidden; }
+  #mineBar { height: 100%; width: 0%; background: linear-gradient(90deg,#ffd27a,#ff8a3c); transition: width .08s linear; }
+
+  /* ---------- Touch controls (mobile) ---------- */
+  html, body { touch-action: none; -webkit-user-select: none; -webkit-touch-callout: none; overscroll-behavior: none; }
+  #touchUI { position: fixed; inset: 0; z-index: 10; pointer-events: none; display: none; }
+  body.touch #touchUI { display: block; }
+  body.touch #controls, body.touch #surfControls, body.touch #start .note { display: none !important; }
+  #joy { position: absolute; left: 22px; bottom: 26px; width: 128px; height: 128px; border-radius: 50%;
+    background: rgba(255,255,255,0.07); border: 2px solid rgba(255,180,120,0.45); pointer-events: auto; touch-action: none; }
+  #joyThumb { position: absolute; left: 39px; top: 39px; width: 50px; height: 50px; border-radius: 50%;
+    background: rgba(255,170,90,0.55); border: 2px solid #ffd27a; }
+  #tbtns { position: absolute; right: 16px; bottom: 26px; display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
+  .tbtnRow { display: flex; gap: 10px; }
+  .tbtn { pointer-events: auto; touch-action: none; width: 62px; height: 62px; border-radius: 50%;
+    background: rgba(58,20,10,0.82); border: 2px solid #ff7a46; color: #ffe9df; font: inherit; font-size: 12px; font-weight: bold;
+    display: flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; }
+  .tbtn:active { background: rgba(120,50,20,0.9); }
+  .tbtn.use { width: 84px; height: 84px; font-size: 15px; background: rgba(110,40,10,0.88); border-color: #ffd54f; }
+
+  @media (max-width: 760px) {
+    #indexHud { font-size: 12px; padding: 7px 11px; } #indexHud .big { font-size: 21px; }
+    #objective { font-size: 12px; padding: 7px 11px; max-width: 170px; } #objective .title { font-size: 13px; }
+    #resHud { font-size: 12px; padding: 7px 10px; min-width: 120px; top: 92px; left: 12px; right: auto; bottom: auto; }
+    #banner .t { font-size: 30px; } #banner .s { font-size: 14px; }
+    #start h1, #modeMenu h1, #winScreen h1 { font-size: 32px; }
+    #start .tag, #modeMenu .tag, #winScreen .tag, #winScreen h1 { font-size: 15px; }
+    #start .steps { font-size: 13px; }
+    .modeRow { flex-direction: column; gap: 12px; } .modeBtn { width: 86vw; }
+    #invPanel, .panel { padding: 16px; } #mapCanvas { width: 78vw; height: 78vw; }
+    .slot { width: 15vw; height: 15vw; max-width: 72px; max-height: 72px; }
+    #chestSlots { grid-template-columns: repeat(4, 56px); }
+    #firing { width: 80vw; }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="crosshair"></div>
+
+<div id="indexHud" class="hud">
+  <div class="lbl">Terraformation Index</div>
+  <div><span class="big" id="tfIndex">0</span> <span style="opacity:.6" id="tfMax">/ 100</span></div>
+</div>
+
+<div id="objective" class="hud">
+  <div class="title">🎯 Objective</div>
+  <div id="objText">Find the 2 missing batteries drifting around the station.</div>
+</div>
+
+<div id="prompt"></div>
+
+<div id="controls" class="hud">
+  <span class="key">Mouse</span> look &nbsp; <span class="key">W A S D</span> move<br>
+  <span class="key">F</span> pick up / insert &nbsp; <span class="key">E</span> inventory<br>
+  <span class="key">Click</span> use button / drag items
+</div>
+
+<div id="firing">
+  <div class="cap">🔴 LASERS FIRING — heating Mars…</div>
+  <div id="fireBarOuter"><div id="fireBar"></div></div>
+</div>
+
+<!-- Inventory -->
+<div id="invOverlay">
+  <div id="invPanel">
+    <h2>🎒 Inventory</h2>
+    <div class="sub">Drag items with the mouse. An item only <b>works</b> while it sits in the ✋ HAND slot.</div>
+    <div id="handRow"></div>
+    <div id="bagGrid"></div>
+    <div id="invHint">Put a <b>battery</b> in the ✋ hand slot, close with <span class="key">E</span>, then walk to the Power Box and press <span class="key">F</span>.</div>
+  </div>
+</div>
+<div id="dragGhost"></div>
+
+<div id="banner"><div class="t"></div><div class="s"></div></div>
+<div id="fade"></div>
+
+<!-- Mode menu (first screen) -->
+<div id="modeMenu">
+  <h1>MARS&nbsp;TERRAFORM</h1>
+  <div class="tag">Choose how you want to play.</div>
+  <div class="modeRow">
+    <button class="modeBtn" id="survivalBtn">
+      <div class="mt">🚀 SURVIVAL</div>
+      <div class="md">The full story. Blast off from Earth, mine & build to a terraformed Mars. <b>60s</b> oxygen · normal costs · ends at <b>20,000</b> Index.</div>
+    </button>
+    <button class="modeBtn" id="hardcoreBtn">
+      <div class="mt">💀 HARDCORE</div>
+      <div class="md">For experts. Only <b>35s</b> of oxygen, everything <b>costs more</b>, and the goal is a tough <b>30,000</b> Index.</div>
+    </button>
+    <button class="modeBtn" id="relaxedBtn">
+      <div class="mt">🌴 RELAXED</div>
+      <div class="md">Take it easy. A roomy <b>75s</b> of oxygen, everything <b>costs a little less</b>, and you win at <b>20,000</b> Index.</div>
+    </button>
+    <button class="modeBtn" id="creativeBtn">
+      <div class="mt">✦ CREATIVE</div>
+      <div class="md">Everything unlocked, unlimited resources. Mars is still barren — terraform it your way. Reach 20,000 Index to win.</div>
+    </button>
+  </div>
+</div>
+
+<!-- Win screen -->
+<div id="winScreen">
+  <h1>🌍 YOU TERRAFORMED MARS!</h1>
+  <div class="tag">Life has taken hold. Back aboard the station, you look out the window and see a living, blue-and-green world where a dead planet used to be.</div>
+  <button id="againBtn">▶ PLAY AGAIN</button>
+</div>
+
+<!-- Start screen (station briefing — Survival only) -->
+<div id="start" style="display:none">
+  <h1>MARS&nbsp;TERRAFORM</h1>
+  <div class="tag">It starts on <b>Earth</b>, on launch day. Board the rocket, blast off,
+    and dock at the station orbiting a dead, barren Mars — then fire the lasers and bring the planet to life.</div>
+  <div class="steps">
+    🌍 Walk to the <b>rocket</b> on Earth and press <b>F</b> to board — then <b>🚀 liftoff!</b><br>
+    🔋 Aboard the station, find the <b>2 batteries</b> &nbsp;(walk up, press <b>F</b>)<br>
+    🎒 Open your <b>inventory</b> with <b>E</b> — drag a battery into the <b>✋ hand slot</b><br>
+    ⚡ Feed both into the <b>Power Box</b> (press <b>F</b> at the box)<br>
+    🔴 <b>Click</b> the glowing button — lasers fire, Mars heats up<br>
+    🪂 Get <b>teleported to the surface</b> of Mars
+  </div>
+  <button id="playBtn">▶ START ON EARTH</button>
+  <div class="note">Click to lock the mouse for looking around. Press <b>Esc</b> to free it.</div>
+</div>
+
+<!-- Chapter 2 HUD + overlays -->
+<div id="resHud" class="hud"></div>
+<div id="surfControls" class="hud">
+  <span class="key">Mouse</span> look · <span class="key">W A S D</span> move<br>
+  <span class="key">X</span> mining tool · <span class="key">Click</span> mine / place<br>
+  <span class="key">M</span> material map · <span class="key">B</span> build · <span class="key">F</span> open chest
+</div>
+<div id="minePop"></div>
+<div id="oxHud" class="hud"></div>
+<div id="mineHud"><div class="lbl">⛏️ Mining…</div><div id="mineTrack"><div id="mineBar"></div></div></div>
+<div id="redflash"></div>
+
+<div id="mapOverlay"><div class="panel">
+  <h2>🗺️ Material Map</h2>
+  <div class="sub">Where the rocks are. Purple is low ground (valleys) — that's where Quartz hides.</div>
+  <canvas id="mapCanvas" width="440" height="440"></canvas>
+  <div class="maplegend">
+    <span><i class="dot" style="background:#9a9a9a"></i>Iron</span>
+    <span><i class="dot" style="background:#474d57"></i>Titanium</span>
+    <span><i class="dot" style="background:#3f74d6"></i>Silicon</span>
+    <span><i class="dot" style="background:#e7d6ff"></i>Quartz (valleys)</span>
+    <span><i class="dot" style="background:#ffd54f"></i>You · <i class="dot" style="background:#ffae5a"></i>Buildings</span>
+  </div>
+  <button class="closebtn" onclick="toggleMap()">Close (M)</button>
+</div></div>
+
+<div id="buildOverlay"><div class="panel">
+  <h2>🏗️ Build</h2>
+  <div class="sub">Spend materials to craft. Pick one you can afford, then click the ground to place it (Esc cancels).</div>
+  <div class="buildlist" id="buildList"></div>
+  <button class="closebtn" onclick="toggleBuild()">Close (B)</button>
+</div></div>
+
+<div id="chestOverlay"><div class="panel">
+  <h2>📦 Storage Chest</h2>
+  <div class="sub">Deposit a material to tuck it away; click a filled slot to take it back.</div>
+  <div class="depositRow" id="depositRow"></div>
+  <div id="chestSlots"></div>
+  <button class="closebtn" onclick="toggleChest()">Close</button>
+</div></div>
+
+<!-- Touch controls (shown only on touch devices) -->
+<div id="touchUI">
+  <div id="joy"><div id="joyThumb"></div></div>
+  <div id="tbtns">
+    <div class="tbtnRow">
+      <button class="tbtn" data-act="M">MAP</button>
+      <button class="tbtn" data-act="B">BUILD</button>
+    </div>
+    <div class="tbtnRow">
+      <button class="tbtn" data-act="X">TOOL</button>
+      <button class="tbtn" data-act="E">BAG</button>
+    </div>
+    <div class="tbtnRow">
+      <button class="tbtn" data-act="F">F</button>
+      <button class="tbtn use" data-act="USE">USE</button>
+    </div>
+  </div>
+</div>
+
+<script src="vendor/three.min.js"></script>
+<script>
+"use strict";
+/* =======================================================================
+   MARS TERRAFORM — intro level
+   A first-person station orbiting Mars: find 2 batteries, load the power
+   box, fire the lasers, heat the planet, teleport to the surface.
+   Built on Three.js r128 (same engine as Space Explorer).
+   ======================================================================= */
+
+/* ---------- tiny DOM helper ---------- */
+const el = id => document.getElementById(id);
+
+/* ---------- renderer / scene / camera ---------- */
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+el('app').appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x05060b);
+
+const camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 2000);
+camera.position.set(0, 2.6, 6);
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+/* =======================================================================
+   PROCEDURAL TEXTURES  (canvas → so the game needs no image files)
+   ======================================================================= */
+function marsBarrenTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 512;
+  const g = c.getContext('2d');
+  g.fillStyle = '#7a3a24'; g.fillRect(0, 0, 512, 512);
+  // dusty blotches
+  for (let i = 0; i < 1600; i++) {
+    const x = Math.random() * 512, y = Math.random() * 512, r = 2 + Math.random() * 26;
+    const shade = Math.random();
+    g.fillStyle = shade < 0.5 ? 'rgba(60,26,14,0.35)' : 'rgba(170,96,60,0.30)';
+    g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  }
+  // craters
+  for (let i = 0; i < 40; i++) {
+    const x = Math.random() * 512, y = Math.random() * 512, r = 6 + Math.random() * 20;
+    g.strokeStyle = 'rgba(40,18,10,0.6)'; g.lineWidth = 2;
+    g.beginPath(); g.arc(x, y, r, 0, 7); g.stroke();
+    g.fillStyle = 'rgba(40,18,10,0.25)'; g.beginPath(); g.arc(x, y, r * 0.8, 0, 7); g.fill();
+  }
+  const t = new THREE.CanvasTexture(c); return t;
+}
+function marsHotTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 512;
+  const g = c.getContext('2d');
+  g.fillStyle = '#b5401a'; g.fillRect(0, 0, 512, 512);
+  // glowing magma cracks
+  for (let i = 0; i < 90; i++) {
+    g.strokeStyle = 'rgba(255,' + (120 + Math.random() * 100 | 0) + ',30,0.9)';
+    g.lineWidth = 1 + Math.random() * 3; g.beginPath();
+    let x = Math.random() * 512, y = Math.random() * 512; g.moveTo(x, y);
+    for (let s = 0; s < 6; s++) { x += (Math.random() - 0.5) * 60; y += (Math.random() - 0.5) * 60; g.lineTo(x, y); }
+    g.stroke();
+  }
+  for (let i = 0; i < 400; i++) {
+    const x = Math.random() * 512, y = Math.random() * 512, r = 2 + Math.random() * 14;
+    g.fillStyle = 'rgba(255,210,90,0.25)'; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  }
+  const t = new THREE.CanvasTexture(c); return t;
+}
+function metalTexture(base) {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = base; g.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 1400; i++) {
+    const x = Math.random() * 256, y = Math.random() * 256;
+    g.fillStyle = 'rgba(255,255,255,' + (Math.random() * 0.05) + ')';
+    g.fillRect(x, y, 2, 2);
+  }
+  g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = 2;
+  for (let i = 0; i <= 256; i += 64) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i, 256); g.stroke();
+    g.beginPath(); g.moveTo(0, i); g.lineTo(256, i); g.stroke(); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
+}
+
+/* =======================================================================
+   STARFIELD  (shared by both scenes)
+   ======================================================================= */
+function makeStars() {
+  const n = 2500, pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const r = 400 + Math.random() * 600;
+    const th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
+    pos[i * 3]     = r * Math.sin(ph) * Math.cos(th);
+    pos[i * 3 + 1] = r * Math.cos(ph);
+    pos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  return new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xffffff, size: 1.4, sizeAttenuation: false }));
+}
+
+/* =======================================================================
+   GAME STATE
+   ======================================================================= */
+const STATE = {
+  phase: 'start',            // 'start' | 'station' | 'firing' | 'surface'
+  terraformIndex: 0,
+  batteriesInBox: 0,
+  buttonArmed: false,
+  interactables: [],         // world meshes you can look at
+  focus: null,               // currently-aimed interactable
+  fireT: 0,
+  winIndex: 20000,   // Terraformation Index that ends the game (per mode)
+  costMul: 1,        // build-cost multiplier (per mode)
+};
+// Inventory: 10 slots. Slot 0 = HAND. Each slot is null or { type:'battery' }.
+const INV = new Array(10).fill(null);
+const ROOM = { w: 26, h: 7, d: 18 };   // interior half-extents used below
+
+/* =======================================================================
+   STATION SCENE
+   ======================================================================= */
+const station = new THREE.Group();
+scene.add(station);
+const stars = makeStars(); station.add(stars);
+
+// lighting
+station.add(new THREE.AmbientLight(0x6b5048, 0.7));
+const key = new THREE.DirectionalLight(0xffd9c0, 0.9); key.position.set(6, 12, 8); station.add(key);
+const fill = new THREE.PointLight(0x88aaff, 0.6, 60); fill.position.set(0, 5, 0); station.add(fill);
+
+// ----- room shell: built as separate walls so the front wall can hold a
+//       REAL window opening that Mars shows through -----
+const HW = ROOM.w / 2, HD = ROOM.d / 2, FY = -1, CY = ROOM.h - 1, MIDY = (FY + CY) / 2;
+const wallTex = metalTexture('#3a4453'); wallTex.repeat.set(4, 2);
+const floorTex = metalTexture('#2b323d'); floorTex.repeat.set(6, 4);
+const wallMat = new THREE.MeshStandardMaterial({ map: wallTex, metalness: 0.4, roughness: 0.7, side: THREE.DoubleSide });
+function wall(w, h, pos, rotY) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), wallMat.clone());
+  m.position.copy(pos); if (rotY) m.rotation.y = rotY; station.add(m); return m;
+}
+// floor + ceiling
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.w, ROOM.d),
+  new THREE.MeshStandardMaterial({ map: floorTex, metalness: 0.5, roughness: 0.6 }));
+floor.rotation.x = -Math.PI / 2; floor.position.y = FY; station.add(floor);
+const ceil = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.w, ROOM.d), wallMat.clone());
+ceil.rotation.x = Math.PI / 2; ceil.position.y = CY; station.add(ceil);
+// back (+Z) and side walls
+wall(ROOM.w, ROOM.h, new THREE.Vector3(0, MIDY, HD), Math.PI);
+wall(ROOM.d, ROOM.h, new THREE.Vector3(-HW, MIDY, 0), Math.PI / 2);
+wall(ROOM.d, ROOM.h, new THREE.Vector3(HW, MIDY, 0), -Math.PI / 2);
+// front (-Z) wall as 4 panels framing a window hole (x:-7.5..7.5, y:0.5..5)
+const holeHW = 7.5, holeB = 0.5, holeT = 5;
+wall(HW - holeHW, ROOM.h, new THREE.Vector3(-(holeHW + HW) / 2, MIDY, -HD));       // left panel
+wall(HW - holeHW, ROOM.h, new THREE.Vector3((holeHW + HW) / 2, MIDY, -HD));        // right panel
+wall(holeHW * 2, CY - holeT, new THREE.Vector3(0, (CY + holeT) / 2, -HD));         // top panel
+wall(holeHW * 2, holeB - FY, new THREE.Vector3(0, (holeB + FY) / 2, -HD));         // bottom panel
+// window frame trim (thin bright bars around the opening)
+const trimMat = new THREE.MeshStandardMaterial({ color: 0x1b2430, metalness: 0.7, roughness: 0.4 });
+[[0, holeT, holeHW * 2 + 0.3, 0.3], [0, holeB, holeHW * 2 + 0.3, 0.3],
+ [-holeHW, (holeT + holeB) / 2, 0.3, holeT - holeB], [holeHW, (holeT + holeB) / 2, 0.3, holeT - holeB]]
+  .forEach(([x, y, w, h]) => {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.4), trimMat);
+    bar.position.set(x, y, -HD + 0.05); station.add(bar);
+  });
+// faint glass across the opening
+const glass = new THREE.Mesh(new THREE.PlaneGeometry(holeHW * 2, holeT - holeB),
+  new THREE.MeshStandardMaterial({ color: 0x9fd0ff, transparent: true, opacity: 0.05,
+                                   metalness: 1, roughness: 0 }));
+glass.position.set(0, (holeT + holeB) / 2, -HD + 0.1); station.add(glass);
+
+// Mars — two layers so we can crossfade barren → hot
+const marsBarren = marsBarrenTexture();
+const marsHot = marsHotTexture();
+const marsMat = new THREE.MeshStandardMaterial({ map: marsBarren, roughness: 1, metalness: 0,
+                                                 emissive: 0x3a1203, emissiveIntensity: 0.18 });
+const mars = new THREE.Mesh(new THREE.SphereGeometry(26, 64, 64), marsMat);
+mars.position.set(-4, 3, -72); station.add(mars);
+const marsHotMat = new THREE.MeshStandardMaterial({ map: marsHot, transparent: true, opacity: 0,
+                                                    emissive: 0xff4400, emissiveIntensity: 0, roughness: 1 });
+const marsGlow = new THREE.Mesh(new THREE.SphereGeometry(26.15, 64, 64), marsHotMat);
+marsGlow.position.copy(mars.position); station.add(marsGlow);
+const sun = new THREE.PointLight(0xffe9c0, 1.2, 0); sun.position.set(40, 30, -40); station.add(sun);
+
+// ----- props: a few crates to hide batteries behind -----
+const crateMat = new THREE.MeshStandardMaterial({ map: metalTexture('#55402a'), metalness: 0.3, roughness: 0.8 });
+function crate(x, z, s) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(s, s, s), crateMat);
+  m.position.set(x, -1 + s / 2, z); station.add(m); return m;
+}
+crate(-9, 4, 1.8); crate(-8, 5.6, 1.4); crate(9.5, -3, 2);
+crate(10, 5, 1.6); crate(-10.5, -5, 1.8);
+
+// ----- the batteries (world pickups) -----
+function makeBatteryMesh() {
+  const grp = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.9, 20),
+    new THREE.MeshStandardMaterial({ color: 0x0b7a43, emissive: 0x1fae63, emissiveIntensity: 0.6,
+                                     metalness: 0.5, roughness: 0.4 }));
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.18, 16),
+    new THREE.MeshStandardMaterial({ color: 0xcfcfcf, metalness: 0.9, roughness: 0.2 }));
+  cap.position.y = 0.54; grp.add(body, cap);
+  const halo = new THREE.PointLight(0x55ffaa, 0.8, 5); grp.add(halo);
+  return grp;
+}
+const batteryMeshes = [];
+function spawnBattery(x, y, z) {
+  const b = makeBatteryMesh(); b.position.set(x, y, z);
+  b.userData.interact = { kind: 'battery' };
+  station.add(b); batteryMeshes.push(b); STATE.interactables.push(b);
+}
+spawnBattery(-9, -0.2, 5.4);     // tucked near crates, left
+spawnBattery(10.4, 1.1, -3);     // floating by the right crates
+
+// ----- Power Box (on the right wall, facing in) -----
+const powerBox = new THREE.Group();
+powerBox.position.set(ROOM.w / 2 - 1.2, 2.2, 2);
+const boxBody = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.4, 1.6),
+  new THREE.MeshStandardMaterial({ color: 0x27303d, metalness: 0.7, roughness: 0.4 }));
+powerBox.add(boxBody);
+// two sockets on the face (-X, toward room center)
+const socketMat = () => new THREE.MeshStandardMaterial({ color: 0x120a06, emissive: 0x000000,
+                                                         metalness: 0.6, roughness: 0.5 });
+const socketA = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.33, 0.3, 20), socketMat());
+const socketB = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.33, 0.3, 20), socketMat());
+socketA.rotation.z = Math.PI / 2; socketB.rotation.z = Math.PI / 2;
+socketA.position.set(-0.85, 0.45, -0.4); socketB.position.set(-0.85, 0.45, 0.4);
+powerBox.add(socketA, socketB);
+// the fire button
+const button = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.2, 24),
+  new THREE.MeshStandardMaterial({ color: 0x551111, emissive: 0x220000, emissiveIntensity: 0.4,
+                                   metalness: 0.5, roughness: 0.4 }));
+button.rotation.z = Math.PI / 2; button.position.set(-0.85, -0.5, 0);
+powerBox.add(button);
+// a little screen
+const screen = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 0.5),
+  new THREE.MeshBasicMaterial({ color: 0x113322 }));
+screen.position.set(-0.81, 1.0, 0); screen.rotation.y = -Math.PI / 2; powerBox.add(screen);
+station.add(powerBox);
+// interaction zones
+powerBox.userData.interact = { kind: 'powerbox' };
+button.userData.interact = { kind: 'button' };
+STATE.interactables.push(powerBox, button);
+
+// laser emitters (two pods near the window) — fire at Mars when active
+const laserMat = new THREE.MeshBasicMaterial({ color: 0x55ddff });
+function laserBeam(x) {
+  const len = 70;
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, len, 8), laserMat.clone());
+  m.material.transparent = true; m.material.opacity = 0;
+  // position between window pod and Mars
+  const from = new THREE.Vector3(x, 2.6, -ROOM.d / 2 + 0.5);
+  const to = mars.position.clone();
+  const mid = from.clone().lerp(to, 0.5); m.position.copy(mid);
+  m.lookAt(to); m.rotateX(Math.PI / 2);
+  m.scale.y = from.distanceTo(to) / len;
+  station.add(m); return m;
+}
+const beams = [laserBeam(-5), laserBeam(5)];
+
+/* =======================================================================
+   SURFACE SCENE — Chapter 2: terraform, mine, build (built, hidden until teleport)
+   ======================================================================= */
+const SURF_SIZE = 480;              // bigger world
+const PLAY_LIM = SURF_SIZE / 2 - 64; // how far out the player (and spawns) can roam — inside the mountains
+// height field — rolling hills and valleys, ringed by tall mountains at the edges
+function surfH(x, z) {
+  let h = Math.sin(x * 0.045) * 3.2 + Math.cos(z * 0.04) * 3.0
+        + Math.sin((x + z) * 0.09) * 1.4 + Math.cos(x * 0.12 - z * 0.05) * 0.8;
+  const edge = Math.max(Math.abs(x), Math.abs(z)), rs = SURF_SIZE / 2 - 60, re = SURF_SIZE / 2;
+  if (edge > rs) { const t = Math.min(1, (edge - rs) / (re - rs)); h += t * t * (62 + Math.sin(x * 0.25) * 10 + Math.cos(z * 0.25) * 10); }
+  return h;
+}
+const surface = new THREE.Group(); surface.visible = false; scene.add(surface);
+scene.add(camera);                       // so the mining-tool viewmodel (a camera child) renders
+const surfStars = makeStars(); surface.add(surfStars);
+const surfAmb = new THREE.AmbientLight(0xffc0a0, 0.85); surface.add(surfAmb);
+const surfSun = new THREE.DirectionalLight(0xffe3c4, 1.2); surfSun.position.set(30, 50, 20); surface.add(surfSun);
+
+// terrain mesh from the height field
+const terGeo = new THREE.PlaneGeometry(SURF_SIZE, SURF_SIZE, 170, 170);
+terGeo.rotateX(-Math.PI / 2);
+{ const p = terGeo.attributes.position;
+  for (let i = 0; i < p.count; i++) p.setY(i, surfH(p.getX(i), p.getZ(i)));
+  terGeo.computeVertexNormals(); }
+const terTex = marsBarrenTexture(); terTex.wrapS = terTex.wrapT = THREE.RepeatWrapping; terTex.repeat.set(24, 24);
+const terrain = new THREE.Mesh(terGeo, new THREE.MeshStandardMaterial({ map: terTex, roughness: 1, vertexColors: true }));
+surface.add(terrain);
+// vertex colours let the shoreline turn green over time (near water, only once plant gens exist)
+const terCount = terGeo.attributes.position.count;
+const terY = new Float32Array(terCount);
+for (let i = 0; i < terCount; i++) terY[i] = terGeo.attributes.position.getY(i);
+const terGreen = new Float32Array(terCount);                 // 0 = barren red, 1 = lush
+const terColAttr = new THREE.BufferAttribute(new Float32Array(terCount * 3).fill(1), 3);
+terGeo.setAttribute('color', terColAttr);                    // start all white → texture unchanged
+
+// valleys stay dry at first — low ground below this height is "valley" (where quartz hides);
+// oceans fill these back in as the Terraformation Index climbs past 500 toward 2000.
+const VALLEY_Y = -3;
+
+// sky dome — recolored from dusty-red to blue as Mars terraforms
+const SKY_RED = new THREE.Color(0x3a1608), SKY_BLUE = new THREE.Color(0x8fc2ff);
+const surfSky = new THREE.Mesh(new THREE.SphereGeometry(600, 32, 32),
+  new THREE.MeshBasicMaterial({ color: SKY_RED.clone(), side: THREE.BackSide }));
+surface.add(surfSky);
+
+// ocean — hidden far below until the Index crosses 500, then rises to fill the valleys (full at 2000)
+const ocean = new THREE.Mesh(new THREE.PlaneGeometry(SURF_SIZE, SURF_SIZE, 1, 1),
+  new THREE.MeshStandardMaterial({ color: 0x2a6edb, transparent: true, opacity: 0.82, roughness: 0.15, metalness: 0.35 }));
+ocean.rotation.x = -Math.PI / 2; ocean.position.y = -40; surface.add(ocean);
+
+// clouds — a layer of soft white puffs that fade in with the blue sky
+const clouds = new THREE.Group(); clouds.visible = false; surface.add(clouds);
+for (let i = 0; i < 26; i++) {
+  const c = new THREE.Mesh(new THREE.SphereGeometry(6 + Math.random() * 8, 10, 8),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0, roughness: 1 }));
+  c.position.set((Math.random() * 2 - 1) * 180, 45 + Math.random() * 25, (Math.random() * 2 - 1) * 180);
+  c.scale.y = 0.5; clouds.add(c);
+}
+
+// landing capsule at the spawn point — supplies oxygen while you're near it
+const CAPSULE_R = 8;
+const capsule = new THREE.Group();
+{ const body = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 2.0, 2.6, 16),
+    new THREE.MeshStandardMaterial({ color: 0xcdd3da, metalness: 0.7, roughness: 0.3 }));
+  body.position.y = 1.9;
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(1.6, 1.6, 16),
+    new THREE.MeshStandardMaterial({ color: 0xff7043, metalness: 0.5, roughness: 0.4 }));
+  nose.position.y = 4.0;
+  const glass = new THREE.Mesh(new THREE.SphereGeometry(1.0, 16, 12),
+    new THREE.MeshStandardMaterial({ color: 0x8fd0ff, transparent: true, opacity: 0.5, metalness: 1, roughness: 0 }));
+  glass.position.y = 2.7;
+  capsule.add(body, nose, glass);
+  for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2;
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.8, 6), new THREE.MeshStandardMaterial({ color: 0x555555 }));
+    leg.position.set(Math.cos(a) * 1.7, 0.7, Math.sin(a) * 1.7); leg.rotation.z = Math.cos(a) * 0.4; leg.rotation.x = -Math.sin(a) * 0.4; capsule.add(leg); }
+}
+capsule.position.set(0, surfH(0, 0), 0); surface.add(capsule);
+
+// rock / material specs
+const ROCK = {
+  iron:     { color: 0x9a9a9a, emissive: 0x000000, min: 1, max: 2, label: 'Iron',     emoji: '🪨' },
+  titanium: { color: 0x474d57, emissive: 0x000000, min: 1, max: 2, label: 'Titanium', emoji: '⚙️' },
+  silicon:  { color: 0x3f74d6, emissive: 0x0a1f52, min: 1, max: 3, label: 'Silicon',  emoji: '🔷' },
+  quartz:   { color: 0xe7d6ff, emissive: 0x40306a, min: 1, max: 1, label: 'Quartz',   emoji: '💎' },
+};
+const rocks = [];       // { mesh, type, amount }
+const rockMeshes = [];  // flat list for raycasting
+function addRock(type, x, z) {
+  const s = ROCK[type], sz = 0.8 + Math.random() * 1.1;
+  const m = new THREE.Mesh(new THREE.DodecahedronGeometry(sz),
+    new THREE.MeshStandardMaterial({ color: s.color, emissive: s.emissive, emissiveIntensity: 0.5,
+                                     roughness: 0.85, metalness: 0.2 }));
+  m.position.set(x, surfH(x, z) + sz * 0.5, z);
+  m.rotation.set(Math.random(), Math.random(), Math.random());
+  const amount = s.min + Math.floor(Math.random() * (s.max - s.min + 1));
+  m.userData.rock = { type, amount };
+  surface.add(m); const r = { mesh: m, type, amount }; rocks.push(r); rockMeshes.push(m); return r;
+}
+function spawnBatch(type, n) {
+  const R = PLAY_LIM - 6, valleyOnly = (type === 'quartz');
+  let placed = 0, guard = 0;
+  while (placed < n && guard < n * 50) { guard++;
+    const x = (Math.random() * 2 - 1) * R, z = (Math.random() * 2 - 1) * R, h = surfH(x, z);
+    if (Math.hypot(x, z) < 12) continue;        // keep the landing spot clear
+    if (valleyOnly && h > VALLEY_Y) continue;   // quartz only in valleys
+    if (!valleyOnly && h < -5) continue;        // keep the others off the deepest valley floors
+    addRock(type, x, z); placed++;
+  }
+}
+function spawnRocks() {
+  // iron is now by far the most common; quartz a little more common than before
+  spawnBatch('iron', 90); spawnBatch('titanium', 18); spawnBatch('silicon', 24); spawnBatch('quartz', 15);
+}
+
+// resources, structures, build state
+const RES = { iron: 0, titanium: 0, silicon: 0, quartz: 0 };
+const build = { solars: [], drills: [], habitats: [], doors: [], chests: [], raingens: [], plantgens: [], heaters: [] };
+let selectedBuild = null, buildPlacing = false, buildGhost = null, placeRotation = 0;
+
+// milestone thresholds (Terraformation Index)
+const MS = { T2: 500, RAIN: 1500, FULL: 2000, AIR: 2800, PLANT: 3000, CHEST3: 4250, GRASS: 4500, T3: 5000 };
+
+// buildables — `unlock` is the Index needed before it can be built
+const BUILDABLES = {
+  drill:   { name: 'T1 Pressure Drill', emoji: '🛠️', cost: { iron: 2, titanium: 1 },             unlock: 0,       desc: '+1 Index every 10s + mines nearby rocks.' },
+  solar:   { name: 'T1 Solar Panel',    emoji: '🔋', cost: { silicon: 2, iron: 1 },              unlock: 0,       desc: 'Produces 10⚡.' },
+  habitat: { name: 'T1 Habitation Module', emoji: '🏠', cost: { iron: 5, silicon: 1 },           unlock: 0,       desc: 'Solid dome, unlimited oxygen.' },
+  door:    { name: 'Pressure Lock Door',emoji: '🚪', cost: { silicon: 3, titanium: 1, iron: 2 }, unlock: 0,       desc: 'Placed on a dome to open it up.' },
+  chest:   { name: 'T1 Storage Chest',  emoji: '📦', cost: { iron: 1 },                          unlock: 0,       desc: '20 storage slots.' },
+  heater:  { name: 'T1 Heater',         emoji: '🔥', cost: { iron: 2 },                          unlock: 0,       desc: 'Starter: warms Mars — +2 Index every 8s.' },
+  heater2: { name: 'T2 Heater',         emoji: '♨️', cost: { iron: 3, silicon: 1 },              unlock: MS.T2,   desc: '+4 Index every 7s (bigger).' },
+  heater3: { name: 'T3 Heater',         emoji: '🌋', cost: { iron: 5, silicon: 2, titanium: 1 }, unlock: 1350,    desc: '+6 Index every 6s (biggest).' },
+  drill2:  { name: 'T2 Pressure Drill', emoji: '⛏️', cost: { iron: 4, titanium: 2 },             unlock: MS.T2,   desc: '+2 Index every 8s (bigger, steel).' },
+  chest2:  { name: 'T2 Storage Chest',  emoji: '🧰', cost: { iron: 2, silicon: 1 },              unlock: MS.T2,   desc: '40 storage slots (bigger).' },
+  habitat2:{ name: 'T2 Habitation Base',emoji: '🏛️', cost: { iron: 5, silicon: 2, titanium: 2 }, unlock: MS.T2,   desc: 'Even bigger dome, glassy texture.' },
+  raingen: { name: 'T1 Rain Generator', emoji: '🌧️', cost: { quartz: 2, iron: 2, silicon: 2 },   unlock: MS.RAIN, desc: 'Each one adds +5% chance of rain (speeds terraforming).' },
+  solar2:  { name: 'T2 Solar Panel',    emoji: '🔆', cost: { silicon: 5, iron: 2 },              unlock: MS.RAIN, desc: 'Produces 25⚡ (bigger, darker).' },
+  chest3:  { name: 'T3 Storage Chest',  emoji: '🗄️', cost: { iron: 3, silicon: 2 },               unlock: MS.CHEST3, desc: '60 storage slots (huge).' },
+  raingen2:{ name: 'T2 Rain Generator', emoji: '⛈️', cost: { quartz: 4, iron: 3, silicon: 3 },    unlock: MS.CHEST3, desc: 'Each adds +10% chance of rain.' },
+  drill3:  { name: 'T3 Pressure Drill', emoji: '⚒️', cost: { iron: 7, titanium: 3, quartz: 1 },   unlock: MS.T3,    desc: '+3 Index every 6s (biggest).' },
+  solar3:  { name: 'T3 Solar Panel',    emoji: '☀️', cost: { silicon: 8, iron: 4 },               unlock: MS.T3,    desc: 'Produces 50⚡.' },
+  habitat3:{ name: 'T3 Habitation Base',emoji: '🏙️', cost: { iron: 8, silicon: 4, titanium: 3 },  unlock: MS.T3,    desc: 'Huge glassy dome.' },
+  plantgen: { name: 'T1 Plant Generator', emoji: '🌱', cost: { silicon: 3, iron: 2, quartz: 1 },             unlock: MS.PLANT, desc: 'Grows grass every 6s, trees every 12s.' },
+  plantgen2:{ name: 'T2 Plant Generator', emoji: '🌿', cost: { silicon: 5, iron: 3, quartz: 2 },             unlock: 3500,     desc: '2× grass & trees each cycle.' },
+  plantgen3:{ name: 'T3 Plant Generator', emoji: '🌳', cost: { silicon: 8, iron: 5, titanium: 2, quartz: 3 }, unlock: 4000,     desc: '3× grass & trees each cycle.' },
+};
+
+// mining tool — a viewmodel parented to the camera, shown when equipped (X)
+let toolEquipped = false; const toolLevel = 1;
+const toolView = new THREE.Group();
+{ const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.55, 10),
+    new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.6, roughness: 0.4 }));
+  handle.rotation.z = 0.5;
+  const head = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.42, 12),
+    new THREE.MeshStandardMaterial({ color: 0xffcc44, metalness: 0.8, roughness: 0.3, emissive: 0x442200, emissiveIntensity: 0.4 }));
+  head.position.set(0.18, 0.3, 0); head.rotation.z = -0.9; toolView.add(handle, head); }
+toolView.position.set(0.5, -0.42, -1); toolView.visible = false; camera.add(toolView);
+
+/* =======================================================================
+   FIRST-PERSON CONTROLS  (pointer lock look + WASD walk)
+   ======================================================================= */
+const keys = {};
+addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'KeyE' && STATE.phase !== 'start') { e.preventDefault(); toggleInventory(); }
+  if (e.code === 'KeyF' && STATE.phase === 'station' && !invOpen) { e.preventDefault(); doInteract(); }
+  if (e.code === 'KeyF' && STATE.phase === 'earth') { e.preventDefault(); boardRocket(); }
+  if (STATE.phase === 'surface') {
+    if (e.code === 'KeyX' && !anyOverlay()) { e.preventDefault(); toggleTool(); }
+    if (e.code === 'KeyM' && !buildOpen && !chestOpen && !invOpen) { e.preventDefault(); toggleMap(); }
+    if (e.code === 'KeyB' && !mapOpen && !chestOpen && !invOpen) { e.preventDefault(); toggleBuild(); }
+    if (e.code === 'KeyF' && !anyOverlay()) { e.preventDefault(); surfaceF(); }
+  }
+  if (e.code === 'Escape' && buildPlacing) cancelPlacing();
+});
+addEventListener('keyup', e => { keys[e.code] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+let yaw = 0, pitch = 0;
+let pointerLocked = false;
+const canvas = renderer.domElement;
+const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+if (isTouch) document.body.classList.add('touch');
+const touchMove = { f: 0, s: 0 };        // analog move vector from the joystick
+
+function requestLock() {
+  if (isTouch || STATE.phase === 'start' || anyOverlay()) return;   // no pointer lock on touch
+  canvas.requestPointerLock();
+}
+// the "use" action (same as a left-click in the world): fire / mine / place
+function doUse() {
+  if (anyOverlay() || STATE.phase === 'won') return;
+  if (STATE.phase === 'station') {
+    if (STATE.focus && STATE.focus.userData.interact.kind === 'button' && STATE.buttonArmed) startFiring();
+  } else if (STATE.phase === 'surface') {
+    if (buildPlacing) placeAtAim();
+    // mining is now a HOLD action (~5s) handled in updateMining(); a click alone no longer mines
+  }
+}
+let useHeld = false;   // true while the mouse / USE button is held down (drives hold-to-mine)
+canvas.addEventListener('click', () => {
+  if (anyOverlay() || STATE.phase === 'won') return;
+  if (!pointerLocked && !isTouch) { requestLock(); return; }
+  doUse();
+});
+canvas.addEventListener('mousedown', e => { if (e.button === 0) useHeld = true; });
+addEventListener('mouseup',   e => { if (e.button === 0) useHeld = false; });
+canvas.addEventListener('contextmenu', e => { e.preventDefault(); if (buildPlacing) cancelPlacing(); });
+document.addEventListener('pointerlockchange', () => {
+  pointerLocked = (document.pointerLockElement === canvas);
+});
+addEventListener('mousemove', e => {
+  if (!pointerLocked) return;
+  yaw   -= e.movementX * 0.0022;
+  pitch -= e.movementY * 0.0022;
+  pitch = Math.max(-1.3, Math.min(1.3, pitch));
+});
+// scroll wheel rotates the object you're placing
+addEventListener('wheel', e => {
+  if (!buildPlacing) return;
+  e.preventDefault();
+  placeRotation += (e.deltaY > 0 ? 1 : -1) * 0.2;
+}, { passive: false });
+
+/* ----- touch: drag to look, left joystick to move, buttons for actions ----- */
+if (isTouch) {
+  // look: any touch on the canvas that isn't the joystick/buttons
+  let lookId = null, lastX = 0, lastY = 0;
+  canvas.addEventListener('touchstart', e => {
+    if (STATE.phase === 'start' || STATE.phase === 'won' || anyOverlay()) return;
+    const t = e.changedTouches[0]; lookId = t.identifier; lastX = t.clientX; lastY = t.clientY;
+  }, { passive: true });
+  canvas.addEventListener('touchmove', e => {
+    if (lookId === null) return;
+    for (const t of e.changedTouches) if (t.identifier === lookId) {
+      yaw   -= (t.clientX - lastX) * 0.006;
+      pitch -= (t.clientY - lastY) * 0.006;
+      pitch = Math.max(-1.3, Math.min(1.3, pitch));
+      lastX = t.clientX; lastY = t.clientY;
+    }
+  }, { passive: true });
+  const endLook = e => { for (const t of e.changedTouches) if (t.identifier === lookId) lookId = null; };
+  canvas.addEventListener('touchend', endLook); canvas.addEventListener('touchcancel', endLook);
+
+  // joystick
+  const joy = el('joy'), thumb = el('joyThumb'); let joyId = null;
+  const JR = 44;
+  function joySet(t) {
+    const r = joy.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    let dx = t.clientX - cx, dy = t.clientY - cy;
+    const d = Math.hypot(dx, dy); if (d > JR) { dx = dx / d * JR; dy = dy / d * JR; }
+    thumb.style.left = (39 + dx) + 'px'; thumb.style.top = (39 + dy) + 'px';
+    touchMove.s = dx / JR; touchMove.f = -dy / JR;
+  }
+  joy.addEventListener('touchstart', e => { e.preventDefault(); joyId = e.changedTouches[0].identifier; joySet(e.changedTouches[0]); }, { passive: false });
+  joy.addEventListener('touchmove', e => { e.preventDefault(); for (const t of e.changedTouches) if (t.identifier === joyId) joySet(t); }, { passive: false });
+  const joyEnd = e => { for (const t of e.changedTouches) if (t.identifier === joyId) { joyId = null; touchMove.f = touchMove.s = 0; thumb.style.left = '39px'; thumb.style.top = '39px'; } };
+  joy.addEventListener('touchend', joyEnd); joy.addEventListener('touchcancel', joyEnd);
+
+  // action buttons
+  function doAct(act) {
+    if (act === 'USE') { doUse(); return; }
+    if (act === 'E') { if (STATE.phase !== 'start') toggleInventory(); return; }
+    if (act === 'F') {
+      if (STATE.phase === 'earth') boardRocket();
+      else if (STATE.phase === 'station' && !invOpen) doInteract();
+      else if (STATE.phase === 'surface' && !anyOverlay()) surfaceF();
+      return;
+    }
+    if (STATE.phase !== 'surface') return;
+    if (act === 'X' && !anyOverlay()) toggleTool();
+    if (act === 'M' && !buildOpen && !chestOpen && !invOpen) toggleMap();
+    if (act === 'B' && !mapOpen && !chestOpen && !invOpen) toggleBuild();
+  }
+  document.querySelectorAll('.tbtn').forEach(b => {
+    b.addEventListener('touchstart', e => { e.preventDefault();
+      if (b.dataset.act === 'USE') { useHeld = true; }   // hold USE to mine (~5s)
+      doAct(b.dataset.act);
+    }, { passive: false });
+    if (b.dataset.act === 'USE') {
+      const rel = e => { e.preventDefault(); useHeld = false; };
+      b.addEventListener('touchend', rel); b.addEventListener('touchcancel', rel);
+    }
+  });
+}
+
+/* =======================================================================
+   INTERACTION (raycast from screen center)
+   ======================================================================= */
+const ray = new THREE.Raycaster();
+const center = new THREE.Vector2(0, 0);
+function updateFocus() {
+  STATE.focus = null;
+  if (STATE.phase !== 'station' || invOpen) { showPrompt(''); return; }
+  ray.setFromCamera(center, camera);
+  const hits = ray.intersectObjects(STATE.interactables, true);
+  let best = null, bestDist = Infinity;
+  for (const h of hits) {
+    if (h.distance > 4.5) continue;                   // must be close
+    let o = h.object;
+    while (o && !o.userData.interact) o = o.parent;   // climb to tagged group
+    if (!o) continue;
+    const d = camera.position.distanceTo(o.getWorldPosition(new THREE.Vector3()));
+    if (d < bestDist) { bestDist = d; best = o; }
+  }
+  STATE.focus = best;
+  // prompt text
+  if (!best) { showPrompt(''); return; }
+  const k = best.userData.interact.kind;
+  const hand = INV[0];
+  if (k === 'battery') showPrompt('<span class="key">F</span> pick up battery');
+  else if (k === 'powerbox') {
+    if (STATE.batteriesInBox >= 2) showPrompt('Power Box is fully charged ⚡');
+    else if (hand && hand.type === 'battery') showPrompt('<span class="key">F</span> insert battery into Power Box');
+    else showPrompt('Need a battery in your ✋ hand slot (press <span class="key">E</span>)');
+  }
+  else if (k === 'button') {
+    if (STATE.buttonArmed) showPrompt('<span class="key">Click</span> FIRE THE LASERS 🔴');
+    else showPrompt('Button needs 2 batteries in the Power Box');
+  }
+}
+function doInteract() {
+  const f = STATE.focus; if (!f) return;
+  const k = f.userData.interact.kind;
+  if (k === 'battery') {
+    const slot = firstFreeSlot();
+    if (slot === -1) { flashObjective('Inventory full!'); return; }
+    INV[slot] = { type: 'battery' };
+    station.remove(f);
+    const idx = STATE.interactables.indexOf(f); if (idx >= 0) STATE.interactables.splice(idx, 1);
+    const bi = batteryMeshes.indexOf(f); if (bi >= 0) batteryMeshes.splice(bi, 1);
+    renderInventory();
+    const left = batteryMeshes.length;
+    flashObjective(left > 0 ? 'Battery secured! ' + left + ' more to find.' :
+      'Both batteries found! Open inventory (E), put one in the ✋ hand slot, then feed the Power Box.');
+    if (left === 0) el('objText').innerHTML = 'Open <b>E</b> inventory → drag a battery to the <b>✋ hand slot</b> → press <b>F</b> at the Power Box.';
+  }
+  else if (k === 'powerbox') {
+    const hand = INV[0];
+    if (STATE.batteriesInBox >= 2) return;
+    if (hand && hand.type === 'battery') {
+      INV[0] = null;
+      STATE.batteriesInBox++;
+      (STATE.batteriesInBox === 1 ? socketA : socketB).material.emissive.setHex(0x1fae63);
+      (STATE.batteriesInBox === 1 ? socketA : socketB).material.emissiveIntensity = 0.8;
+      renderInventory();
+      if (STATE.batteriesInBox >= 2) {
+        STATE.buttonArmed = true;
+        button.material.color.setHex(0xff2222);
+        button.material.emissive.setHex(0xff1100);
+        button.material.emissiveIntensity = 1.0;
+        screen.material.color.setHex(0x33aa55);
+        flashObjective('Power Box charged! Look at the red button and CLICK to fire the lasers.');
+        el('objText').innerHTML = 'Look at the glowing red button and <b>CLICK</b> to fire the terraforming lasers.';
+      } else {
+        flashObjective('1 battery in. One more to go — grab the other, hand-slot it, insert it.');
+      }
+    }
+  }
+}
+function firstFreeSlot() { for (let i = 0; i < INV.length; i++) if (!INV[i]) return i; return -1; }
+
+/* =======================================================================
+   PROMPT / OBJECTIVE helpers
+   ======================================================================= */
+const promptEl = el('prompt');
+function showPrompt(html) {
+  if (!html) { promptEl.classList.remove('show'); return; }
+  promptEl.innerHTML = html; promptEl.classList.add('show');
+}
+let objTimer = 0;
+function flashObjective(msg) {
+  const o = el('objText'); o.dataset.flash = msg;
+  o.innerHTML = '✅ ' + msg; objTimer = 3.2;
+}
+
+/* =======================================================================
+   INVENTORY UI  (10 slots, slot 0 = hand, drag & drop)
+   ======================================================================= */
+let invOpen = false;
+function toggleInventory() {
+  invOpen = !invOpen;
+  el('invOverlay').style.display = invOpen ? 'block' : 'none';
+  if (invOpen) { if (pointerLocked) document.exitPointerLock(); renderInventory(); }
+  else { requestLock(); }
+}
+function itemIcon(item) {
+  if (!item) return null;
+  const d = document.createElement('div');
+  d.className = 'item ' + item.type;
+  d.innerHTML = (item.type === 'battery' ? '🔋' : '❓') + '<span class="nm">' + item.type + '</span>';
+  d.draggable = false;
+  return d;
+}
+function buildSlot(i) {
+  const s = document.createElement('div');
+  s.className = 'slot' + (i === 0 ? ' hand' : '');
+  s.dataset.slot = i;
+  const lbl = document.createElement('div'); lbl.className = 'slotlbl';
+  lbl.textContent = i === 0 ? '✋ HAND' : i;
+  s.appendChild(lbl);
+  const icon = itemIcon(INV[i]);
+  if (icon) { icon.dataset.slot = i; s.appendChild(icon); attachDrag(icon); }
+  return s;
+}
+function renderInventory() {
+  const hand = el('handRow'), bag = el('bagGrid');
+  hand.innerHTML = ''; bag.innerHTML = '';
+  hand.appendChild(buildSlot(0));
+  for (let i = 1; i < INV.length; i++) bag.appendChild(buildSlot(i));
+}
+
+/* ----- drag & drop (works with mouse AND touch) ----- */
+let drag = null; // { from, item }
+const ghost = el('dragGhost');
+function startDrag(iconEl, pt) {
+  const from = +iconEl.dataset.slot;
+  if (!INV[from]) return;
+  drag = { from, item: INV[from] };
+  ghost.innerHTML = ''; ghost.appendChild(itemIcon(INV[from]));
+  ghost.style.display = 'block'; moveGhost(pt);
+  iconEl.style.opacity = '0.3';
+}
+function moveGhost(pt) {
+  ghost.style.left = pt.clientX + 'px'; ghost.style.top = pt.clientY + 'px';
+  document.querySelectorAll('.slot').forEach(s => s.classList.remove('drophover'));
+  const t = slotUnder(pt); if (t) t.classList.add('drophover');
+}
+function endDrag(pt) {
+  const t = slotUnder(pt);
+  if (t) { const to = +t.dataset.slot;
+    if (to !== drag.from) { const tmp = INV[to]; INV[to] = INV[drag.from]; INV[drag.from] = tmp; } }
+  drag = null; ghost.style.display = 'none'; renderInventory();
+}
+function slotUnder(pt) {
+  ghost.style.pointerEvents = 'none';
+  const stack = document.elementsFromPoint(pt.clientX, pt.clientY);
+  for (const n of stack) if (n.classList && n.classList.contains('slot')) return n;
+  return null;
+}
+function attachDrag(iconEl) {
+  iconEl.addEventListener('mousedown', e => { e.preventDefault(); startDrag(iconEl, e); });
+  iconEl.addEventListener('touchstart', e => { e.preventDefault(); startDrag(iconEl, e.changedTouches[0]); }, { passive: false });
+}
+addEventListener('mousemove', e => { if (drag) moveGhost(e); });
+addEventListener('mouseup',   e => { if (drag) endDrag(e); });
+addEventListener('touchmove', e => { if (drag) { e.preventDefault(); moveGhost(e.changedTouches[0]); } }, { passive: false });
+addEventListener('touchend',  e => { if (drag) endDrag(e.changedTouches[0]); });
+
+/* =======================================================================
+   FIRING SEQUENCE
+   ======================================================================= */
+function startFiring() {
+  if (STATE.phase !== 'station') return;
+  STATE.phase = 'firing';
+  STATE.fireT = 0;
+  showPrompt('');
+  el('firing').style.display = 'block';
+  el('objText').innerHTML = 'Lasers firing… hold tight.';
+  button.material.emissiveIntensity = 1.6;
+}
+function updateFiring(dt) {
+  STATE.fireT += dt;
+  const p = Math.min(STATE.fireT / 5, 1);         // 5-second laser
+  el('fireBar').style.width = (p * 100) + '%';
+  STATE.terraformIndex = Math.round(p * 25);       // first laser warms it to 25
+  el('tfIndex').textContent = STATE.terraformIndex;
+  // beams visible + flicker
+  for (const b of beams) b.material.opacity = 0.5 + Math.random() * 0.5;
+  // Mars heats up: glow layer fades in, emissive climbs, tint toward orange
+  marsHotMat.opacity = p;
+  marsHotMat.emissiveIntensity = p * 1.4;
+  marsMat.emissiveIntensity = p * 0.6;
+  marsMat.emissive.setRGB(p * 0.6, p * 0.18, 0);
+  mars.rotation.y += dt * 0.15; marsGlow.rotation.y = mars.rotation.y;
+  // gentle camera shake
+  camera.position.x += (Math.random() - 0.5) * 0.02 * p;
+  if (p >= 1) finishFiring();
+}
+let fadeStage = 0, fadeT = 0;
+function finishFiring() {
+  if (fadeStage !== 0) return;
+  for (const b of beams) b.material.opacity = 0;
+  el('firing').style.display = 'none';
+  fadeStage = 1; fadeT = 0;
+  el('fade').classList.add('on');
+  showBanner('MARS IS HEATING', 'Teleporting to the surface…');
+}
+function showBanner(t, s) {
+  el('banner').querySelector('.t').textContent = t;
+  el('banner').querySelector('.s').textContent = s;
+  el('banner').classList.add('show');
+}
+function hideBanner() { el('banner').classList.remove('show'); }
+
+function teleportToSurface() {
+  STATE.phase = 'surface';
+  station.visible = false;
+  surface.visible = true;
+  camera.position.set(0, surfH(0, 0) + 2.0, 0);
+  yaw = 0; pitch = -0.08;
+  spawnRocks();
+  el('tfMax').textContent = '';             // Terraformation Index is now uncapped
+  el('tfIndex').textContent = STATE.terraformIndex;
+  el('resHud').style.display = 'block';
+  el('surfControls').style.display = 'block';
+  el('oxHud').style.display = 'block';
+  oxygen = OX_MAX;
+  el('controls').style.display = 'none';
+  el('objText').innerHTML = 'Chapter 2 — Terraform Mars. Press <b>X</b> for your mining tool, ' +
+                            '<b>M</b> for the material map, <b>B</b> to build.';
+  refreshResHUD(0);
+  showBanner('CHAPTER 2 · TERRAFORM MARS', 'Mine materials · build your base · grow the Terraform Index');
+  setTimeout(hideBanner, 4200);
+}
+
+/* =======================================================================
+   CHAPTER 2 — surface terraforming systems
+   ======================================================================= */
+let mapOpen = false, buildOpen = false, chestOpen = false, activeChest = null;
+function anyOverlay() { return invOpen || mapOpen || buildOpen || chestOpen; }
+function addTerraformIndex(n) { STATE.terraformIndex += n; el('tfIndex').textContent = STATE.terraformIndex; }
+
+function refreshResHUD(prod) {
+  const rain = (build.raingens && build.raingens.length) ? rainChancePct() : 0;
+  const v = k => STATE.creative ? '∞' : RES[k];
+  el('resHud').innerHTML =
+    (STATE.creative ? '<div class="row" style="color:#6dffae">✦ CREATIVE</div>' : '') +
+    '<div class="row"><span>🪨 Iron</span><b>' + v('iron') + '</b></div>' +
+    '<div class="row"><span>⚙️ Titanium</span><b>' + v('titanium') + '</b></div>' +
+    '<div class="row"><span>🔷 Silicon</span><b>' + v('silicon') + '</b></div>' +
+    '<div class="row"><span>💎 Quartz</span><b>' + v('quartz') + '</b></div>' +
+    '<div class="row energy"><span>⚡ Energy</span><b>' + (prod || 0) + '</b></div>' +
+    (rain ? '<div class="row"><span>🌧️ Rain chance</span><b>' + rain + '%</b></div>' : '');
+}
+// per-mode effective cost: Hardcore rounds up (costs more), Relaxed floors (costs a little less, min 1)
+function effCost(cost) {
+  const mul = STATE.costMul || 1;
+  if (mul === 1) return cost;
+  const out = {};
+  for (const k in cost) out[k] = mul > 1 ? Math.ceil(cost[k] * mul) : Math.max(1, Math.floor(cost[k] * mul));
+  return out;
+}
+function canAfford(cost) { if (STATE.creative) return true; for (const k in cost) if (RES[k] < cost[k]) return false; return true; }
+function pay(cost) { if (STATE.creative) return; for (const k in cost) RES[k] -= cost[k]; }
+
+let popTimer = 0;
+function popup(text, color) {
+  const p = el('minePop'); p.textContent = text; p.style.color = color || '#6dffae';
+  p.style.top = '46%'; p.style.opacity = '1'; popTimer = 1.0;
+  requestAnimationFrame(() => { p.style.top = '40%'; });
+}
+
+/* ---- mining tool ---- */
+function toggleTool() {
+  toolEquipped = !toolEquipped; toolView.visible = toolEquipped;
+  el('objText').innerHTML = toolEquipped
+    ? 'Mining tool out (Lv ' + toolLevel + '). Aim a rock and <b>click</b> to mine. <b>M</b> map · <b>B</b> build.'
+    : 'Mining tool away. Press <b>X</b> to pull it out again.';
+}
+const aimRay = new THREE.Raycaster();
+function aimRock() {
+  aimRay.setFromCamera(center, camera);
+  const hits = aimRay.intersectObjects(rockMeshes, false);
+  return (hits.length && hits[0].distance < 7) ? hits[0].object : null;
+}
+function removeRock(m) {
+  surface.remove(m);
+  let i = rocks.findIndex(r => r.mesh === m); if (i >= 0) rocks.splice(i, 1);
+  i = rockMeshes.indexOf(m); if (i >= 0) rockMeshes.splice(i, 1);
+}
+function completeMine(m) {
+  const rk = m.userData.rock;
+  RES[rk.type] += rk.amount; addTerraformIndex(1);
+  popup('+' + rk.amount + ' ' + ROCK[rk.type].emoji + ' ' + ROCK[rk.type].label);
+  removeRock(m);
+}
+// hold-to-mine: aim a rock and hold USE for MINE_TIME seconds to break it
+const MINE_TIME = 2.5;
+let mining = null;   // { mesh, t }
+function updateMining(dt) {
+  const active = STATE.phase === 'surface' && toolEquipped && useHeld && !buildPlacing && !anyOverlay();
+  const m = active ? aimRock() : null;
+  if (!m) { mining = null; el('mineHud').style.display = 'none'; return; }
+  if (!mining || mining.mesh !== m) mining = { mesh: m, t: 0 };   // new rock resets the timer
+  mining.t += dt;
+  const pct = Math.min(1, mining.t / MINE_TIME);
+  el('mineHud').style.display = 'block';
+  el('mineBar').style.width = (pct * 100) + '%';
+  if (pct >= 1) { completeMine(m); mining = null; el('mineHud').style.display = 'none'; }
+}
+
+/* ---- aiming helpers for placement ---- */
+const terRay = new THREE.Raycaster();
+function aimTerrain() { terRay.setFromCamera(center, camera); const h = terRay.intersectObject(terrain, false); return h.length ? h[0].point : null; }
+function aimObject(meshes) { if (!meshes.length) return null; terRay.setFromCamera(center, camera);
+  const h = terRay.intersectObjects(meshes, false); return h.length ? { point: h[0].point, mesh: h[0].object } : null; }
+
+/* ---- build menu + placement ---- */
+function toggleBuild() {
+  buildOpen = !buildOpen; el('buildOverlay').style.display = buildOpen ? 'block' : 'none';
+  if (buildOpen) { if (pointerLocked) document.exitPointerLock(); renderBuild(); } else requestLock();
+}
+function renderBuild() {
+  const list = el('buildList'); list.innerHTML = '';
+  for (const key in BUILDABLES) {
+    const b = BUILDABLES[key];
+    const ec = effCost(b.cost);
+    const locked = !STATE.creative && STATE.terraformIndex < (b.unlock || 0);
+    const ok = !locked && canAfford(ec);
+    const costStr = Object.keys(ec).map(k =>
+      '<span class="' + (RES[k] >= ec[k] ? 'ok' : 'no') + '">' + ec[k] + ' ' + ROCK[k].emoji + '</span>').join('  ');
+    const right = locked ? '<span class="bcost"><span class="no">🔒 ' + b.unlock + ' Index</span></span>'
+                         : '<span class="bcost">' + costStr + '</span>';
+    const d = document.createElement('div'); d.className = 'builditem' + (ok ? '' : ' cant');
+    d.innerHTML = '<span class="bemoji">' + b.emoji + '</span>' +
+      '<span><span class="bname">' + b.name + '</span><br><span class="bdesc">' + b.desc + '</span></span>' + right;
+    if (ok) d.onclick = () => chooseBuild(key);
+    list.appendChild(d);
+  }
+}
+function structureGeo(key) {
+  if (key === 'solar')   return new THREE.BoxGeometry(2.4, 0.15, 1.6);
+  if (key === 'solar2')  return new THREE.BoxGeometry(3.6, 0.2, 2.4);
+  if (key === 'drill')   return new THREE.CylinderGeometry(0.4, 0.6, 2.4, 10);
+  if (key === 'drill2')  return new THREE.CylinderGeometry(0.6, 0.9, 3.4, 12);
+  if (key === 'habitat') return new THREE.SphereGeometry(6, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+  if (key === 'habitat2')return new THREE.SphereGeometry(9, 28, 18, 0, Math.PI * 2, 0, Math.PI / 2);
+  if (key === 'door')    return new THREE.BoxGeometry(1.0, 1.6, 0.3);
+  if (key === 'chest2')  return new THREE.BoxGeometry(1.7, 1.3, 1.4);
+  if (key === 'chest3')  return new THREE.BoxGeometry(2.1, 1.6, 1.7);
+  if (key === 'raingen') return new THREE.CylinderGeometry(0.5, 0.7, 2.6, 12);
+  if (key === 'raingen2')return new THREE.CylinderGeometry(0.65, 0.9, 3.4, 14);
+  if (key === 'heater')  return new THREE.BoxGeometry(1.0, 1.0, 1.0);
+  if (key === 'heater2') return new THREE.BoxGeometry(1.4, 1.3, 1.4);
+  if (key === 'heater3') return new THREE.BoxGeometry(1.8, 1.6, 1.8);
+  if (key === 'solar3')  return new THREE.BoxGeometry(4.8, 0.26, 3.2);
+  if (key === 'drill3')  return new THREE.CylinderGeometry(0.85, 1.25, 4.2, 14);
+  if (key === 'habitat3')return new THREE.SphereGeometry(12, 32, 20, 0, Math.PI * 2, 0, Math.PI / 2);
+  if (key === 'plantgen')  return new THREE.CylinderGeometry(0.5, 0.7, 2.0, 12);
+  if (key === 'plantgen2') return new THREE.CylinderGeometry(0.6, 0.85, 2.4, 12);
+  if (key === 'plantgen3') return new THREE.CylinderGeometry(0.7, 1.0, 2.8, 12);
+  return new THREE.BoxGeometry(1.2, 0.9, 1.0); // chest (T1)
+}
+function makeGhost(key) {
+  if (buildGhost) { surface.remove(buildGhost); buildGhost = null; }
+  buildGhost = new THREE.Mesh(structureGeo(key),
+    new THREE.MeshStandardMaterial({ color: 0x66ff99, transparent: true, opacity: 0.45 }));
+  surface.add(buildGhost);
+}
+function chooseBuild(key) {
+  if (!STATE.creative && STATE.terraformIndex < (BUILDABLES[key].unlock || 0)) { popup('Locked — reach ' + BUILDABLES[key].unlock + ' Index', '#ff6a4a'); return; }
+  if (!canAfford(effCost(BUILDABLES[key].cost))) { popup('Not enough materials', '#ff6a4a'); return; }
+  selectedBuild = key; buildPlacing = true; placeRotation = 0; makeGhost(key); toggleBuild();
+}
+function updateGhost() {
+  if (!buildGhost) return;
+  buildGhost.rotation.y = placeRotation;                 // scroll wheel spins the preview
+  const hit = (selectedBuild === 'door') ? aimObject(build.habitats.map(h => h.mesh)) : aimTerrain();
+  const pt = hit ? (hit.point || hit) : null;
+  if (pt) { buildGhost.visible = true; buildGhost.position.copy(pt); } else buildGhost.visible = false;
+}
+function cancelPlacing() {
+  buildPlacing = false; selectedBuild = null;
+  if (buildGhost) { surface.remove(buildGhost); buildGhost = null; }
+  showPrompt('');
+}
+function placeAtAim() {
+  const key = selectedBuild; if (!key) return;
+  if (!canAfford(effCost(BUILDABLES[key].cost))) { popup('Not enough materials', '#ff6a4a'); cancelPlacing(); return; }
+  let pos, doorHabitat = null;
+  if (key === 'door') {
+    const hit = aimObject(build.habitats.map(h => h.mesh));
+    if (!hit) { popup('Doors go on a habitat', '#ff6a4a'); return; }
+    pos = hit.point;
+    doorHabitat = build.habitats.find(h => h.mesh === hit.mesh);
+  } else {
+    const p = aimTerrain(); if (!p) return; pos = p;
+  }
+  pay(effCost(BUILDABLES[key].cost));
+  createStructure(key, pos);
+  const placed = surface.children[surface.children.length - 1];   // apply the scroll-wheel rotation
+  if (placed) placed.rotation.y = placeRotation;
+  addTerraformIndex(5); popup('Built ' + BUILDABLES[key].name);
+  if (doorHabitat) doorHabitat.hasDoor = true;   // dome is now enterable
+  if (!canAfford(effCost(BUILDABLES[key].cost))) cancelPlacing();
+}
+function createStructure(key, pos) {
+  const gy = surfH(pos.x, pos.z);
+  if (key === 'solar' || key === 'solar2' || key === 'solar3') {
+    const tier = key === 'solar3' ? 3 : key === 'solar2' ? 2 : 1;
+    const w = [0, 2.4, 3.6, 4.8][tier], d = [0, 1.6, 2.4, 3.2][tier], standH = [0, 1, 1.4, 1.8][tier], out = [0, 10, 25, 50][tier];
+    const col = tier === 3 ? 0x0a0f1a : tier === 2 ? 0x101826 : 0x1a3a8a, emi = tier === 3 ? 0x55b0ff : tier === 2 ? 0x2b7fff : 0x0a1f52;
+    const g = new THREE.Group();
+    const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, standH, 8), new THREE.MeshStandardMaterial({ color: 0x444444 }));
+    stand.position.y = standH / 2;
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(w, 0.15, d),
+      new THREE.MeshStandardMaterial({ color: col, emissive: emi, emissiveIntensity: 0.4 + tier * 0.3, metalness: 0.75, roughness: 0.2 }));
+    panel.position.y = standH + 0.1; panel.rotation.x = -0.5; g.add(stand, panel);
+    g.position.set(pos.x, gy, pos.z); surface.add(g); build.solars.push({ mesh: g, out });
+  } else if (key === 'drill' || key === 'drill2' || key === 'drill3') {
+    const tier = key === 'drill3' ? 3 : key === 'drill2' ? 2 : 1;
+    const bh = [0, 2.0, 2.8, 4.2][tier], rt = [0, 0.4, 0.6, 0.85][tier], rb = [0, 0.6, 0.9, 1.25][tier];
+    const bodyCol = tier === 3 ? 0xb8c0cc : tier === 2 ? 0x8691a0 : 0x7a4a2a, bitCol = tier === 3 ? 0xff5edc : tier === 2 ? 0x55e0ff : 0xffcc44;
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, bh, 14), new THREE.MeshStandardMaterial({ color: bodyCol, metalness: 0.4 + tier * 0.15, roughness: 0.6 - tier * 0.1 }));
+    body.position.y = bh / 2;
+    const bit = new THREE.Mesh(new THREE.ConeGeometry(rt * 0.75, bh * 0.3, 14), new THREE.MeshStandardMaterial({ color: bitCol, metalness: 0.85, roughness: 0.25, emissive: bitCol, emissiveIntensity: 0.3 }));
+    bit.position.y = 0.1; bit.rotation.x = Math.PI; g.add(body, bit);
+    g.position.set(pos.x, gy, pos.z); surface.add(g);
+    build.drills.push({ mesh: g, bit, timer: 0, tier });
+  } else if (key === 'habitat' || key === 'habitat2' || key === 'habitat3') {
+    const tier = key === 'habitat3' ? 3 : key === 'habitat2' ? 2 : 1, R = [0, 6, 9, 12][tier], glass = tier >= 2;
+    const col = tier === 3 ? 0xaeeaff : tier === 2 ? 0x8fded0 : 0xcfd6dd;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(R, 32, 20, 0, Math.PI * 2, 0, Math.PI / 2),
+      new THREE.MeshStandardMaterial({ color: col, metalness: 0.3, roughness: glass ? 0.1 : 0.4, transparent: glass, opacity: glass ? 0.72 : 1, side: THREE.DoubleSide }));
+    m.position.set(pos.x, gy, pos.z); m.userData.habitat = true; surface.add(m);
+    build.habitats.push({ mesh: m, hasDoor: false, radius: R });
+  } else if (key === 'door') {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.6, 0.25),
+      new THREE.MeshStandardMaterial({ color: 0x334455, metalness: 0.7, roughness: 0.3, emissive: 0x112233, emissiveIntensity: 0.4 }));
+    m.position.copy(pos); surface.add(m); build.doors.push({ mesh: m });
+  } else if (key === 'raingen' || key === 'raingen2') {
+    const tier = key === 'raingen2' ? 2 : 1, bh = 2.4 + (tier - 1) * 1.0, g = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.5 + (tier - 1) * 0.15, 0.7 + (tier - 1) * 0.2, bh, 14),
+      new THREE.MeshStandardMaterial({ color: tier === 2 ? 0x3a4a6a : 0x4a6a8a, metalness: 0.6, roughness: 0.4 }));
+    base.position.y = bh / 2;
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.8 + (tier - 1) * 0.3, 0.18, 10, 20),
+      new THREE.MeshStandardMaterial({ color: 0x9fd0ff, emissive: tier === 2 ? 0x6a4fff : 0x2b7fff, emissiveIntensity: 0.8, metalness: 0.5, roughness: 0.3 }));
+    ring.position.y = bh + 0.2; ring.rotation.x = Math.PI / 2; g.add(base, ring);
+    g.position.set(pos.x, gy, pos.z); surface.add(g); build.raingens.push({ mesh: g, ring, tier });
+  } else if (key === 'heater' || key === 'heater2' || key === 'heater3') {
+    const tier = key === 'heater3' ? 3 : key === 'heater2' ? 2 : 1, s = [0, 1.0, 1.4, 1.8][tier];
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(s, s * 0.9, s),
+      new THREE.MeshStandardMaterial({ color: 0x3a2018, metalness: 0.5, roughness: 0.5 }));
+    body.position.y = s * 0.45;
+    const coil = new THREE.Mesh(new THREE.TorusGeometry(s * 0.35, s * 0.08, 8, 18),
+      new THREE.MeshStandardMaterial({ color: 0xff5a1e, emissive: 0xff5a1e, emissiveIntensity: 1.2, roughness: 0.4 }));
+    coil.position.y = s * 0.9 + 0.08; coil.rotation.x = Math.PI / 2; g.add(body, coil);
+    g.position.set(pos.x, gy, pos.z); surface.add(g);
+    build.heaters.push({ mesh: g, coil, tier, timer: 0 });
+  } else if (key === 'plantgen' || key === 'plantgen2' || key === 'plantgen3') {
+    const tier = key === 'plantgen3' ? 3 : key === 'plantgen2' ? 2 : 1;
+    const h = 1.6 + tier * 0.4, bulbC = tier === 3 ? 0xffe26b : tier === 2 ? 0x2fd0a0 : 0x3fa83f;
+    const g = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.4 + tier * 0.1, 0.6 + tier * 0.1, h, 12),
+      new THREE.MeshStandardMaterial({ color: 0x5a6b50, metalness: 0.4, roughness: 0.6 }));
+    base.position.y = h / 2;
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.5 + tier * 0.12, 14, 12),
+      new THREE.MeshStandardMaterial({ color: bulbC, emissive: bulbC, emissiveIntensity: 0.6, roughness: 0.5 }));
+    bulb.position.y = h + 0.3; g.add(base, bulb);
+    g.position.set(pos.x, gy, pos.z); surface.add(g);
+    build.plantgens.push({ mesh: g, tier, bulb, grassTimer: 0, treeTimer: 0 });
+  } else { // chest T1 / T2 / T3
+    const tier = key === 'chest3' ? 3 : key === 'chest2' ? 2 : 1;
+    const w = [0, 1.2, 1.7, 2.1][tier], hh = [0, 0.9, 1.3, 1.6][tier], dd = [0, 1.0, 1.4, 1.7][tier];
+    const col = tier === 3 ? 0x3a4a5a : tier === 2 ? 0x556677 : 0x8a5a2a, slots = [0, 20, 40, 60][tier];
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, hh, dd),
+      new THREE.MeshStandardMaterial({ color: col, metalness: tier >= 2 ? 0.8 : 0.3, roughness: tier >= 2 ? 0.25 : 0.7 }));
+    m.position.set(pos.x, gy + hh / 2, pos.z);
+    m.userData.chestRef = { storage: new Array(slots).fill(null) };
+    surface.add(m); build.chests.push({ mesh: m });
+  }
+}
+
+/* ---- drills auto-mine while powered ---- */
+function nearestRock(pos, radius) {
+  let best = null, bd = radius;
+  for (const r of rocks) { const d = r.mesh.position.distanceTo(pos); if (d < bd) { bd = d; best = r; } }
+  return best;
+}
+function drillTick(d) {
+  const tgt = nearestRock(d.mesh.position, 28); if (!tgt) return;  // index is added by the caller
+  RES[tgt.type] += 1;
+  tgt.amount -= 1; tgt.mesh.userData.rock.amount = tgt.amount;
+  if (tgt.amount <= 0) removeRock(tgt.mesh);
+}
+
+/* ---- material map ---- */
+function toggleMap() {
+  mapOpen = !mapOpen; el('mapOverlay').style.display = mapOpen ? 'block' : 'none';
+  if (mapOpen) { if (pointerLocked) document.exitPointerLock(); drawMap(); } else requestLock();
+}
+function drawMap() {
+  const cv = el('mapCanvas'), g = cv.getContext('2d'), W = cv.width, H = cv.height, S = SURF_SIZE;
+  const toX = x => (x / S + 0.5) * W, toY = z => (z / S + 0.5) * H;
+  g.fillStyle = '#2a140a'; g.fillRect(0, 0, W, H);
+  const cell = S / 44;
+  for (let x = -S / 2; x < S / 2; x += cell) for (let z = -S / 2; z < S / 2; z += cell)
+    if (surfH(x, z) < VALLEY_Y) { g.fillStyle = 'rgba(120,96,170,0.35)'; g.fillRect(toX(x), toY(z), W / 44 + 1, H / 44 + 1); }
+  for (const r of rocks) {
+    g.fillStyle = '#' + ROCK[r.type].color.toString(16).padStart(6, '0');
+    g.beginPath(); g.arc(toX(r.mesh.position.x), toY(r.mesh.position.z), 3, 0, 7); g.fill();
+  }
+  g.fillStyle = '#ffae5a';
+  for (const arr of [build.solars, build.drills, build.habitats, build.chests, build.raingens, build.heaters, build.plantgens])
+    for (const s of arr) g.fillRect(toX(s.mesh.position.x) - 3, toY(s.mesh.position.z) - 3, 6, 6);
+  g.save(); g.translate(toX(camera.position.x), toY(camera.position.z)); g.rotate(-yaw);
+  g.fillStyle = '#ffd54f'; g.beginPath(); g.moveTo(0, -8); g.lineTo(6, 7); g.lineTo(-6, 7); g.closePath(); g.fill(); g.restore();
+}
+
+/* ---- storage chest ---- */
+function surfaceF() { const hit = aimObject(build.chests.map(c => c.mesh)); if (hit) openChest(hit.mesh.userData.chestRef); }
+function openChest(ref) {
+  activeChest = ref; chestOpen = true; el('chestOverlay').style.display = 'block';
+  if (pointerLocked) document.exitPointerLock(); renderChest();
+}
+function toggleChest() { chestOpen = false; activeChest = null; el('chestOverlay').style.display = 'none'; requestLock(); }
+function renderChest() {
+  if (!activeChest) return;
+  const dep = el('depositRow'); dep.innerHTML = '';
+  ['iron', 'titanium', 'silicon', 'quartz'].forEach(t => {
+    const btn = document.createElement('button'); btn.className = 'depbtn';
+    btn.innerHTML = 'Deposit ' + ROCK[t].emoji + ' ' + RES[t]; btn.onclick = () => depositAll(t); dep.appendChild(btn);
+  });
+  const grid = el('chestSlots'); grid.innerHTML = '';
+  for (let i = 0; i < activeChest.storage.length; i++) {
+    const it = activeChest.storage[i], slot = document.createElement('div');
+    slot.className = 'cslot' + (it ? ' filled' : '');
+    if (it) { slot.innerHTML = ROCK[it.type].emoji + '<span class="cnt">' + it.count + '</span>'; slot.onclick = () => withdraw(i); }
+    grid.appendChild(slot);
+  }
+}
+function depositAll(type) {
+  if (RES[type] <= 0) return;
+  let slot = activeChest.storage.findIndex(s => s && s.type === type);
+  if (slot < 0) slot = activeChest.storage.findIndex(s => !s);
+  if (slot < 0) { popup('Chest full', '#ff6a4a'); return; }
+  if (!activeChest.storage[slot]) activeChest.storage[slot] = { type, count: 0 };
+  activeChest.storage[slot].count += RES[type]; RES[type] = 0; renderChest();
+}
+function withdraw(i) {
+  const it = activeChest.storage[i]; if (!it) return;
+  RES[it.type] += it.count; activeChest.storage[i] = null; renderChest();
+}
+
+/* ---- habitat dome collision (keep the player out unless it has a door) ---- */
+function collideDomes() {
+  for (const h of build.habitats) {
+    if (h.hasDoor) continue;                 // a door makes the dome enterable
+    const R = (h.radius || 6) + 0.6;
+    const dx = camera.position.x - h.mesh.position.x;
+    const dz = camera.position.z - h.mesh.position.z;
+    const d = Math.hypot(dx, dz);
+    if (d < R && d > 1e-4) {                  // push back out to the dome wall
+      camera.position.x = h.mesh.position.x + (dx / d) * R;
+      camera.position.z = h.mesh.position.z + (dz / d) * R;
+    }
+  }
+}
+
+/* ---- periodic rock respawn: every 5 minutes, 2 random types appear ---- */
+let respawnTimer = 0;
+const ROCK_TYPES = ['iron', 'titanium', 'silicon', 'quartz'];
+function respawnRocks() {
+  const bases = [[0, 0]];                                   // capsule + every habitat base
+  for (const h of build.habitats) bases.push([h.mesh.position.x, h.mesh.position.z]);
+  const pool = ['iron','iron','iron','iron','iron','iron','titanium','silicon','silicon','quartz'];  // mostly iron
+  let placed = 0;
+  for (let n = 0; n < 10; n++) {
+    const type = pool[Math.floor(Math.random() * pool.length)];
+    const base = bases[Math.floor(Math.random() * bases.length)];
+    for (let a = 0; a < 24; a++) {                          // find a valid nearby spot
+      const ang = Math.random() * Math.PI * 2, rad = 10 + Math.random() * 50;  // 10–60 units from base
+      const x = base[0] + Math.cos(ang) * rad, z = base[1] + Math.sin(ang) * rad, h = surfH(x, z);
+      if (Math.abs(x) > PLAY_LIM || Math.abs(z) > PLAY_LIM) continue;
+      if (type === 'quartz' && h > VALLEY_Y) continue;
+      if (type !== 'quartz' && h < -5) continue;
+      if (h < ocean.position.y + 0.3) continue;             // not underwater
+      addRock(type, x, z); placed++; break;
+    }
+  }
+  popup('⛏️ ' + placed + ' new rocks appeared near base', '#ffd54f');
+}
+
+/* ---- terraforming world: rain, sky, ocean, clouds, milestones ---- */
+const RAIN_N = 1200;
+const rainGeo = new THREE.BufferGeometry();
+const rainPos = new Float32Array(RAIN_N * 3);
+for (let i = 0; i < RAIN_N; i++) { rainPos[i * 3] = (Math.random() * 2 - 1) * 60; rainPos[i * 3 + 1] = Math.random() * 40; rainPos[i * 3 + 2] = (Math.random() * 2 - 1) * 60; }
+rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+const rain = new THREE.Points(rainGeo, new THREE.PointsMaterial({ color: 0x9fd0ff, size: 0.35, transparent: true, opacity: 0.7 }));
+rain.visible = false; surface.add(rain);
+let rainTimer = 0, rainActive = 0, rainIdxAccum = 0;
+function rainChancePct() { let s = 0; for (const r of build.raingens) s += (r.tier === 2 ? 10 : 5); return Math.min(s, 50); }
+function updateWeather(dt) {
+  for (const rg of build.raingens) rg.ring.rotation.z += dt * (rainActive > 0 ? 3 : 0.6);
+  if (build.raingens.length > 0 && rainActive <= 0) {
+    rainTimer += dt;
+    if (rainTimer >= 20) { rainTimer = 0; if (Math.random() * 100 < rainChancePct()) { rainActive = 15; popup('🌧️ Rain! Terraforming faster', '#9fd0ff'); } }
+  }
+  if (rainActive > 0) {
+    rainActive -= dt; rain.visible = true; rain.position.set(camera.position.x, 0, camera.position.z);
+    const p = rainGeo.attributes.position;
+    for (let i = 0; i < RAIN_N; i++) { let y = p.getY(i) - 40 * dt; if (y < 0) y += 40; p.setY(i, y); }
+    p.needsUpdate = true;
+    rainIdxAccum += dt; if (rainIdxAccum >= 1) { rainIdxAccum = 0; addTerraformIndex(2); }
+  } else rain.visible = false;
+}
+function updateTerraformWorld() {
+  const p = Math.max(0, Math.min(1, (STATE.terraformIndex - MS.T2) / (MS.FULL - MS.T2))); // 0 at 500 → 1 at 2000
+  surfSky.material.color.copy(SKY_RED).lerp(SKY_BLUE, p);
+  surfAmb.intensity = 0.85 + p * 0.3;
+  surfStars.material.transparent = true; surfStars.material.opacity = 1 - p;
+  clouds.visible = p > 0.001;
+  if (clouds.visible) for (const c of clouds.children) c.material.opacity = p * 0.85;
+  ocean.position.y = -9 + p * 7.5;          // hidden under terrain → fills valleys by 2000
+}
+function checkMilestones() {
+  const idx = STATE.terraformIndex;
+  if (!STATE.ms500 && idx >= MS.T2) { STATE.ms500 = true;
+    popup('🔓 Tier 2 unlocked — the sky is changing!', '#ffd54f');
+    showBanner('TIER 2 UNLOCKED', 'T2 Drill · T2 Chest · T2 Base (press B) — skies turning blue'); setTimeout(hideBanner, 4200); }
+  if (!STATE.ms1500 && idx >= MS.RAIN) { STATE.ms1500 = true;
+    popup('🔓 Unlocked: Rain Generator & T2 Solar', '#ffd54f');
+    showBanner('RAIN UNLOCKED', 'Build Rain Generators (B) — each adds +5% rain'); setTimeout(hideBanner, 4200); }
+  if (!STATE.ms2000 && idx >= MS.FULL) { STATE.ms2000 = true;
+    showBanner('🌍 MARS TERRAFORMED', 'Blue skies · oceans full · now bring life'); setTimeout(hideBanner, 5000); }
+  if (!STATE.ms2800 && idx >= MS.AIR) { STATE.ms2800 = true;
+    popup('🌬️ The air is now breathable — oxygen is infinite!', '#9fe8ff');
+    showBanner('THE AIR IS BREATHABLE', 'Infinite oxygen everywhere — roam free, no more suit timer'); setTimeout(hideBanner, 5000); }
+  if (!STATE.ms3000 && idx >= MS.PLANT) { STATE.ms3000 = true;
+    popup('🌱 Plant Generators unlocked!', '#6dffae');
+    showBanner('PLANT LIFE UNLOCKED', 'Build Plant Generators (B) — grow grass & trees'); setTimeout(hideBanner, 4600); }
+  if (!STATE.ms4250 && idx >= MS.CHEST3) { STATE.ms4250 = true;
+    popup('🔓 Unlocked: T3 Chest & T2 Rain Generator', '#ffd54f'); }
+  if (!STATE.ms5000 && idx >= MS.T3) { STATE.ms5000 = true;
+    popup('🔓 Tier 3 unlocked!', '#ffd54f');
+    showBanner('TIER 3 UNLOCKED', 'T3 Drill · T3 Solar · T3 Base (press B)'); setTimeout(hideBanner, 4200); }
+  if (!STATE.ms13000 && idx >= MS.GRASS) { STATE.ms13000 = true;
+    popup('🌿 Grass is spreading across the shore!', '#6dffae');
+    showBanner('THE LAND IS GREENING', 'Grass now spreads around the water'); setTimeout(hideBanner, 4200); }
+}
+
+/* ---- plant generators: grass + trees, and the win condition ---- */
+const grasses = [], trees = []; let treesGrown = 0, winTriggered = false;
+const MAX_GRASS = 500, MAX_TREES = 20, WIN_TREES = 10;
+function plantSpot(gen, fn) {
+  const a = Math.random() * Math.PI * 2, r = 3 + Math.random() * 11;
+  const x = gen.mesh.position.x + Math.cos(a) * r, z = gen.mesh.position.z + Math.sin(a) * r;
+  if (Math.abs(x) > PLAY_LIM || Math.abs(z) > PLAY_LIM) return;
+  if (surfH(x, z) < ocean.position.y + 0.4) return;   // not underwater
+  fn(x, z);
+}
+// trees can now appear ANYWHERE on dry land across the map (not just near the generator)
+function spawnTreeAnywhere() {
+  if (trees.length >= MAX_TREES) return;
+  const lim = PLAY_LIM - 4;
+  for (let a = 0; a < 14; a++) {
+    const x = (Math.random() * 2 - 1) * lim, z = (Math.random() * 2 - 1) * lim;
+    if (surfH(x, z) < ocean.position.y + 0.4) continue;   // keep them out of the water
+    spawnTree(x, z); return;
+  }
+}
+function spawnGrass(x, z) {
+  if (grasses.length >= MAX_GRASS) return;
+  const m = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.5, 5),
+    new THREE.MeshStandardMaterial({ color: 0x2f8a35, roughness: 1 }));   // a touch darker green
+  m.position.set(x, surfH(x, z) + 0.25, z); m.rotation.y = Math.random() * 6; surface.add(m); grasses.push(m);
+}
+function spawnTree(x, z) {
+  if (trees.length >= MAX_TREES) return;
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.22, 1.5, 6),
+    new THREE.MeshStandardMaterial({ color: 0x6b4423, roughness: 1 })); trunk.position.y = 0.75;
+  const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.1, 2.2, 8),
+    new THREE.MeshStandardMaterial({ color: 0x2f8f3f, roughness: 1 })); leaves.position.y = 2.2;
+  g.add(trunk, leaves); g.position.set(x, surfH(x, z), z); g.scale.setScalar(0.01); surface.add(g);
+  trees.push({ group: g, growth: 0, grown: false });
+}
+function updatePlants(dt) {
+  for (const pg of build.plantgens) {
+    if (pg.bulb) pg.bulb.material.emissiveIntensity = 0.5 + Math.sin(performance.now() * 0.004) * 0.3;
+    pg.grassTimer += dt; pg.treeTimer += dt;
+    if (pg.grassTimer >= 6)  { pg.grassTimer = 0; for (let k = 0; k < pg.tier; k++) plantSpot(pg, spawnGrass); }
+    if (pg.treeTimer  >= 12) { pg.treeTimer  = 0; for (let k = 0; k < pg.tier; k++) spawnTreeAnywhere(); }
+  }
+  for (const t of trees) {
+    if (t.growth < 1) {
+      t.growth = Math.min(1, t.growth + dt / 8);
+      t.group.scale.setScalar(Math.max(0.01, t.growth));
+      if (t.growth >= 1 && !t.grown) { t.grown = true; treesGrown++; popup('🌳 A tree grew!', '#6dffae'); }
+    }
+  }
+}
+
+/* ---- WIN: terraformed Mars, back to the station ---- */
+function marsTerraformedTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d');
+  g.fillStyle = '#1f5fa8'; g.fillRect(0, 0, 512, 512);                    // ocean
+  for (let i = 0; i < 16; i++) {                                          // green continents
+    g.fillStyle = 'rgba(' + (40 + Math.random() * 30 | 0) + ',' + (120 + Math.random() * 60 | 0) + ',' + (50 + Math.random() * 30 | 0) + ',0.95)';
+    g.beginPath(); g.ellipse(Math.random() * 512, Math.random() * 512, 30 + Math.random() * 70, 20 + Math.random() * 50, Math.random() * 6, 0, 7); g.fill();
+  }
+  g.fillStyle = '#eaf4ff';                                                // ice caps
+  g.beginPath(); g.ellipse(256, 8, 180, 36, 0, 0, 7); g.fill();
+  g.beginPath(); g.ellipse(256, 504, 180, 36, 0, 0, 7); g.fill();
+  for (let i = 0; i < 40; i++) {                                          // clouds
+    g.fillStyle = 'rgba(255,255,255,' + (0.18 + Math.random() * 0.25) + ')';
+    g.beginPath(); g.ellipse(Math.random() * 512, Math.random() * 512, 14 + Math.random() * 40, 8 + Math.random() * 16, 0, 0, 7); g.fill();
+  }
+  return new THREE.CanvasTexture(c);
+}
+let marsTerraformedTex = null, winReason = 'trees';
+function triggerWin(reason) {
+  if (winTriggered) return; winTriggered = true; winReason = reason || 'trees';
+  if (pointerLocked) document.exitPointerLock();
+  el('fade').classList.add('on');
+  setTimeout(() => { goToWonStation(); el('fade').classList.remove('on'); }, 1100);
+}
+function goToWonStation() {
+  STATE.phase = 'won';
+  surface.visible = false; station.visible = true;
+  if (!marsTerraformedTex) marsTerraformedTex = marsTerraformedTexture();
+  mars.material.map = marsTerraformedTex; mars.material.emissive.setHex(0x1a4a66);
+  mars.material.emissiveIntensity = 0.45; mars.material.needsUpdate = true;
+  marsGlow.visible = false;
+  // frame the window on the living planet (animate() points the camera at Mars while phase==='won')
+  camera.position.set(0, 3, 7);   // inside the station, near the back wall, facing the window
+  el('resHud').style.display = 'none'; el('surfControls').style.display = 'none';
+  el('crosshair').style.display = 'none'; el('objective').style.display = 'none';
+  el('indexHud').style.display = 'none'; el('oxHud').style.display = 'none'; showPrompt('');
+  // keep the message near the top so it never blocks the view of Mars
+  el('banner').style.top = '14%';
+  const title = winReason === 'index' ? '🌍 MARS FULLY TERRAFORMED!' : '🌍 YOU TERRAFORMED MARS!';
+  const how = winReason === 'index' ? STATE.winIndex.toLocaleString() + ' Terraformation Index reached — ' : 'Life has taken hold — ';
+  let left = 10;
+  showBanner(title, how + 'returning to menu in ' + left + 's');
+  const iv = setInterval(() => {
+    left--;
+    if (left <= 0) { clearInterval(iv); location.reload(); return; }   // back to the mode menu
+    const s = el('banner').querySelector('.s');
+    if (s) s.textContent = how + 'returning to menu in ' + left + 's';
+  }, 1000);
+}
+
+/* ---- shoreline greening: near water, over time, only once water exists + plant gens built ---- */
+let greenTimer = 0;
+const GREEN_MUL = [0.42, 1.95, 0.26], GREEN_BAND = 4;   // a little darker green; how far above the water line
+function updateGreening(dt) {
+  // grass greens the ground once the Index passes 4,500 AND a plant generator exists.
+  // It now appears as RANDOM SPOTS spread anywhere on dry land (plus the shoreline when water is present).
+  if (STATE.terraformIndex < MS.GRASS || !build.plantgens.length) return;
+  greenTimer += dt; if (greenTimer < 0.4) return;
+  const step = greenTimer / 30; greenTimer = 0;       // ~30s from bare to lush
+  const oy = ocean.position.y, hasWater = oy > -8;
+  const floor = hasWater ? oy + 0.3 : -5;             // stay out of the water / deepest pits
+  // seed a few new random green spots on dry land each tick
+  for (let s = 0; s < 4; s++) {
+    const i = (Math.random() * terCount) | 0;
+    if (terGreen[i] === 0 && terY[i] > floor) terGreen[i] = 0.001;
+  }
+  let changed = false;
+  for (let i = 0; i < terCount; i++) {
+    const vy = terY[i];
+    // the shoreline band also auto-greens when there's water
+    if (hasWater && terGreen[i] === 0 && vy > oy - 0.5 && vy < oy + GREEN_BAND) terGreen[i] = 0.001;
+    if (terGreen[i] > 0 && terGreen[i] < 1) {
+      const gv = terGreen[i] = Math.min(1, terGreen[i] + step);
+      terColAttr.setXYZ(i, 1 + (GREEN_MUL[0] - 1) * gv, 1 + (GREEN_MUL[1] - 1) * gv, 1 + (GREEN_MUL[2] - 1) * gv);
+      changed = true;
+    }
+  }
+  if (changed) terColAttr.needsUpdate = true;
+}
+
+/* ---- oxygen: safe in the capsule or a habitat base; 60s outside (survival only) ---- */
+let OX_MAX = 60;           // oxygen seconds; set per mode (Survival 60 · Hardcore 35 · Relaxed 75)
+let oxygen = OX_MAX;
+function inSafeZone() {
+  if (Math.hypot(camera.position.x, camera.position.z) < CAPSULE_R) return true;           // landing capsule
+  for (const h of build.habitats)                                                          // inside a base
+    if (Math.hypot(camera.position.x - h.mesh.position.x, camera.position.z - h.mesh.position.z) < (h.radius || 6)) return true;
+  return false;
+}
+function airBreathable() { return STATE.terraformIndex >= MS.AIR; }   // 2800 Index → the whole planet has breathable air
+function updateOxygen(dt) {
+  if (STATE.creative) { el('oxHud').innerHTML = '🫧 Oxygen: <b>∞</b>'; el('oxHud').classList.remove('low'); return; }
+  if (airBreathable()) {   // air is breathable everywhere — no countdown, no death
+    oxygen = OX_MAX;
+    el('oxHud').innerHTML = '🌬️ Air: <b>Breathable</b>'; el('oxHud').classList.remove('low'); return;
+  }
+  if (inSafeZone()) {
+    oxygen = Math.min(OX_MAX, oxygen + dt * 20);
+    el('oxHud').innerHTML = '🛡️ Oxygen: <b>SAFE</b>'; el('oxHud').classList.remove('low');
+  } else {
+    oxygen -= dt;
+    if (oxygen <= 0) { oxygenDeath(); return; }
+    el('oxHud').innerHTML = '🫧 Oxygen: <b>' + Math.ceil(oxygen) + 's</b>';
+    el('oxHud').classList.toggle('low', oxygen < 8);
+  }
+}
+function oxygenDeath() {
+  oxygen = OX_MAX;
+  camera.position.set(0, surfH(0, 0) + 2, 0);                                               // rescued to the capsule
+  popup('⚠ Out of oxygen — rescued to the capsule!', '#ff6a4a');
+  el('redflash').classList.add('on'); setTimeout(() => el('redflash').classList.remove('on'), 500);
+}
+
+/* ---- per-frame surface update ---- */
+function updateSurface(dt) {
+  updateOxygen(dt);
+  // every 1 minute, 5 random rocks appear across the world
+  respawnTimer += dt;
+  if (respawnTimer >= 60) { respawnTimer = 0; respawnRocks(); }
+  // drills always run: T1 = +1 Index / 10s, T2 = +2 Index / 8s (no power needed)
+  for (const d of build.drills) {
+    if (d.bit) d.bit.rotation.y += (d.tier === 3 ? 14 : d.tier === 2 ? 11 : 8) * dt;
+    d.timer += dt;
+    const period = d.tier === 3 ? 6 : d.tier === 2 ? 8 : 10, gain = d.tier === 3 ? 3 : d.tier === 2 ? 2 : 1;
+    if (d.timer >= period) { d.timer = 0; addTerraformIndex(gain); drillTick(d); }
+  }
+  // heaters warm Mars (no mining): T1 +2/8s, T2 +4/7s, T3 +6/6s
+  for (const h of build.heaters) {
+    if (h.coil) h.coil.material.emissiveIntensity = 1.0 + Math.sin(performance.now() * 0.006) * 0.4;
+    h.timer += dt;
+    const period = h.tier === 3 ? 6 : h.tier === 2 ? 7 : 8, gain = h.tier === 3 ? 6 : h.tier === 2 ? 4 : 2;
+    if (h.timer >= period) { h.timer = 0; addTerraformIndex(gain); }
+  }
+  updateWeather(dt);
+  updatePlants(dt);
+  updateGreening(dt);
+  updateMining(dt);
+  updateTerraformWorld();
+  checkMilestones();
+  if (STATE.terraformIndex >= STATE.winIndex) triggerWin('index');   // reaching the mode's goal ends the game
+  if (buildPlacing) {
+    updateGhost();
+    showPrompt('<span class="key">Click</span> place ' + BUILDABLES[selectedBuild].name + ' · <span class="key">Esc</span> cancel');
+  } else if (toolEquipped) {
+    const m = aimRock();
+    if (m) { const t = m.userData.rock.type; showPrompt('<span class="key">Hold click</span> mine ' + ROCK[t].emoji + ' ' + ROCK[t].label + ' (2.5s)'); }
+    else { const c = aimObject(build.chests.map(x => x.mesh)); showPrompt(c ? '<span class="key">F</span> open chest' : ''); }
+  } else {
+    const c = aimObject(build.chests.map(x => x.mesh)); showPrompt(c ? '<span class="key">F</span> open chest' : '');
+  }
+  if (popTimer > 0) { popTimer -= dt; if (popTimer <= 0) el('minePop').style.opacity = '0'; }
+  refreshResHUD(build.solars.reduce((s, x) => s + (x.out || 10), 0));
+}
+
+/* =======================================================================
+   EARTH PROLOGUE — start on Earth, board the rocket, lift off to the station
+   ======================================================================= */
+const earthScene = new THREE.Group(); earthScene.visible = false; scene.add(earthScene);
+const EARTH_SKY_BLUE = new THREE.Color(0x7fb8ff), SPACE_BLACK = new THREE.Color(0x05060b);
+// sky dome (fades blue -> black during launch)
+const earthSky = new THREE.Mesh(new THREE.SphereGeometry(700, 32, 24),
+  new THREE.MeshBasicMaterial({ color: EARTH_SKY_BLUE.clone(), side: THREE.BackSide }));
+earthScene.add(earthSky);
+const earthStars = makeStars(); earthStars.visible = false; earthScene.add(earthStars);   // appear as we leave the atmosphere
+earthScene.add(new THREE.AmbientLight(0xffffff, 0.9));
+const earthSun = new THREE.DirectionalLight(0xfff2d0, 1.1); earthSun.position.set(40, 60, 20); earthScene.add(earthSun);
+// grassy ground
+const grassMat = new THREE.MeshStandardMaterial({ color: 0x3fa64a, roughness: 1 });
+const ground = new THREE.Mesh(new THREE.CircleGeometry(220, 48), grassMat);
+ground.rotation.x = -Math.PI / 2; ground.position.y = 0; earthScene.add(ground);
+// concrete launch pad
+const pad = new THREE.Mesh(new THREE.CylinderGeometry(7, 7, 0.6, 24),
+  new THREE.MeshStandardMaterial({ color: 0x9a9a9a, roughness: 0.9 }));
+pad.position.y = 0.3; earthScene.add(pad);
+// scenery: a few simple trees scattered around
+for (let i = 0; i < 24; i++) {
+  const a = Math.random() * Math.PI * 2, r = 30 + Math.random() * 160;
+  const tx = Math.cos(a) * r, tz = Math.sin(a) * r;
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 2.4, 6),
+    new THREE.MeshStandardMaterial({ color: 0x6b4423, roughness: 1 })); trunk.position.set(tx, 1.2, tz);
+  const leaf = new THREE.Mesh(new THREE.ConeGeometry(2.0, 4.0, 8),
+    new THREE.MeshStandardMaterial({ color: 0x2f8f3f, roughness: 1 })); leaf.position.set(tx, 4.2, tz);
+  earthScene.add(trunk, leaf);
+}
+// the rocket (lives in earthScene; it is what rises during the launch)
+const rocket = new THREE.Group();
+const bodyMat = new THREE.MeshStandardMaterial({ color: 0xf3f3f7, roughness: 0.5, metalness: 0.2 });
+const body = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.6, 10, 24), bodyMat); body.position.y = 6; rocket.add(body);
+const nose = new THREE.Mesh(new THREE.ConeGeometry(1.5, 3.2, 24),
+  new THREE.MeshStandardMaterial({ color: 0xd23b3b, roughness: 0.5 })); nose.position.y = 12.6; rocket.add(nose);
+const bandMat = new THREE.MeshStandardMaterial({ color: 0xcf2f2f, roughness: 0.6 });
+const band = new THREE.Mesh(new THREE.CylinderGeometry(1.52, 1.52, 1.0, 24), bandMat); band.position.y = 8.5; rocket.add(band);
+const winMat = new THREE.MeshStandardMaterial({ color: 0x8fd0ff, emissive: 0x3a6a9a, emissiveIntensity: 0.6, roughness: 0.2 });
+const porthole = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.2, 16), winMat);
+porthole.rotation.x = Math.PI / 2; porthole.position.set(0, 9.6, 1.5); rocket.add(porthole);
+// 4 fins
+for (let i = 0; i < 4; i++) {
+  const fin = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2.6, 2.0), bandMat.clone());
+  const a = i * Math.PI / 2; fin.position.set(Math.cos(a) * 1.6, 2.2, Math.sin(a) * 1.6); fin.rotation.y = -a; rocket.add(fin);
+}
+// exhaust flame (hidden until launch)
+const flame = new THREE.Mesh(new THREE.ConeGeometry(1.3, 5, 16),
+  new THREE.MeshBasicMaterial({ color: 0xffb13c })); flame.rotation.x = Math.PI; flame.position.y = -1.5; flame.visible = false; rocket.add(flame);
+const flameCore = new THREE.Mesh(new THREE.ConeGeometry(0.7, 3.2, 16),
+  new THREE.MeshBasicMaterial({ color: 0xffe9a0 })); flameCore.rotation.x = Math.PI; flameCore.position.y = -0.6; flameCore.visible = false; rocket.add(flameCore);
+rocket.position.set(0, 0.6, 0); earthScene.add(rocket);
+const ROCKET_R = 6;   // how close you must be to board
+
+let launchT = 0;
+function startEarth() {
+  STATE.phase = 'earth';
+  station.visible = false; surface.visible = false; earthScene.visible = true;
+  earthStars.visible = false; flame.visible = flameCore.visible = false;
+  rocket.position.set(0, 0.6, 0);
+  earthSky.material.color.copy(EARTH_SKY_BLUE); scene.background = EARTH_SKY_BLUE.clone();
+  camera.position.set(0, 2, 20); yaw = 0; pitch = 0;         // stand back, facing the rocket at the origin
+  el('indexHud').style.display = 'none'; el('resHud').style.display = 'none'; el('oxHud').style.display = 'none';
+  el('objText').innerHTML = '🚀 It\'s launch day on Earth! Walk up to the rocket and press <b>F</b> to board and blast off.';
+  showBanner('🌍 EARTH — Launch Day', 'Walk to the rocket and press F to board');
+  setTimeout(hideBanner, 4200);
+  requestLock();
+}
+function nearRocket() { return Math.hypot(camera.position.x - rocket.position.x, camera.position.z - rocket.position.z) < ROCKET_R; }
+function boardRocket() {
+  if (STATE.phase !== 'earth' || !nearRocket()) return;
+  STATE.phase = 'launch'; launchT = 0;
+  flame.visible = flameCore.visible = true;
+  if (pointerLocked) document.exitPointerLock();
+  showPrompt('');
+  showBanner('🚀 LIFTOFF!', 'Next stop: the orbital station');
+}
+const LAUNCH_DUR = 7;   // seconds of cinematic
+function updateLaunch(dt) {
+  launchT += dt;
+  const t = launchT;
+  // rocket climbs with an accelerating ease-in
+  const rise = t * t * 7;
+  rocket.position.y = 0.6 + rise;
+  // flame flickers
+  const fl = 0.8 + Math.random() * 0.5;
+  flame.scale.set(1, fl, 1); flameCore.scale.set(1, 0.8 + Math.random() * 0.6, 1);
+  // external tracking shot: camera sits off to the side and tilts up to follow the rocket
+  camera.position.set(14, 4 + rise * 0.55, 16);
+  camera.lookAt(rocket.position.x, rocket.position.y + 2, rocket.position.z);
+  // sky fades blue -> black and the stars come out as we leave the atmosphere
+  const k = Math.min(1, t / LAUNCH_DUR);
+  earthSky.material.color.copy(EARTH_SKY_BLUE).lerp(SPACE_BLACK, k);
+  scene.background.copy(EARTH_SKY_BLUE).lerp(SPACE_BLACK, k);
+  if (k > 0.5) earthStars.visible = true;
+  if (t >= LAUNCH_DUR) arriveStation();
+}
+function arriveStation() {
+  earthScene.visible = false;
+  scene.background = SPACE_BLACK.clone();
+  STATE.phase = 'station';
+  station.visible = true;
+  camera.position.set(0, 2.6, 6); yaw = 0; pitch = 0;
+  el('indexHud').style.display = ''; el('oxHud').style.display = 'none';
+  el('objText').innerHTML = 'Find the 2 missing batteries drifting around the station.';
+  showBanner('🛰️ DOCKED AT THE STATION', 'Find the 2 batteries and fire the terraforming lasers');
+  setTimeout(hideBanner, 4600);
+  requestLock();
+}
+
+/* =======================================================================
+   MOVEMENT + MAIN LOOP
+   ======================================================================= */
+const clock = new THREE.Clock();
+const vel = new THREE.Vector3();
+function updateMove(dt) {
+  if (STATE.phase === 'start' || STATE.phase === 'won' || STATE.phase === 'launch' || anyOverlay()) return;
+  const speed = 7;
+  // keyboard + touch joystick combined
+  const forward = (keys['KeyW'] ? 1 : 0) - (keys['KeyS'] ? 1 : 0) + touchMove.f;
+  const strafe  = (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0) + touchMove.s;
+  const moving = (Math.abs(forward) + Math.abs(strafe)) > 0.05;
+  // direction from yaw (walk on the floor plane)
+  const sin = Math.sin(yaw), cos = Math.cos(yaw);
+  const dx = (-sin * forward + cos * strafe);
+  const dz = (-cos * forward - sin * strafe);
+  const len = Math.hypot(dx, dz) || 1;
+  camera.position.x += (dx / len) * speed * dt * (moving ? 1 : 0);
+  camera.position.z += (dz / len) * speed * dt * (moving ? 1 : 0);
+  // keep inside the room (station only)
+  if (STATE.phase === 'station' || STATE.phase === 'firing') {
+    const m = 1.2;
+    camera.position.x = Math.max(-ROOM.w / 2 + m, Math.min(ROOM.w / 2 - m, camera.position.x));
+    camera.position.z = Math.max(-ROOM.d / 2 + m, Math.min(ROOM.d / 2 - m, camera.position.z));
+    camera.position.y = 2.6;
+  } else if (STATE.phase === 'earth') {
+    // walk around the launch field on flat ground
+    const rr = Math.hypot(camera.position.x, camera.position.z), MAXR = 200;
+    if (rr > MAXR) { camera.position.x *= MAXR / rr; camera.position.z *= MAXR / rr; }
+    camera.position.y = 2;
+  } else {
+    // surface: stay inside the playable ring (mountains beyond) and walk along the terrain
+    const lim = PLAY_LIM;
+    camera.position.x = Math.max(-lim, Math.min(lim, camera.position.x));
+    camera.position.z = Math.max(-lim, Math.min(lim, camera.position.z));
+    collideDomes();                        // solid habitat domes (unless they have a door)
+    camera.position.y = surfH(camera.position.x, camera.position.z) + 2.0;
+  }
+}
+function applyLook() {
+  const e = new THREE.Euler(pitch, yaw, 0, 'YXZ');
+  camera.quaternion.setFromEuler(e);
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+
+  updateMove(dt);
+  if (STATE.phase === 'won') camera.lookAt(mars.position);   // stare out the window at the living planet
+  else if (STATE.phase === 'launch') { /* camera is driven by updateLaunch */ }
+  else applyLook();
+
+  if (STATE.phase === 'launch') {
+    updateLaunch(dt);
+  } else if (STATE.phase === 'earth') {
+    showPrompt(nearRocket() ? '<span class="key">F</span> board the rocket' : 'Walk to the rocket');
+  } else if (STATE.phase === 'station') {
+    updateFocus();
+    // bob batteries + spin
+    for (const b of batteryMeshes) { b.rotation.y += dt * 1.2; b.position.y += Math.sin(performance.now() * 0.002 + b.id) * 0.0015; }
+    button.material.emissiveIntensity = STATE.buttonArmed ? (0.8 + Math.sin(performance.now() * 0.006) * 0.4) : 0.4;
+    mars.rotation.y += dt * 0.02;
+  } else if (STATE.phase === 'firing') {
+    updateFiring(dt);
+  } else if (STATE.phase === 'surface') {
+    updateSurface(dt);
+  }
+
+  // fade / teleport sequencing
+  if (fadeStage === 1) { fadeT += dt; if (fadeT > 1.2) { teleportToSurface(); fadeStage = 2; fadeT = 0; } }
+  else if (fadeStage === 2) { fadeT += dt; if (fadeT > 0.3) { el('fade').classList.remove('on'); fadeStage = 3; } }
+
+  // objective flash timeout → restore
+  if (objTimer > 0) { objTimer -= dt; if (objTimer <= 0 && STATE.phase === 'station') {
+    // leave the standing objective text as whatever was last set by logic
+  } }
+
+  // crosshair: visible during gameplay whether looking by pointer-lock or touch
+  const inPlay = STATE.phase === 'earth' || STATE.phase === 'station' || STATE.phase === 'firing' || STATE.phase === 'surface';
+  el('crosshair').style.display = ((pointerLocked || isTouch) && inPlay && !anyOverlay()) ? 'block' : 'none';
+
+  renderer.render(scene, camera);
+}
+animate();
+
+/* =======================================================================
+   START
+   ======================================================================= */
+renderInventory();
+// mode presets: oxygen seconds · build-cost multiplier · winning Index
+const MODES = {
+  survival: { ox: 60, costMul: 1,    win: 20000, creative: false },
+  hardcore: { ox: 35, costMul: 1.5,  win: 30000, creative: false },  // less air, costs more, longer goal
+  relaxed:  { ox: 75, costMul: 0.75, win: 20000, creative: false },  // more air, costs a little less
+  creative: { ox: 60, costMul: 1,    win: 20000, creative: true  },
+};
+function applyMode(name) {
+  const m = MODES[name] || MODES.survival;
+  STATE.mode = name; STATE.creative = m.creative;
+  STATE.costMul = m.costMul; STATE.winIndex = m.win;
+  OX_MAX = m.ox; oxygen = OX_MAX;
+}
+// Survival / Hardcore / Relaxed all play the full story (Earth → station → Mars)
+function startStory(name) { applyMode(name); el('modeMenu').style.display = 'none'; el('start').style.display = 'flex'; }
+el('survivalBtn').addEventListener('click', () => startStory('survival'));
+el('hardcoreBtn').addEventListener('click', () => startStory('hardcore'));
+el('relaxedBtn').addEventListener('click',  () => startStory('relaxed'));
+el('creativeBtn').addEventListener('click', () => {
+  applyMode('creative');
+  el('modeMenu').style.display = 'none'; el('start').style.display = 'none';
+  teleportToSurface();
+  el('objText').innerHTML = '✦ Creative — everything unlocked, unlimited resources. Build drills to raise the Index, ' +
+                            'and Plant Generators for life. Reach <b>20,000 Index</b> to win.';
+  showBanner('✦ CREATIVE MODE', 'Everything unlocked · terraform Mars your way');
+  setTimeout(hideBanner, 3800);
+  requestLock();
+});
+el('playBtn').addEventListener('click', () => {
+  el('start').style.display = 'none';
+  startEarth();
+});
+el('againBtn').addEventListener('click', () => location.reload());
+</script>
+</body>
+</html>

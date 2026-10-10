@@ -23,6 +23,151 @@ The hosted version is just `index.html` + `vendor/` served as static files (see
 internet multiplayer. The downloadable **`Space-Explorer.html`** remains a single
 offline file for double-click play.
 
+## 🔴 Also in this repo: Mars Terraform (intro level)
+
+A second game lives here too. It opens on **Earth, on launch day**: you walk up
+to a **rocket** on the pad, press **F** to board, and **🚀 blast off** — the
+rocket climbs, the blue sky fades to the black of space, and you **dock at the
+station orbiting a barren Mars** at **Terraformation Index 0**. Aboard the
+station you float around in first person, find the **2 missing batteries**, drag
+one into your **✋ hand slot**, feed both into the **Power Box**, then **click the
+button** — the lasers fire for 5 seconds, Mars heats up and changes texture, and
+you're **teleported to the surface**.
+
+### 🌍 Chapter 0 — Earth & the rocket launch (Survival only)
+
+Survival now starts on **Earth**. A grassy launch field with a **rocket on the
+pad** — walk up (**W A S D**, mouse to look) and press **F** to board. A liftoff
+cinematic plays (rocket rises, flame roaring, sky turning to stars), then you
+arrive at the station and the story continues as before. Creative mode skips
+straight to the Mars surface.
+
+| Key / input | Action |
+|---|---|
+| **Mouse** | Look (click to lock the pointer) |
+| **W A S D** | Move around the station |
+| **F** | Pick up a battery · insert it into the Power Box |
+| **E** | Open / close your 10-slot inventory |
+| **Left-click + drag** | Move items between slots (only the ✋ hand slot can *use* an item) |
+| **Left-click** | Press the glowing Power Box button to fire the lasers |
+
+### 🌱 Chapter 2 — Terraform the surface
+
+Once you land, the real game begins on a **big world ringed by tall mountains**.
+The ground has **hills and valleys** (the low valleys are where **Quartz**
+hides). The **Terraformation Index** is uncapped — it climbs as you mine, heat,
+and build. Every **1 minute, 10 random rocks appear near your base** so you
+never run dry.
+
+**🫧 Oxygen (Survival mode):** you land in a **capsule** that keeps you alive.
+Step away from it and you've got **60 seconds of oxygen** (shown top-centre) —
+get back to the capsule, or inside a **Habitation Module** (build one with a
+door), to refill. Run out and you're rescued back to the capsule. In **Creative**
+mode oxygen is infinite. **At Terraformation Index 2,800 the whole planet's air
+becomes breathable** — the suit timer disappears and you have **infinite oxygen
+everywhere**, free to roam without a capsule or base. 🌬️
+
+| Key / input | Action |
+|---|---|
+| **X** | Pull out / put away the **mining tool** (starts at Lv 1) |
+| **Hold click** | Mine the rock you're aiming at — **hold ~2.5 seconds** (progress bar) |
+| **Click** | Place a building (when one is selected) |
+| **M** | **Material map** — top-down view of where each rock is |
+| **B** | **Build menu** — craft & place structures |
+| **Scroll wheel** | Rotate the building you're about to place |
+| **F** | Open a nearby **storage chest** |
+
+**Rocks** (mining-tool only): 🪨 Iron (gray, 1–2) — now **by far the most common**,
+⚙️ Titanium (dark gray, 1–2), 🔷 Silicon (blue, for glass, 1–3), and 💎 Quartz
+(found in valleys, now **a bit more common** than before). **Mining takes about
+2.5 seconds** — aim a rock and **hold** the mine button; a progress bar fills, and
+the rock breaks when it's full.
+
+**Buildables** — Tier 1 is available from the start; Tier 2 and the Rain
+Generator **unlock by Terraformation Index** (the build menu shows a 🔒 with the
+number until you reach it):
+
+| Item | Cost | Unlocks at | Does |
+|---|---|---|---|
+| 🔥 T1 Heater | 2 iron | start | Starter build — warms Mars: **+2 Index every 8s** |
+| 🛠️ T1 Pressure Drill | 2 iron · 1 titanium | start | **+1 Index every 10s** (always, no power needed) + mines nearby rocks |
+| 🔋 T1 Solar Panel | 2 silicon · 1 iron | start | Produces 10⚡ |
+| 🏠 T1 Habitation Module | 5 iron · 1 silicon | start | Solid dome (can't walk through) · unlimited oxygen |
+| 🚪 Pressure Lock Door | 3 silicon · 1 titanium · 2 iron | start | Placed on a dome — opens it so you can walk inside |
+| 📦 T1 Storage Chest | 1 iron | start | 20 storage slots |
+| ⛏️ T2 Pressure Drill | 4 iron · 2 titanium | **500** | **+2 Index every 8s** · bigger, steel look |
+| 🧰 T2 Storage Chest | 2 iron · 1 silicon | **500** | 40 storage slots · bigger |
+| ♨️ T2 Heater | 3 iron · 1 silicon | **500** | +4 Index every 7s |
+| 🌋 T3 Heater | 5 iron · 2 silicon · 1 titanium | **1350** | +6 Index every 6s |
+| 🏛️ T2 Habitation Base | 5 iron · 2 silicon · 2 titanium | **500** | Even bigger glassy dome |
+| 🌧️ T1 Rain Generator | 2 quartz · 2 iron · 2 silicon | **1500** | Each adds **+5% rain chance** — rain speeds terraforming |
+| 🔆 T2 Solar Panel | 5 silicon · 2 iron | **1500** | Produces 25⚡ · bigger, darker |
+| 🌱 T1 Plant Generator | 3 silicon · 2 iron · 1 quartz | **3000** | Grows grass every 6s, a tree every 12s |
+| 🌿 T2 Plant Generator | 5 silicon · 3 iron · 2 quartz | **3500** | 2× grass & trees each cycle |
+| 🌳 T3 Plant Generator | 8 silicon · 5 iron · 2 titanium · 3 quartz | **4000** | 3× grass & trees each cycle |
+| 🗄️ T3 Storage Chest | 3 iron · 2 silicon | **4250** | 60 storage slots |
+| ⛈️ T2 Rain Generator | 4 quartz · 3 iron · 3 silicon | **4250** | Each adds **+10% rain chance** (cap 50%) |
+| ⚒️ T3 Pressure Drill | 7 iron · 3 titanium · 1 quartz | **5000** | **+3 Index every 6s** · biggest |
+| ☀️ T3 Solar Panel | 8 silicon · 4 iron | **5000** | Produces 50⚡ |
+| 🏙️ T3 Habitation Base | 8 iron · 4 silicon · 3 titanium | **5000** | Huge glassy dome (radius 12) |
+
+Trees from Plant Generators now sprout **anywhere on dry land** across the map
+(not just by the generator), up to **20 trees** total.
+
+**The planet transforms as the Index climbs:**
+
+- **500** → the sky starts turning from dusty red toward **blue**, clouds fade
+  in, and Tier 2 unlocks.
+- **1500** → **Rain Generators** and the T2 Solar Panel unlock.
+- **2000** → the sky is **fully blue** and the **oceans are full** (water fills
+  the valleys). 🌍
+- **2800** → the **air becomes breathable** — infinite oxygen everywhere, no more
+  suit timer. 🌬️
+- **3000** → **Plant Generators** unlock. Build them to grow grass and trees.
+- **4250** → **T3 Chest** and **T2 Rain Generator** unlock.
+- **4500** → the **ground turns green** in **random spots across the dry land**
+  (and along the water's edge) over time — needs a **Plant Generator** built.
+- **5000** → **Tier 3** unlocks: T3 Drill, T3 Solar, T3 Base.
+- **🏆 Win / end the game:** reach **20,000 Terraformation Index**. You're
+  teleported back to the space station, and looking out the window you see a
+  living, blue-and-green terraformed Mars (10-second look, then back to the
+  menu). Trees and grass are now just for life/decoration — they don't end the
+  game.
+
+> **v0.5 big update:** Tier 3 everything (drill, solar, chest, habitat base) +
+> a T2 Rain Generator, trees now sprout anywhere on the map (max 20), and the
+> grass (a little darker) spreads from Index 4,500 once you've built a Plant
+> Generator.
+>
+> **Latest tuning:** 🪨 iron is now by far the most common rock (quartz a little
+> more common too), mining a rock takes **~2.5 seconds of holding** (progress bar),
+> grass now appears as **random spots across the land** at Index 4,500, and the
+> game now ends at **20,000 Index**.
+
+### 🎛️ Four ways to play (menu at the start)
+
+| Mode | Oxygen | Build costs | Game ends at |
+|---|---|---|---|
+| 🚀 **Survival** — the full story: Earth → rocket → station → mine & build | 60s | normal | 20,000 Index |
+| 💀 **Hardcore** — for experts | **35s** | **more** (×1.5) | **30,000 Index** |
+| 🌴 **Relaxed** — take it easy | **75s** | **a little less** (×0.75) | 20,000 Index |
+| ✦ **Creative** — everything unlocked, **unlimited resources**, jumps straight to Mars | ∞ | free | 20,000 Index |
+
+Survival, Hardcore and Relaxed all play the full story (Earth launch → station →
+Mars surface) — they only change how much oxygen you carry, how much buildings
+cost, and the Index you need to win. Creative skips to the Mars surface with
+everything unlocked.
+
+### 📱 Mobile / touch
+
+Works on phones and tablets. On a touch screen you get an on-screen **joystick**
+(bottom-left) to move, **drag anywhere** to look around, and tap buttons
+(bottom-right) for **USE** (mine / place / fire), **F**, **BAG**, **TOOL**,
+**MAP**, and **BUILD**. Inventory drag-and-drop works with your finger too.
+
+Play it by opening **`Mars-Terraform.html`** (single offline file) or
+**`mars-terraform.html`** (dev version, uses `vendor/three.min.js`).
+
 ## ▶️ Play it
 
 **No install.** Open **`Space-Explorer.html`** in any modern browser
