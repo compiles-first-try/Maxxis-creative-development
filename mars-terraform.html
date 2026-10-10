@@ -199,6 +199,8 @@
   .modeBtn .mt { font-size: 22px; font-weight: bold; color: #ffd27a; }
   .modeBtn .md { font-size: 14px; opacity: 0.85; margin-top: 8px; line-height: 1.5; }
   #creativeBtn { border-color: #3fa8ff; } #creativeBtn .mt { color: #8fd0ff; } #creativeBtn:hover { border-color: #9fe0ff; }
+  #hardcoreBtn { border-color: #ff3b3b; } #hardcoreBtn .mt { color: #ff8a7a; } #hardcoreBtn:hover { border-color: #ff6a6a; }
+  #relaxedBtn { border-color: #3fd98a; } #relaxedBtn .mt { color: #8fffc0; } #relaxedBtn:hover { border-color: #9fffcf; }
   #againBtn { margin-top: 30px; font: inherit; font-size: 22px; font-weight: bold; color: #02150c;
     background: linear-gradient(90deg,#8fffc0,#2fd07f); border: none; border-radius: 40px; padding: 14px 48px;
     cursor: pointer; box-shadow: 0 6px 24px rgba(40,220,130,0.5); }
@@ -306,7 +308,15 @@
   <div class="modeRow">
     <button class="modeBtn" id="survivalBtn">
       <div class="mt">🚀 SURVIVAL</div>
-      <div class="md">The full story. Blast off from Earth, dock at the station, fire the lasers, then mine & build your way to a terraformed Mars.</div>
+      <div class="md">The full story. Blast off from Earth, mine & build to a terraformed Mars. <b>60s</b> oxygen · normal costs · ends at <b>20,000</b> Index.</div>
+    </button>
+    <button class="modeBtn" id="hardcoreBtn">
+      <div class="mt">💀 HARDCORE</div>
+      <div class="md">For experts. Only <b>35s</b> of oxygen, everything <b>costs more</b>, and the goal is a tough <b>30,000</b> Index.</div>
+    </button>
+    <button class="modeBtn" id="relaxedBtn">
+      <div class="mt">🌴 RELAXED</div>
+      <div class="md">Take it easy. A roomy <b>75s</b> of oxygen, everything <b>costs a little less</b>, and you win at <b>20,000</b> Index.</div>
     </button>
     <button class="modeBtn" id="creativeBtn">
       <div class="mt">✦ CREATIVE</div>
@@ -514,6 +524,8 @@ const STATE = {
   interactables: [],         // world meshes you can look at
   focus: null,               // currently-aimed interactable
   fireT: 0,
+  winIndex: 20000,   // Terraformation Index that ends the game (per mode)
+  costMul: 1,        // build-cost multiplier (per mode)
 };
 // Inventory: 10 slots. Slot 0 = HAND. Each slot is null or { type:'battery' }.
 const INV = new Array(10).fill(null);
@@ -1196,6 +1208,14 @@ function refreshResHUD(prod) {
     '<div class="row energy"><span>⚡ Energy</span><b>' + (prod || 0) + '</b></div>' +
     (rain ? '<div class="row"><span>🌧️ Rain chance</span><b>' + rain + '%</b></div>' : '');
 }
+// per-mode effective cost: Hardcore rounds up (costs more), Relaxed floors (costs a little less, min 1)
+function effCost(cost) {
+  const mul = STATE.costMul || 1;
+  if (mul === 1) return cost;
+  const out = {};
+  for (const k in cost) out[k] = mul > 1 ? Math.ceil(cost[k] * mul) : Math.max(1, Math.floor(cost[k] * mul));
+  return out;
+}
 function canAfford(cost) { if (STATE.creative) return true; for (const k in cost) if (RES[k] < cost[k]) return false; return true; }
 function pay(cost) { if (STATE.creative) return; for (const k in cost) RES[k] -= cost[k]; }
 
@@ -1260,10 +1280,11 @@ function renderBuild() {
   const list = el('buildList'); list.innerHTML = '';
   for (const key in BUILDABLES) {
     const b = BUILDABLES[key];
+    const ec = effCost(b.cost);
     const locked = !STATE.creative && STATE.terraformIndex < (b.unlock || 0);
-    const ok = !locked && canAfford(b.cost);
-    const costStr = Object.keys(b.cost).map(k =>
-      '<span class="' + (RES[k] >= b.cost[k] ? 'ok' : 'no') + '">' + b.cost[k] + ' ' + ROCK[k].emoji + '</span>').join('  ');
+    const ok = !locked && canAfford(ec);
+    const costStr = Object.keys(ec).map(k =>
+      '<span class="' + (RES[k] >= ec[k] ? 'ok' : 'no') + '">' + ec[k] + ' ' + ROCK[k].emoji + '</span>').join('  ');
     const right = locked ? '<span class="bcost"><span class="no">🔒 ' + b.unlock + ' Index</span></span>'
                          : '<span class="bcost">' + costStr + '</span>';
     const d = document.createElement('div'); d.className = 'builditem' + (ok ? '' : ' cant');
@@ -1304,7 +1325,7 @@ function makeGhost(key) {
 }
 function chooseBuild(key) {
   if (!STATE.creative && STATE.terraformIndex < (BUILDABLES[key].unlock || 0)) { popup('Locked — reach ' + BUILDABLES[key].unlock + ' Index', '#ff6a4a'); return; }
-  if (!canAfford(BUILDABLES[key].cost)) { popup('Not enough materials', '#ff6a4a'); return; }
+  if (!canAfford(effCost(BUILDABLES[key].cost))) { popup('Not enough materials', '#ff6a4a'); return; }
   selectedBuild = key; buildPlacing = true; placeRotation = 0; makeGhost(key); toggleBuild();
 }
 function updateGhost() {
@@ -1321,7 +1342,7 @@ function cancelPlacing() {
 }
 function placeAtAim() {
   const key = selectedBuild; if (!key) return;
-  if (!canAfford(BUILDABLES[key].cost)) { popup('Not enough materials', '#ff6a4a'); cancelPlacing(); return; }
+  if (!canAfford(effCost(BUILDABLES[key].cost))) { popup('Not enough materials', '#ff6a4a'); cancelPlacing(); return; }
   let pos, doorHabitat = null;
   if (key === 'door') {
     const hit = aimObject(build.habitats.map(h => h.mesh));
@@ -1331,13 +1352,13 @@ function placeAtAim() {
   } else {
     const p = aimTerrain(); if (!p) return; pos = p;
   }
-  pay(BUILDABLES[key].cost);
+  pay(effCost(BUILDABLES[key].cost));
   createStructure(key, pos);
   const placed = surface.children[surface.children.length - 1];   // apply the scroll-wheel rotation
   if (placed) placed.rotation.y = placeRotation;
   addTerraformIndex(5); popup('Built ' + BUILDABLES[key].name);
   if (doorHabitat) doorHabitat.hasDoor = true;   // dome is now enterable
-  if (!canAfford(BUILDABLES[key].cost)) cancelPlacing();
+  if (!canAfford(effCost(BUILDABLES[key].cost))) cancelPlacing();
 }
 function createStructure(key, pos) {
   const gy = surfH(pos.x, pos.z);
@@ -1678,7 +1699,7 @@ function goToWonStation() {
   // keep the message near the top so it never blocks the view of Mars
   el('banner').style.top = '14%';
   const title = winReason === 'index' ? '🌍 MARS FULLY TERRAFORMED!' : '🌍 YOU TERRAFORMED MARS!';
-  const how = winReason === 'index' ? '20,000 Terraformation Index reached — ' : 'Life has taken hold — ';
+  const how = winReason === 'index' ? STATE.winIndex.toLocaleString() + ' Terraformation Index reached — ' : 'Life has taken hold — ';
   let left = 10;
   showBanner(title, how + 'returning to menu in ' + left + 's');
   const iv = setInterval(() => {
@@ -1720,7 +1741,7 @@ function updateGreening(dt) {
 }
 
 /* ---- oxygen: safe in the capsule or a habitat base; 60s outside (survival only) ---- */
-const OX_MAX = 60;
+let OX_MAX = 60;           // oxygen seconds; set per mode (Survival 60 · Hardcore 35 · Relaxed 75)
 let oxygen = OX_MAX;
 function inSafeZone() {
   if (Math.hypot(camera.position.x, camera.position.z) < CAPSULE_R) return true;           // landing capsule
@@ -1778,7 +1799,7 @@ function updateSurface(dt) {
   updateMining(dt);
   updateTerraformWorld();
   checkMilestones();
-  if (STATE.terraformIndex >= 20000) triggerWin('index');   // reaching 20,000 ends the game
+  if (STATE.terraformIndex >= STATE.winIndex) triggerWin('index');   // reaching the mode's goal ends the game
   if (buildPlacing) {
     updateGhost();
     showPrompt('<span class="key">Click</span> place ' + BUILDABLES[selectedBuild].name + ' · <span class="key">Esc</span> cancel');
@@ -1993,12 +2014,26 @@ animate();
    START
    ======================================================================= */
 renderInventory();
-// mode menu → Survival (full story) or Creative (sandbox)
-el('survivalBtn').addEventListener('click', () => {
-  STATE.mode = 'survival'; el('modeMenu').style.display = 'none'; el('start').style.display = 'flex';
-});
+// mode presets: oxygen seconds · build-cost multiplier · winning Index
+const MODES = {
+  survival: { ox: 60, costMul: 1,    win: 20000, creative: false },
+  hardcore: { ox: 35, costMul: 1.5,  win: 30000, creative: false },  // less air, costs more, longer goal
+  relaxed:  { ox: 75, costMul: 0.75, win: 20000, creative: false },  // more air, costs a little less
+  creative: { ox: 60, costMul: 1,    win: 20000, creative: true  },
+};
+function applyMode(name) {
+  const m = MODES[name] || MODES.survival;
+  STATE.mode = name; STATE.creative = m.creative;
+  STATE.costMul = m.costMul; STATE.winIndex = m.win;
+  OX_MAX = m.ox; oxygen = OX_MAX;
+}
+// Survival / Hardcore / Relaxed all play the full story (Earth → station → Mars)
+function startStory(name) { applyMode(name); el('modeMenu').style.display = 'none'; el('start').style.display = 'flex'; }
+el('survivalBtn').addEventListener('click', () => startStory('survival'));
+el('hardcoreBtn').addEventListener('click', () => startStory('hardcore'));
+el('relaxedBtn').addEventListener('click',  () => startStory('relaxed'));
 el('creativeBtn').addEventListener('click', () => {
-  STATE.mode = 'creative'; STATE.creative = true;
+  applyMode('creative');
   el('modeMenu').style.display = 'none'; el('start').style.display = 'none';
   teleportToSurface();
   el('objText').innerHTML = '✦ Creative — everything unlocked, unlimited resources. Build drills to raise the Index, ' +

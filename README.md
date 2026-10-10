@@ -144,12 +144,19 @@ Trees from Plant Generators now sprout **anywhere on dry land** across the map
 > grass now appears as **random spots across the land** at Index 4,500, and the
 > game now ends at **20,000 Index**.
 
-### 🎛️ Two ways to play (menu at the start)
+### 🎛️ Four ways to play (menu at the start)
 
-- **🚀 Survival** — the full story: station → lasers → mine & build your way up.
-- **✦ Creative** — everything unlocked, **unlimited resources**. Mars still
-  starts barren, so you still have to terraform it (reach 20,000 Index to win) —
-  just without the grind.
+| Mode | Oxygen | Build costs | Game ends at |
+|---|---|---|---|
+| 🚀 **Survival** — the full story: Earth → rocket → station → mine & build | 60s | normal | 20,000 Index |
+| 💀 **Hardcore** — for experts | **35s** | **more** (×1.5) | **30,000 Index** |
+| 🌴 **Relaxed** — take it easy | **75s** | **a little less** (×0.75) | 20,000 Index |
+| ✦ **Creative** — everything unlocked, **unlimited resources**, jumps straight to Mars | ∞ | free | 20,000 Index |
+
+Survival, Hardcore and Relaxed all play the full story (Earth launch → station →
+Mars surface) — they only change how much oxygen you carry, how much buildings
+cost, and the Index you need to win. Creative skips to the Mars surface with
+everything unlocked.
 
 ### 📱 Mobile / touch
 
