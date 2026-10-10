@@ -204,6 +204,18 @@
     cursor: pointer; box-shadow: 0 6px 24px rgba(40,220,130,0.5); }
   #againBtn:hover { filter: brightness(1.08); }
 
+  /* ---------- Oxygen HUD + damage flash ---------- */
+  #oxHud { top: 14px; left: 50%; transform: translateX(-50%); font-size: 15px; display: none; text-align: center;
+    background: rgba(8,20,30,0.6); border: 1px solid rgba(90,180,255,0.5); border-radius: 12px;
+    padding: 8px 16px; backdrop-filter: blur(4px); z-index: 6; }
+  #oxHud b { color: #9fd0ff; }
+  #oxHud.low { border-color: #ff5a3c; animation: oxpulse .6s infinite alternate; }
+  #oxHud.low b { color: #ff8a6a; }
+  @keyframes oxpulse { from { background: rgba(60,10,6,0.55); } to { background: rgba(120,20,10,0.75); } }
+  #redflash { position: fixed; inset: 0; z-index: 9; pointer-events: none; opacity: 0; transition: opacity .25s;
+    background: radial-gradient(circle at 50% 50%, rgba(255,0,0,0) 35%, rgba(180,0,0,0.6) 100%); }
+  #redflash.on { opacity: 1; }
+
   /* ---------- Touch controls (mobile) ---------- */
   html, body { touch-action: none; -webkit-user-select: none; -webkit-touch-callout: none; overscroll-behavior: none; }
   #touchUI { position: fixed; inset: 0; z-index: 10; pointer-events: none; display: none; }
@@ -327,6 +339,8 @@
   <span class="key">M</span> material map · <span class="key">B</span> build · <span class="key">F</span> open chest
 </div>
 <div id="minePop"></div>
+<div id="oxHud" class="hud"></div>
+<div id="redflash"></div>
 
 <div id="mapOverlay"><div class="panel">
   <h2>🗺️ Material Map</h2>
@@ -640,11 +654,15 @@ const beams = [laserBeam(-5), laserBeam(5)];
 /* =======================================================================
    SURFACE SCENE — Chapter 2: terraform, mine, build (built, hidden until teleport)
    ======================================================================= */
-const SURF_SIZE = 320;
-// height field — rolling hills and valleys; queryable anywhere for placing/walking
+const SURF_SIZE = 480;              // bigger world
+const PLAY_LIM = SURF_SIZE / 2 - 64; // how far out the player (and spawns) can roam — inside the mountains
+// height field — rolling hills and valleys, ringed by tall mountains at the edges
 function surfH(x, z) {
-  return Math.sin(x * 0.045) * 3.2 + Math.cos(z * 0.04) * 3.0
-       + Math.sin((x + z) * 0.09) * 1.4 + Math.cos(x * 0.12 - z * 0.05) * 0.8;
+  let h = Math.sin(x * 0.045) * 3.2 + Math.cos(z * 0.04) * 3.0
+        + Math.sin((x + z) * 0.09) * 1.4 + Math.cos(x * 0.12 - z * 0.05) * 0.8;
+  const edge = Math.max(Math.abs(x), Math.abs(z)), rs = SURF_SIZE / 2 - 60, re = SURF_SIZE / 2;
+  if (edge > rs) { const t = Math.min(1, (edge - rs) / (re - rs)); h += t * t * (62 + Math.sin(x * 0.25) * 10 + Math.cos(z * 0.25) * 10); }
+  return h;
 }
 const surface = new THREE.Group(); surface.visible = false; scene.add(surface);
 scene.add(camera);                       // so the mining-tool viewmodel (a camera child) renders
@@ -653,7 +671,7 @@ const surfAmb = new THREE.AmbientLight(0xffc0a0, 0.85); surface.add(surfAmb);
 const surfSun = new THREE.DirectionalLight(0xffe3c4, 1.2); surfSun.position.set(30, 50, 20); surface.add(surfSun);
 
 // terrain mesh from the height field
-const terGeo = new THREE.PlaneGeometry(SURF_SIZE, SURF_SIZE, 140, 140);
+const terGeo = new THREE.PlaneGeometry(SURF_SIZE, SURF_SIZE, 170, 170);
 terGeo.rotateX(-Math.PI / 2);
 { const p = terGeo.attributes.position;
   for (let i = 0; i < p.count; i++) p.setY(i, surfH(p.getX(i), p.getZ(i)));
@@ -693,6 +711,25 @@ for (let i = 0; i < 26; i++) {
   c.scale.y = 0.5; clouds.add(c);
 }
 
+// landing capsule at the spawn point — supplies oxygen while you're near it
+const CAPSULE_R = 8;
+const capsule = new THREE.Group();
+{ const body = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 2.0, 2.6, 16),
+    new THREE.MeshStandardMaterial({ color: 0xcdd3da, metalness: 0.7, roughness: 0.3 }));
+  body.position.y = 1.9;
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(1.6, 1.6, 16),
+    new THREE.MeshStandardMaterial({ color: 0xff7043, metalness: 0.5, roughness: 0.4 }));
+  nose.position.y = 4.0;
+  const glass = new THREE.Mesh(new THREE.SphereGeometry(1.0, 16, 12),
+    new THREE.MeshStandardMaterial({ color: 0x8fd0ff, transparent: true, opacity: 0.5, metalness: 1, roughness: 0 }));
+  glass.position.y = 2.7;
+  capsule.add(body, nose, glass);
+  for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2;
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.8, 6), new THREE.MeshStandardMaterial({ color: 0x555555 }));
+    leg.position.set(Math.cos(a) * 1.7, 0.7, Math.sin(a) * 1.7); leg.rotation.z = Math.cos(a) * 0.4; leg.rotation.x = -Math.sin(a) * 0.4; capsule.add(leg); }
+}
+capsule.position.set(0, surfH(0, 0), 0); surface.add(capsule);
+
 // rock / material specs
 const ROCK = {
   iron:     { color: 0x9a9a9a, emissive: 0x000000, min: 1, max: 2, label: 'Iron',     emoji: '🪨' },
@@ -714,7 +751,7 @@ function addRock(type, x, z) {
   surface.add(m); const r = { mesh: m, type, amount }; rocks.push(r); rockMeshes.push(m); return r;
 }
 function spawnBatch(type, n) {
-  const R = SURF_SIZE / 2 - 12, valleyOnly = (type === 'quartz');
+  const R = PLAY_LIM - 6, valleyOnly = (type === 'quartz');
   let placed = 0, guard = 0;
   while (placed < n && guard < n * 50) { guard++;
     const x = (Math.random() * 2 - 1) * R, z = (Math.random() * 2 - 1) * R, h = surfH(x, z);
@@ -1108,6 +1145,8 @@ function teleportToSurface() {
   el('tfIndex').textContent = STATE.terraformIndex;
   el('resHud').style.display = 'block';
   el('surfControls').style.display = 'block';
+  el('oxHud').style.display = 'block';
+  oxygen = 30;
   el('controls').style.display = 'none';
   el('objText').innerHTML = 'Chapter 2 — Terraform Mars. Press <b>X</b> for your mining tool, ' +
                             '<b>M</b> for the material map, <b>B</b> to build.';
@@ -1434,11 +1473,8 @@ function collideDomes() {
 let respawnTimer = 0;
 const ROCK_TYPES = ['iron', 'titanium', 'silicon', 'quartz'];
 function respawnRocks() {
-  const pool = ROCK_TYPES.slice();
-  const picks = [];
-  for (let k = 0; k < 2; k++) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
-  for (const t of picks) spawnBatch(t, t === 'quartz' ? 6 : 12);
-  popup('⛏️ New ' + picks.map(t => ROCK[t].emoji + ' ' + ROCK[t].label).join(' & ') + ' deposits appeared', '#ffd54f');
+  for (let k = 0; k < 5; k++) spawnBatch(ROCK_TYPES[Math.floor(Math.random() * ROCK_TYPES.length)], 1);
+  popup('⛏️ 5 new rocks appeared', '#ffd54f');
 }
 
 /* ---- terraforming world: rain, sky, ocean, clouds, milestones ---- */
@@ -1503,15 +1539,14 @@ const MAX_GRASS = 500, MAX_TREES = 20, WIN_TREES = 10;
 function plantSpot(gen, fn) {
   const a = Math.random() * Math.PI * 2, r = 3 + Math.random() * 11;
   const x = gen.mesh.position.x + Math.cos(a) * r, z = gen.mesh.position.z + Math.sin(a) * r;
-  const lim = SURF_SIZE / 2 - 6;
-  if (Math.abs(x) > lim || Math.abs(z) > lim) return;
+  if (Math.abs(x) > PLAY_LIM || Math.abs(z) > PLAY_LIM) return;
   if (surfH(x, z) < ocean.position.y + 0.4) return;   // not underwater
   fn(x, z);
 }
 // trees can now appear ANYWHERE on dry land across the map (not just near the generator)
 function spawnTreeAnywhere() {
   if (trees.length >= MAX_TREES) return;
-  const lim = SURF_SIZE / 2 - 8;
+  const lim = PLAY_LIM - 4;
   for (let a = 0; a < 14; a++) {
     const x = (Math.random() * 2 - 1) * lim, z = (Math.random() * 2 - 1) * lim;
     if (surfH(x, z) < ocean.position.y + 0.4) continue;   // keep them out of the water
@@ -1585,7 +1620,7 @@ function goToWonStation() {
   camera.position.set(0, 3, 7);   // inside the station, near the back wall, facing the window
   el('resHud').style.display = 'none'; el('surfControls').style.display = 'none';
   el('crosshair').style.display = 'none'; el('objective').style.display = 'none';
-  el('indexHud').style.display = 'none'; showPrompt('');
+  el('indexHud').style.display = 'none'; el('oxHud').style.display = 'none'; showPrompt('');
   // keep the message near the top so it never blocks the view of Mars
   el('banner').style.top = '14%';
   const title = winReason === 'index' ? '🌍 MARS FULLY TERRAFORMED!' : '🌍 YOU TERRAFORMED MARS!';
@@ -1620,11 +1655,39 @@ function updateGreening(dt) {
   if (changed) terColAttr.needsUpdate = true;
 }
 
+/* ---- oxygen: safe in the capsule or a habitat base; 30s outside (survival only) ---- */
+let oxygen = 30;
+function inSafeZone() {
+  if (Math.hypot(camera.position.x, camera.position.z) < CAPSULE_R) return true;           // landing capsule
+  for (const h of build.habitats)                                                          // inside a base
+    if (Math.hypot(camera.position.x - h.mesh.position.x, camera.position.z - h.mesh.position.z) < (h.radius || 6)) return true;
+  return false;
+}
+function updateOxygen(dt) {
+  if (STATE.creative) { el('oxHud').innerHTML = '🫧 Oxygen: <b>∞</b>'; el('oxHud').classList.remove('low'); return; }
+  if (inSafeZone()) {
+    oxygen = Math.min(30, oxygen + dt * 10);
+    el('oxHud').innerHTML = '🛡️ Oxygen: <b>SAFE</b>'; el('oxHud').classList.remove('low');
+  } else {
+    oxygen -= dt;
+    if (oxygen <= 0) { oxygenDeath(); return; }
+    el('oxHud').innerHTML = '🫧 Oxygen: <b>' + Math.ceil(oxygen) + 's</b>';
+    el('oxHud').classList.toggle('low', oxygen < 8);
+  }
+}
+function oxygenDeath() {
+  oxygen = 30;
+  camera.position.set(0, surfH(0, 0) + 2, 0);                                               // rescued to the capsule
+  popup('⚠ Out of oxygen — rescued to the capsule!', '#ff6a4a');
+  el('redflash').classList.add('on'); setTimeout(() => el('redflash').classList.remove('on'), 500);
+}
+
 /* ---- per-frame surface update ---- */
 function updateSurface(dt) {
-  // every 5 minutes, two random rock types respawn
+  updateOxygen(dt);
+  // every 1 minute, 5 random rocks appear across the world
   respawnTimer += dt;
-  if (respawnTimer >= 300) { respawnTimer = 0; respawnRocks(); }
+  if (respawnTimer >= 60) { respawnTimer = 0; respawnRocks(); }
   // drills always run: T1 = +1 Index / 10s, T2 = +2 Index / 8s (no power needed)
   for (const d of build.drills) {
     if (d.bit) d.bit.rotation.y += (d.tier === 3 ? 14 : d.tier === 2 ? 11 : 8) * dt;
@@ -1685,8 +1748,8 @@ function updateMove(dt) {
     camera.position.z = Math.max(-ROOM.d / 2 + m, Math.min(ROOM.d / 2 - m, camera.position.z));
     camera.position.y = 2.6;
   } else {
-    // surface: stay inside the map and walk along the terrain height
-    const lim = SURF_SIZE / 2 - 4;
+    // surface: stay inside the playable ring (mountains beyond) and walk along the terrain
+    const lim = PLAY_LIM;
     camera.position.x = Math.max(-lim, Math.min(lim, camera.position.x));
     camera.position.z = Math.max(-lim, Math.min(lim, camera.position.z));
     collideDomes();                        // solid habitat domes (unless they have a door)
