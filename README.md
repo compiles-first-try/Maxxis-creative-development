@@ -45,10 +45,11 @@ heats up and changes texture, and you're **teleported to the surface**.
 Once you land, the real game begins on a **big world ringed by tall mountains**.
 The ground has **hills and valleys** (the low valleys are where **Quartz**
 hides). The **Terraformation Index** is uncapped — it climbs as you mine, heat,
-and build. Every **1 minute, 5 random rocks appear** so you never run dry.
+and build. Every **1 minute, 10 random rocks appear near your base** so you
+never run dry.
 
 **🫧 Oxygen (Survival mode):** you land in a **capsule** that keeps you alive.
-Step away from it and you've got **30 seconds of oxygen** (shown top-centre) —
+Step away from it and you've got **60 seconds of oxygen** (shown top-centre) —
 get back to the capsule, or inside a **Habitation Module** (build one with a
 door), to refill. Run out and you're rescued back to the capsule. In **Creative**
 mode oxygen is infinite.

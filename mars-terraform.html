@@ -1146,7 +1146,7 @@ function teleportToSurface() {
   el('resHud').style.display = 'block';
   el('surfControls').style.display = 'block';
   el('oxHud').style.display = 'block';
-  oxygen = 30;
+  oxygen = OX_MAX;
   el('controls').style.display = 'none';
   el('objText').innerHTML = 'Chapter 2 — Terraform Mars. Press <b>X</b> for your mining tool, ' +
                             '<b>M</b> for the material map, <b>B</b> to build.';
@@ -1473,8 +1473,23 @@ function collideDomes() {
 let respawnTimer = 0;
 const ROCK_TYPES = ['iron', 'titanium', 'silicon', 'quartz'];
 function respawnRocks() {
-  for (let k = 0; k < 5; k++) spawnBatch(ROCK_TYPES[Math.floor(Math.random() * ROCK_TYPES.length)], 1);
-  popup('⛏️ 5 new rocks appeared', '#ffd54f');
+  const bases = [[0, 0]];                                   // capsule + every habitat base
+  for (const h of build.habitats) bases.push([h.mesh.position.x, h.mesh.position.z]);
+  let placed = 0;
+  for (let n = 0; n < 10; n++) {
+    const type = ROCK_TYPES[Math.floor(Math.random() * ROCK_TYPES.length)];
+    const base = bases[Math.floor(Math.random() * bases.length)];
+    for (let a = 0; a < 24; a++) {                          // find a valid nearby spot
+      const ang = Math.random() * Math.PI * 2, rad = 10 + Math.random() * 50;  // 10–60 units from base
+      const x = base[0] + Math.cos(ang) * rad, z = base[1] + Math.sin(ang) * rad, h = surfH(x, z);
+      if (Math.abs(x) > PLAY_LIM || Math.abs(z) > PLAY_LIM) continue;
+      if (type === 'quartz' && h > VALLEY_Y) continue;
+      if (type !== 'quartz' && h < -5) continue;
+      if (h < ocean.position.y + 0.3) continue;             // not underwater
+      addRock(type, x, z); placed++; break;
+    }
+  }
+  popup('⛏️ ' + placed + ' new rocks appeared near base', '#ffd54f');
 }
 
 /* ---- terraforming world: rain, sky, ocean, clouds, milestones ---- */
@@ -1655,8 +1670,9 @@ function updateGreening(dt) {
   if (changed) terColAttr.needsUpdate = true;
 }
 
-/* ---- oxygen: safe in the capsule or a habitat base; 30s outside (survival only) ---- */
-let oxygen = 30;
+/* ---- oxygen: safe in the capsule or a habitat base; 60s outside (survival only) ---- */
+const OX_MAX = 60;
+let oxygen = OX_MAX;
 function inSafeZone() {
   if (Math.hypot(camera.position.x, camera.position.z) < CAPSULE_R) return true;           // landing capsule
   for (const h of build.habitats)                                                          // inside a base
@@ -1666,7 +1682,7 @@ function inSafeZone() {
 function updateOxygen(dt) {
   if (STATE.creative) { el('oxHud').innerHTML = '🫧 Oxygen: <b>∞</b>'; el('oxHud').classList.remove('low'); return; }
   if (inSafeZone()) {
-    oxygen = Math.min(30, oxygen + dt * 10);
+    oxygen = Math.min(OX_MAX, oxygen + dt * 20);
     el('oxHud').innerHTML = '🛡️ Oxygen: <b>SAFE</b>'; el('oxHud').classList.remove('low');
   } else {
     oxygen -= dt;
@@ -1676,7 +1692,7 @@ function updateOxygen(dt) {
   }
 }
 function oxygenDeath() {
-  oxygen = 30;
+  oxygen = OX_MAX;
   camera.position.set(0, surfH(0, 0) + 2, 0);                                               // rescued to the capsule
   popup('⚠ Out of oxygen — rescued to the capsule!', '#ff6a4a');
   el('redflash').classList.add('on'); setTimeout(() => el('redflash').classList.remove('on'), 500);
