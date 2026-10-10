@@ -72,11 +72,19 @@ number until you reach it):
 | ⛏️ T2 Pressure Drill | 4 iron · 2 titanium | **500** | **+2 Index every 8s** · bigger, steel look |
 | 🧰 T2 Storage Chest | 2 iron · 1 silicon | **500** | 40 storage slots · bigger |
 | 🏛️ T2 Habitation Base | 5 iron · 2 silicon · 2 titanium | **500** | Even bigger glassy dome |
-| 🌧️ T1 Rain Generator | 2 quartz · 2 iron · 2 silicon | **1500** | Each adds **+5% rain chance** (2=10%, 3=15%, 4=20%) — rain speeds terraforming |
+| 🌧️ T1 Rain Generator | 2 quartz · 2 iron · 2 silicon | **1500** | Each adds **+5% rain chance** — rain speeds terraforming |
 | 🔆 T2 Solar Panel | 5 silicon · 2 iron | **1500** | Produces 25⚡ · bigger, darker |
 | 🌱 T1 Plant Generator | 3 silicon · 2 iron · 1 quartz | **3000** | Grows grass every 6s, a tree every 12s |
 | 🌿 T2 Plant Generator | 5 silicon · 3 iron · 2 quartz | **3500** | 2× grass & trees each cycle |
 | 🌳 T3 Plant Generator | 8 silicon · 5 iron · 2 titanium · 3 quartz | **4000** | 3× grass & trees each cycle |
+| 🗄️ T3 Storage Chest | 3 iron · 2 silicon | **4250** | 60 storage slots |
+| ⛈️ T2 Rain Generator | 4 quartz · 3 iron · 3 silicon | **4250** | Each adds **+10% rain chance** (cap 50%) |
+| ⚒️ T3 Pressure Drill | 7 iron · 3 titanium · 1 quartz | **5000** | **+3 Index every 6s** · biggest |
+| ☀️ T3 Solar Panel | 8 silicon · 4 iron | **5000** | Produces 50⚡ |
+| 🏙️ T3 Habitation Base | 8 iron · 4 silicon · 3 titanium | **5000** | Huge glassy dome (radius 12) |
+
+Trees from Plant Generators now sprout **anywhere on dry land** across the map
+(not just by the generator), up to **20 trees** total.
 
 **The planet transforms as the Index climbs:**
 
@@ -85,10 +93,12 @@ number until you reach it):
 - **1500** → **Rain Generators** and the T2 Solar Panel unlock.
 - **2000** → the sky is **fully blue** and the **oceans are full** (water fills
   the valleys). 🌍
-- **3000** → **Plant Generators** unlock. Build them to grow grass and trees,
-  and the **ground turns green** around the water's edge over time (the grass
-  only spreads where water has actually appeared, and creeps outward as the
-  oceans rise).
+- **3000** → **Plant Generators** unlock. Build them to grow grass and trees.
+- **4250** → **T3 Chest** and **T2 Rain Generator** unlock.
+- **5000** → **Tier 3** unlocks: T3 Drill, T3 Solar, T3 Base.
+- **13,000** → the **ground turns green** around the water's edge over time
+  (grass only spreads where water has actually appeared, and creeps outward as
+  the oceans rise).
 - **🏆 Two ways to win / end the game:**
   - **Grow 10 full-size trees**, or
   - **Reach 20,000 Terraformation Index**.
@@ -96,6 +106,11 @@ number until you reach it):
   Either one ends the game: you're teleported back to the space station, and
   looking out the window you see a living, blue-and-green terraformed Mars
   (10-second look, then back to the menu).
+
+> **v0.5 big update:** Tier 3 everything (drill, solar, chest, habitat base) +
+> a T2 Rain Generator, trees now sprout anywhere on the map (max 20), the
+> 20,000-Index ending, and the shoreline grass (now a little darker) spreads
+> from Index 13,000.
 
 ### 🎛️ Two ways to play (menu at the start)
 

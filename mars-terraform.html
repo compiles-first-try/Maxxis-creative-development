@@ -734,7 +734,7 @@ const build = { solars: [], drills: [], habitats: [], doors: [], chests: [], rai
 let selectedBuild = null, buildPlacing = false, buildGhost = null;
 
 // milestone thresholds (Terraformation Index)
-const MS = { T2: 500, RAIN: 1500, FULL: 2000, PLANT: 3000 };
+const MS = { T2: 500, RAIN: 1500, FULL: 2000, PLANT: 3000, CHEST3: 4250, T3: 5000, GRASS: 13000 };
 
 // buildables — `unlock` is the Index needed before it can be built
 const BUILDABLES = {
@@ -748,6 +748,11 @@ const BUILDABLES = {
   habitat2:{ name: 'T2 Habitation Base',emoji: '🏛️', cost: { iron: 5, silicon: 2, titanium: 2 }, unlock: MS.T2,   desc: 'Even bigger dome, glassy texture.' },
   raingen: { name: 'T1 Rain Generator', emoji: '🌧️', cost: { quartz: 2, iron: 2, silicon: 2 },   unlock: MS.RAIN, desc: 'Each one adds +5% chance of rain (speeds terraforming).' },
   solar2:  { name: 'T2 Solar Panel',    emoji: '🔆', cost: { silicon: 5, iron: 2 },              unlock: MS.RAIN, desc: 'Produces 25⚡ (bigger, darker).' },
+  chest3:  { name: 'T3 Storage Chest',  emoji: '🗄️', cost: { iron: 3, silicon: 2 },               unlock: MS.CHEST3, desc: '60 storage slots (huge).' },
+  raingen2:{ name: 'T2 Rain Generator', emoji: '⛈️', cost: { quartz: 4, iron: 3, silicon: 3 },    unlock: MS.CHEST3, desc: 'Each adds +10% chance of rain.' },
+  drill3:  { name: 'T3 Pressure Drill', emoji: '⚒️', cost: { iron: 7, titanium: 3, quartz: 1 },   unlock: MS.T3,    desc: '+3 Index every 6s (biggest).' },
+  solar3:  { name: 'T3 Solar Panel',    emoji: '☀️', cost: { silicon: 8, iron: 4 },               unlock: MS.T3,    desc: 'Produces 50⚡.' },
+  habitat3:{ name: 'T3 Habitation Base',emoji: '🏙️', cost: { iron: 8, silicon: 4, titanium: 3 },  unlock: MS.T3,    desc: 'Huge glassy dome.' },
   plantgen: { name: 'T1 Plant Generator', emoji: '🌱', cost: { silicon: 3, iron: 2, quartz: 1 },             unlock: MS.PLANT, desc: 'Grows grass every 6s, trees every 12s. Grow 10 trees to win!' },
   plantgen2:{ name: 'T2 Plant Generator', emoji: '🌿', cost: { silicon: 5, iron: 3, quartz: 2 },             unlock: 3500,     desc: '2× grass & trees each cycle.' },
   plantgen3:{ name: 'T3 Plant Generator', emoji: '🌳', cost: { silicon: 8, iron: 5, titanium: 2, quartz: 3 }, unlock: 4000,     desc: '3× grass & trees each cycle.' },
@@ -1110,7 +1115,7 @@ function anyOverlay() { return invOpen || mapOpen || buildOpen || chestOpen; }
 function addTerraformIndex(n) { STATE.terraformIndex += n; el('tfIndex').textContent = STATE.terraformIndex; }
 
 function refreshResHUD(prod) {
-  const rain = (build.raingens && build.raingens.length) ? Math.min(build.raingens.length * 5, 20) : 0;
+  const rain = (build.raingens && build.raingens.length) ? rainChancePct() : 0;
   const v = k => STATE.creative ? '∞' : RES[k];
   el('resHud').innerHTML =
     (STATE.creative ? '<div class="row" style="color:#6dffae">✦ CREATIVE</div>' : '') +
@@ -1194,7 +1199,12 @@ function structureGeo(key) {
   if (key === 'habitat2')return new THREE.SphereGeometry(9, 28, 18, 0, Math.PI * 2, 0, Math.PI / 2);
   if (key === 'door')    return new THREE.BoxGeometry(1.0, 1.6, 0.3);
   if (key === 'chest2')  return new THREE.BoxGeometry(1.7, 1.3, 1.4);
+  if (key === 'chest3')  return new THREE.BoxGeometry(2.1, 1.6, 1.7);
   if (key === 'raingen') return new THREE.CylinderGeometry(0.5, 0.7, 2.6, 12);
+  if (key === 'raingen2')return new THREE.CylinderGeometry(0.65, 0.9, 3.4, 14);
+  if (key === 'solar3')  return new THREE.BoxGeometry(4.8, 0.26, 3.2);
+  if (key === 'drill3')  return new THREE.CylinderGeometry(0.85, 1.25, 4.2, 14);
+  if (key === 'habitat3')return new THREE.SphereGeometry(12, 32, 20, 0, Math.PI * 2, 0, Math.PI / 2);
   if (key === 'plantgen')  return new THREE.CylinderGeometry(0.5, 0.7, 2.0, 12);
   if (key === 'plantgen2') return new THREE.CylinderGeometry(0.6, 0.85, 2.4, 12);
   if (key === 'plantgen3') return new THREE.CylinderGeometry(0.7, 1.0, 2.8, 12);
@@ -1241,42 +1251,48 @@ function placeAtAim() {
 }
 function createStructure(key, pos) {
   const gy = surfH(pos.x, pos.z);
-  if (key === 'solar' || key === 'solar2') {
-    const t2 = key === 'solar2', g = new THREE.Group();
-    const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, t2 ? 1.4 : 1, 8), new THREE.MeshStandardMaterial({ color: 0x444444 }));
-    stand.position.y = (t2 ? 1.4 : 1) / 2;
-    const panel = new THREE.Mesh(new THREE.BoxGeometry(t2 ? 3.6 : 2.4, 0.14, t2 ? 2.4 : 1.6),
-      new THREE.MeshStandardMaterial({ color: t2 ? 0x101826 : 0x1a3a8a, emissive: t2 ? 0x2b7fff : 0x0a1f52, emissiveIntensity: t2 ? 0.8 : 0.5, metalness: 0.7, roughness: 0.2 }));
-    panel.position.y = t2 ? 1.5 : 1.1; panel.rotation.x = -0.5; g.add(stand, panel);
-    g.position.set(pos.x, gy, pos.z); surface.add(g); build.solars.push({ mesh: g, out: t2 ? 25 : 10 });
-  } else if (key === 'drill' || key === 'drill2') {
-    const t2 = key === 'drill2', g = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(t2 ? 0.6 : 0.4, t2 ? 0.9 : 0.6, t2 ? 2.8 : 2.0, 12),
-      new THREE.MeshStandardMaterial({ color: t2 ? 0x8691a0 : 0x7a4a2a, metalness: t2 ? 0.9 : 0.5, roughness: t2 ? 0.2 : 0.5 }));
-    body.position.y = (t2 ? 2.8 : 2.0) / 2;
-    const bit = new THREE.Mesh(new THREE.ConeGeometry(t2 ? 0.45 : 0.3, t2 ? 1.1 : 0.8, 12),
-      new THREE.MeshStandardMaterial({ color: t2 ? 0x55e0ff : 0xffcc44, metalness: 0.85, roughness: 0.25, emissive: t2 ? 0x0a4055 : 0x332000, emissiveIntensity: 0.5 }));
+  if (key === 'solar' || key === 'solar2' || key === 'solar3') {
+    const tier = key === 'solar3' ? 3 : key === 'solar2' ? 2 : 1;
+    const w = [0, 2.4, 3.6, 4.8][tier], d = [0, 1.6, 2.4, 3.2][tier], standH = [0, 1, 1.4, 1.8][tier], out = [0, 10, 25, 50][tier];
+    const col = tier === 3 ? 0x0a0f1a : tier === 2 ? 0x101826 : 0x1a3a8a, emi = tier === 3 ? 0x55b0ff : tier === 2 ? 0x2b7fff : 0x0a1f52;
+    const g = new THREE.Group();
+    const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, standH, 8), new THREE.MeshStandardMaterial({ color: 0x444444 }));
+    stand.position.y = standH / 2;
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(w, 0.15, d),
+      new THREE.MeshStandardMaterial({ color: col, emissive: emi, emissiveIntensity: 0.4 + tier * 0.3, metalness: 0.75, roughness: 0.2 }));
+    panel.position.y = standH + 0.1; panel.rotation.x = -0.5; g.add(stand, panel);
+    g.position.set(pos.x, gy, pos.z); surface.add(g); build.solars.push({ mesh: g, out });
+  } else if (key === 'drill' || key === 'drill2' || key === 'drill3') {
+    const tier = key === 'drill3' ? 3 : key === 'drill2' ? 2 : 1;
+    const bh = [0, 2.0, 2.8, 4.2][tier], rt = [0, 0.4, 0.6, 0.85][tier], rb = [0, 0.6, 0.9, 1.25][tier];
+    const bodyCol = tier === 3 ? 0xb8c0cc : tier === 2 ? 0x8691a0 : 0x7a4a2a, bitCol = tier === 3 ? 0xff5edc : tier === 2 ? 0x55e0ff : 0xffcc44;
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, bh, 14), new THREE.MeshStandardMaterial({ color: bodyCol, metalness: 0.4 + tier * 0.15, roughness: 0.6 - tier * 0.1 }));
+    body.position.y = bh / 2;
+    const bit = new THREE.Mesh(new THREE.ConeGeometry(rt * 0.75, bh * 0.3, 14), new THREE.MeshStandardMaterial({ color: bitCol, metalness: 0.85, roughness: 0.25, emissive: bitCol, emissiveIntensity: 0.3 }));
     bit.position.y = 0.1; bit.rotation.x = Math.PI; g.add(body, bit);
     g.position.set(pos.x, gy, pos.z); surface.add(g);
-    build.drills.push({ mesh: g, bit, timer: 0, tier: t2 ? 2 : 1 });
-  } else if (key === 'habitat' || key === 'habitat2') {
-    const t2 = key === 'habitat2', R = t2 ? 9 : 6;
-    const m = new THREE.Mesh(new THREE.SphereGeometry(R, 30, 20, 0, Math.PI * 2, 0, Math.PI / 2),
-      new THREE.MeshStandardMaterial({ color: t2 ? 0x8fded0 : 0xcfd6dd, metalness: t2 ? 0.2 : 0.4, roughness: t2 ? 0.1 : 0.4,
-                                       transparent: t2, opacity: t2 ? 0.75 : 1, side: THREE.DoubleSide }));
+    build.drills.push({ mesh: g, bit, timer: 0, tier });
+  } else if (key === 'habitat' || key === 'habitat2' || key === 'habitat3') {
+    const tier = key === 'habitat3' ? 3 : key === 'habitat2' ? 2 : 1, R = [0, 6, 9, 12][tier], glass = tier >= 2;
+    const col = tier === 3 ? 0xaeeaff : tier === 2 ? 0x8fded0 : 0xcfd6dd;
+    const m = new THREE.Mesh(new THREE.SphereGeometry(R, 32, 20, 0, Math.PI * 2, 0, Math.PI / 2),
+      new THREE.MeshStandardMaterial({ color: col, metalness: 0.3, roughness: glass ? 0.1 : 0.4, transparent: glass, opacity: glass ? 0.72 : 1, side: THREE.DoubleSide }));
     m.position.set(pos.x, gy, pos.z); m.userData.habitat = true; surface.add(m);
     build.habitats.push({ mesh: m, hasDoor: false, radius: R });
   } else if (key === 'door') {
     const m = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.6, 0.25),
       new THREE.MeshStandardMaterial({ color: 0x334455, metalness: 0.7, roughness: 0.3, emissive: 0x112233, emissiveIntensity: 0.4 }));
     m.position.copy(pos); surface.add(m); build.doors.push({ mesh: m });
-  } else if (key === 'raingen') {
-    const g = new THREE.Group();
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 2.4, 12), new THREE.MeshStandardMaterial({ color: 0x4a6a8a, metalness: 0.6, roughness: 0.4 }));
-    base.position.y = 1.2;
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.8, 0.18, 10, 20), new THREE.MeshStandardMaterial({ color: 0x9fd0ff, emissive: 0x2b7fff, emissiveIntensity: 0.7, metalness: 0.5, roughness: 0.3 }));
-    ring.position.y = 2.6; ring.rotation.x = Math.PI / 2; g.add(base, ring);
-    g.position.set(pos.x, gy, pos.z); surface.add(g); build.raingens.push({ mesh: g, ring });
+  } else if (key === 'raingen' || key === 'raingen2') {
+    const tier = key === 'raingen2' ? 2 : 1, bh = 2.4 + (tier - 1) * 1.0, g = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.5 + (tier - 1) * 0.15, 0.7 + (tier - 1) * 0.2, bh, 14),
+      new THREE.MeshStandardMaterial({ color: tier === 2 ? 0x3a4a6a : 0x4a6a8a, metalness: 0.6, roughness: 0.4 }));
+    base.position.y = bh / 2;
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.8 + (tier - 1) * 0.3, 0.18, 10, 20),
+      new THREE.MeshStandardMaterial({ color: 0x9fd0ff, emissive: tier === 2 ? 0x6a4fff : 0x2b7fff, emissiveIntensity: 0.8, metalness: 0.5, roughness: 0.3 }));
+    ring.position.y = bh + 0.2; ring.rotation.x = Math.PI / 2; g.add(base, ring);
+    g.position.set(pos.x, gy, pos.z); surface.add(g); build.raingens.push({ mesh: g, ring, tier });
   } else if (key === 'plantgen' || key === 'plantgen2' || key === 'plantgen3') {
     const tier = key === 'plantgen3' ? 3 : key === 'plantgen2' ? 2 : 1;
     const h = 1.6 + tier * 0.4, bulbC = tier === 3 ? 0xffe26b : tier === 2 ? 0x2fd0a0 : 0x3fa83f;
@@ -1289,12 +1305,14 @@ function createStructure(key, pos) {
     bulb.position.y = h + 0.3; g.add(base, bulb);
     g.position.set(pos.x, gy, pos.z); surface.add(g);
     build.plantgens.push({ mesh: g, tier, bulb, grassTimer: 0, treeTimer: 0 });
-  } else { // chest (T1) and chest2 (T2)
-    const t2 = key === 'chest2';
-    const m = new THREE.Mesh(new THREE.BoxGeometry(t2 ? 1.7 : 1.2, t2 ? 1.3 : 0.9, t2 ? 1.4 : 1.0),
-      new THREE.MeshStandardMaterial({ color: t2 ? 0x556677 : 0x8a5a2a, metalness: t2 ? 0.8 : 0.3, roughness: t2 ? 0.25 : 0.7 }));
-    m.position.set(pos.x, gy + (t2 ? 0.65 : 0.45), pos.z);
-    m.userData.chestRef = { storage: new Array(t2 ? 40 : 20).fill(null) };
+  } else { // chest T1 / T2 / T3
+    const tier = key === 'chest3' ? 3 : key === 'chest2' ? 2 : 1;
+    const w = [0, 1.2, 1.7, 2.1][tier], hh = [0, 0.9, 1.3, 1.6][tier], dd = [0, 1.0, 1.4, 1.7][tier];
+    const col = tier === 3 ? 0x3a4a5a : tier === 2 ? 0x556677 : 0x8a5a2a, slots = [0, 20, 40, 60][tier];
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, hh, dd),
+      new THREE.MeshStandardMaterial({ color: col, metalness: tier >= 2 ? 0.8 : 0.3, roughness: tier >= 2 ? 0.25 : 0.7 }));
+    m.position.set(pos.x, gy + hh / 2, pos.z);
+    m.userData.chestRef = { storage: new Array(slots).fill(null) };
     surface.add(m); build.chests.push({ mesh: m });
   }
 }
@@ -1405,7 +1423,7 @@ rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
 const rain = new THREE.Points(rainGeo, new THREE.PointsMaterial({ color: 0x9fd0ff, size: 0.35, transparent: true, opacity: 0.7 }));
 rain.visible = false; surface.add(rain);
 let rainTimer = 0, rainActive = 0, rainIdxAccum = 0;
-function rainChancePct() { return Math.min(build.raingens.length * 5, 20); }
+function rainChancePct() { let s = 0; for (const r of build.raingens) s += (r.tier === 2 ? 10 : 5); return Math.min(s, 50); }
 function updateWeather(dt) {
   for (const rg of build.raingens) rg.ring.rotation.z += dt * (rainActive > 0 ? 3 : 0.6);
   if (build.raingens.length > 0 && rainActive <= 0) {
@@ -1442,11 +1460,19 @@ function checkMilestones() {
   if (!STATE.ms3000 && idx >= MS.PLANT) { STATE.ms3000 = true;
     popup('🌱 Plant Generators unlocked!', '#6dffae');
     showBanner('PLANT LIFE UNLOCKED', 'Build Plant Generators (B) — grow 10 trees to WIN'); setTimeout(hideBanner, 4600); }
+  if (!STATE.ms4250 && idx >= MS.CHEST3) { STATE.ms4250 = true;
+    popup('🔓 Unlocked: T3 Chest & T2 Rain Generator', '#ffd54f'); }
+  if (!STATE.ms5000 && idx >= MS.T3) { STATE.ms5000 = true;
+    popup('🔓 Tier 3 unlocked!', '#ffd54f');
+    showBanner('TIER 3 UNLOCKED', 'T3 Drill · T3 Solar · T3 Base (press B)'); setTimeout(hideBanner, 4200); }
+  if (!STATE.ms13000 && idx >= MS.GRASS) { STATE.ms13000 = true;
+    popup('🌿 Grass is spreading across the shore!', '#6dffae');
+    showBanner('THE LAND IS GREENING', 'Grass now spreads around the water'); setTimeout(hideBanner, 4200); }
 }
 
 /* ---- plant generators: grass + trees, and the win condition ---- */
 const grasses = [], trees = []; let treesGrown = 0, winTriggered = false;
-const MAX_GRASS = 500, MAX_TREES = 60, WIN_TREES = 10;
+const MAX_GRASS = 500, MAX_TREES = 20, WIN_TREES = 10;
 function plantSpot(gen, fn) {
   const a = Math.random() * Math.PI * 2, r = 3 + Math.random() * 11;
   const x = gen.mesh.position.x + Math.cos(a) * r, z = gen.mesh.position.z + Math.sin(a) * r;
@@ -1455,10 +1481,20 @@ function plantSpot(gen, fn) {
   if (surfH(x, z) < ocean.position.y + 0.4) return;   // not underwater
   fn(x, z);
 }
+// trees can now appear ANYWHERE on dry land across the map (not just near the generator)
+function spawnTreeAnywhere() {
+  if (trees.length >= MAX_TREES) return;
+  const lim = SURF_SIZE / 2 - 8;
+  for (let a = 0; a < 14; a++) {
+    const x = (Math.random() * 2 - 1) * lim, z = (Math.random() * 2 - 1) * lim;
+    if (surfH(x, z) < ocean.position.y + 0.4) continue;   // keep them out of the water
+    spawnTree(x, z); return;
+  }
+}
 function spawnGrass(x, z) {
   if (grasses.length >= MAX_GRASS) return;
   const m = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.5, 5),
-    new THREE.MeshStandardMaterial({ color: 0x3fa83f, roughness: 1 }));
+    new THREE.MeshStandardMaterial({ color: 0x2f8a35, roughness: 1 }));   // a touch darker green
   m.position.set(x, surfH(x, z) + 0.25, z); m.rotation.y = Math.random() * 6; surface.add(m); grasses.push(m);
 }
 function spawnTree(x, z) {
@@ -1476,7 +1512,7 @@ function updatePlants(dt) {
     if (pg.bulb) pg.bulb.material.emissiveIntensity = 0.5 + Math.sin(performance.now() * 0.004) * 0.3;
     pg.grassTimer += dt; pg.treeTimer += dt;
     if (pg.grassTimer >= 6)  { pg.grassTimer = 0; for (let k = 0; k < pg.tier; k++) plantSpot(pg, spawnGrass); }
-    if (pg.treeTimer  >= 12) { pg.treeTimer  = 0; for (let k = 0; k < pg.tier; k++) plantSpot(pg, spawnTree); }
+    if (pg.treeTimer  >= 12) { pg.treeTimer  = 0; for (let k = 0; k < pg.tier; k++) spawnTreeAnywhere(); }
   }
   for (const t of trees) {
     if (t.growth < 1) {
@@ -1543,9 +1579,10 @@ function goToWonStation() {
 
 /* ---- shoreline greening: near water, over time, only once water exists + plant gens built ---- */
 let greenTimer = 0;
-const GREEN_MUL = [0.5, 2.7, 0.3], GREEN_BAND = 4;   // how green, and how far above the water line
+const GREEN_MUL = [0.42, 1.95, 0.26], GREEN_BAND = 4;   // a little darker green; how far above the water line
 function updateGreening(dt) {
-  if (!build.plantgens.length || ocean.position.y <= -8) return;  // need plant gens AND water present
+  // grass spreads once the Index passes 13,000, and only where water is present + a plant gen exists
+  if (STATE.terraformIndex < MS.GRASS || !build.plantgens.length || ocean.position.y <= -8) return;
   greenTimer += dt; if (greenTimer < 0.4) return;
   const step = greenTimer / 30; greenTimer = 0;       // ~30s from bare to lush
   const oy = ocean.position.y; let changed = false;
@@ -1567,9 +1604,9 @@ function updateSurface(dt) {
   if (respawnTimer >= 300) { respawnTimer = 0; respawnRocks(); }
   // drills always run: T1 = +1 Index / 10s, T2 = +2 Index / 8s (no power needed)
   for (const d of build.drills) {
-    if (d.bit) d.bit.rotation.y += (d.tier === 2 ? 11 : 8) * dt;
+    if (d.bit) d.bit.rotation.y += (d.tier === 3 ? 14 : d.tier === 2 ? 11 : 8) * dt;
     d.timer += dt;
-    const period = d.tier === 2 ? 8 : 10, gain = d.tier === 2 ? 2 : 1;
+    const period = d.tier === 3 ? 6 : d.tier === 2 ? 8 : 10, gain = d.tier === 3 ? 3 : d.tier === 2 ? 2 : 1;
     if (d.timer >= period) { d.timer = 0; addTerraformIndex(gain); drillTick(d); }
   }
   updateWeather(dt);
