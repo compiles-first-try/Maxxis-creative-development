@@ -25,11 +25,22 @@ offline file for double-click play.
 
 ## 🔴 Also in this repo: Mars Terraform (intro level)
 
-A second game lives here too. You're stranded in a station **orbiting a barren
-Mars** at **Terraformation Index 0**. Float around in first person, find the
-**2 missing batteries**, drag one into your **✋ hand slot**, feed both into the
-**Power Box**, then **click the button** — the lasers fire for 5 seconds, Mars
-heats up and changes texture, and you're **teleported to the surface**.
+A second game lives here too. It opens on **Earth, on launch day**: you walk up
+to a **rocket** on the pad, press **F** to board, and **🚀 blast off** — the
+rocket climbs, the blue sky fades to the black of space, and you **dock at the
+station orbiting a barren Mars** at **Terraformation Index 0**. Aboard the
+station you float around in first person, find the **2 missing batteries**, drag
+one into your **✋ hand slot**, feed both into the **Power Box**, then **click the
+button** — the lasers fire for 5 seconds, Mars heats up and changes texture, and
+you're **teleported to the surface**.
+
+### 🌍 Chapter 0 — Earth & the rocket launch (Survival only)
+
+Survival now starts on **Earth**. A grassy launch field with a **rocket on the
+pad** — walk up (**W A S D**, mouse to look) and press **F** to board. A liftoff
+cinematic plays (rocket rises, flame roaring, sky turning to stars), then you
+arrive at the station and the story continues as before. Creative mode skips
+straight to the Mars surface.
 
 | Key / input | Action |
 |---|---|
