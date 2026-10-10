@@ -215,6 +215,13 @@
   #redflash { position: fixed; inset: 0; z-index: 9; pointer-events: none; opacity: 0; transition: opacity .25s;
     background: radial-gradient(circle at 50% 50%, rgba(255,0,0,0) 35%, rgba(180,0,0,0.6) 100%); }
   #redflash.on { opacity: 1; }
+  /* mining progress bar (hold to mine ~5s) */
+  #mineHud { position: fixed; top: 54%; left: 50%; transform: translateX(-50%); z-index: 7; display: none;
+    width: 190px; text-align: center; pointer-events: none; }
+  #mineHud .lbl { font-size: 13px; color: #ffe0a0; margin-bottom: 5px; text-shadow: 0 1px 3px #000; }
+  #mineTrack { height: 12px; border-radius: 8px; background: rgba(10,16,22,0.65);
+    border: 1px solid rgba(255,190,110,0.6); overflow: hidden; }
+  #mineBar { height: 100%; width: 0%; background: linear-gradient(90deg,#ffd27a,#ff8a3c); transition: width .08s linear; }
 
   /* ---------- Touch controls (mobile) ---------- */
   html, body { touch-action: none; -webkit-user-select: none; -webkit-touch-callout: none; overscroll-behavior: none; }
@@ -303,7 +310,7 @@
     </button>
     <button class="modeBtn" id="creativeBtn">
       <div class="mt">✦ CREATIVE</div>
-      <div class="md">Everything unlocked, unlimited resources. Mars is still barren — terraform it your way. Reach 30,000 Index to win.</div>
+      <div class="md">Everything unlocked, unlimited resources. Mars is still barren — terraform it your way. Reach 20,000 Index to win.</div>
     </button>
   </div>
 </div>
@@ -340,6 +347,7 @@
 </div>
 <div id="minePop"></div>
 <div id="oxHud" class="hud"></div>
+<div id="mineHud"><div class="lbl">⛏️ Mining…</div><div id="mineTrack"><div id="mineBar"></div></div></div>
 <div id="redflash"></div>
 
 <div id="mapOverlay"><div class="panel">
@@ -771,7 +779,8 @@ function spawnBatch(type, n) {
   }
 }
 function spawnRocks() {
-  spawnBatch('iron', 46); spawnBatch('titanium', 26); spawnBatch('silicon', 32); spawnBatch('quartz', 9);
+  // iron is now by far the most common; quartz a little more common than before
+  spawnBatch('iron', 90); spawnBatch('titanium', 18); spawnBatch('silicon', 24); spawnBatch('quartz', 15);
 }
 
 // resources, structures, build state
@@ -855,14 +864,17 @@ function doUse() {
     if (STATE.focus && STATE.focus.userData.interact.kind === 'button' && STATE.buttonArmed) startFiring();
   } else if (STATE.phase === 'surface') {
     if (buildPlacing) placeAtAim();
-    else if (toolEquipped) doMine();
+    // mining is now a HOLD action (~5s) handled in updateMining(); a click alone no longer mines
   }
 }
+let useHeld = false;   // true while the mouse / USE button is held down (drives hold-to-mine)
 canvas.addEventListener('click', () => {
   if (anyOverlay() || STATE.phase === 'won') return;
   if (!pointerLocked && !isTouch) { requestLock(); return; }
   doUse();
 });
+canvas.addEventListener('mousedown', e => { if (e.button === 0) useHeld = true; });
+addEventListener('mouseup',   e => { if (e.button === 0) useHeld = false; });
 canvas.addEventListener('contextmenu', e => { e.preventDefault(); if (buildPlacing) cancelPlacing(); });
 document.addEventListener('pointerlockchange', () => {
   pointerLocked = (document.pointerLockElement === canvas);
@@ -930,7 +942,14 @@ if (isTouch) {
     if (act === 'B' && !mapOpen && !chestOpen && !invOpen) toggleBuild();
   }
   document.querySelectorAll('.tbtn').forEach(b => {
-    b.addEventListener('touchstart', e => { e.preventDefault(); doAct(b.dataset.act); }, { passive: false });
+    b.addEventListener('touchstart', e => { e.preventDefault();
+      if (b.dataset.act === 'USE') { useHeld = true; }   // hold USE to mine (~5s)
+      doAct(b.dataset.act);
+    }, { passive: false });
+    if (b.dataset.act === 'USE') {
+      const rel = e => { e.preventDefault(); useHeld = false; };
+      b.addEventListener('touchend', rel); b.addEventListener('touchcancel', rel);
+    }
   });
 }
 
@@ -1211,12 +1230,25 @@ function removeRock(m) {
   let i = rocks.findIndex(r => r.mesh === m); if (i >= 0) rocks.splice(i, 1);
   i = rockMeshes.indexOf(m); if (i >= 0) rockMeshes.splice(i, 1);
 }
-function doMine() {
-  const m = aimRock(); if (!m) return;
+function completeMine(m) {
   const rk = m.userData.rock;
   RES[rk.type] += rk.amount; addTerraformIndex(1);
   popup('+' + rk.amount + ' ' + ROCK[rk.type].emoji + ' ' + ROCK[rk.type].label);
   removeRock(m);
+}
+// hold-to-mine: aim a rock and hold USE for MINE_TIME seconds to break it
+const MINE_TIME = 5;
+let mining = null;   // { mesh, t }
+function updateMining(dt) {
+  const active = STATE.phase === 'surface' && toolEquipped && useHeld && !buildPlacing && !anyOverlay();
+  const m = active ? aimRock() : null;
+  if (!m) { mining = null; el('mineHud').style.display = 'none'; return; }
+  if (!mining || mining.mesh !== m) mining = { mesh: m, t: 0 };   // new rock resets the timer
+  mining.t += dt;
+  const pct = Math.min(1, mining.t / MINE_TIME);
+  el('mineHud').style.display = 'block';
+  el('mineBar').style.width = (pct * 100) + '%';
+  if (pct >= 1) { completeMine(m); mining = null; el('mineHud').style.display = 'none'; }
 }
 
 /* ---- aiming helpers for placement ---- */
@@ -1484,9 +1516,10 @@ const ROCK_TYPES = ['iron', 'titanium', 'silicon', 'quartz'];
 function respawnRocks() {
   const bases = [[0, 0]];                                   // capsule + every habitat base
   for (const h of build.habitats) bases.push([h.mesh.position.x, h.mesh.position.z]);
+  const pool = ['iron','iron','iron','iron','iron','iron','titanium','silicon','silicon','quartz'];  // mostly iron
   let placed = 0;
   for (let n = 0; n < 10; n++) {
-    const type = ROCK_TYPES[Math.floor(Math.random() * ROCK_TYPES.length)];
+    const type = pool[Math.floor(Math.random() * pool.length)];
     const base = bases[Math.floor(Math.random() * bases.length)];
     for (let a = 0; a < 24; a++) {                          // find a valid nearby spot
       const ang = Math.random() * Math.PI * 2, rad = 10 + Math.random() * 50;  // 10–60 units from base
@@ -1651,7 +1684,7 @@ function goToWonStation() {
   // keep the message near the top so it never blocks the view of Mars
   el('banner').style.top = '14%';
   const title = winReason === 'index' ? '🌍 MARS FULLY TERRAFORMED!' : '🌍 YOU TERRAFORMED MARS!';
-  const how = winReason === 'index' ? '30,000 Terraformation Index reached — ' : 'Life has taken hold — ';
+  const how = winReason === 'index' ? '20,000 Terraformation Index reached — ' : 'Life has taken hold — ';
   let left = 10;
   showBanner(title, how + 'returning to menu in ' + left + 's');
   const iv = setInterval(() => {
@@ -1666,14 +1699,24 @@ function goToWonStation() {
 let greenTimer = 0;
 const GREEN_MUL = [0.42, 1.95, 0.26], GREEN_BAND = 4;   // a little darker green; how far above the water line
 function updateGreening(dt) {
-  // grass spreads once the Index passes 13,000, and only where water is present + a plant gen exists
-  if (STATE.terraformIndex < MS.GRASS || !build.plantgens.length || ocean.position.y <= -8) return;
+  // grass greens the ground once the Index passes 4,500 AND a plant generator exists.
+  // It now appears as RANDOM SPOTS spread anywhere on dry land (plus the shoreline when water is present).
+  if (STATE.terraformIndex < MS.GRASS || !build.plantgens.length) return;
   greenTimer += dt; if (greenTimer < 0.4) return;
   const step = greenTimer / 30; greenTimer = 0;       // ~30s from bare to lush
-  const oy = ocean.position.y; let changed = false;
+  const oy = ocean.position.y, hasWater = oy > -8;
+  const floor = hasWater ? oy + 0.3 : -5;             // stay out of the water / deepest pits
+  // seed a few new random green spots on dry land each tick
+  for (let s = 0; s < 4; s++) {
+    const i = (Math.random() * terCount) | 0;
+    if (terGreen[i] === 0 && terY[i] > floor) terGreen[i] = 0.001;
+  }
+  let changed = false;
   for (let i = 0; i < terCount; i++) {
     const vy = terY[i];
-    if (vy > oy - 0.5 && vy < oy + GREEN_BAND && terGreen[i] < 1) {   // shoreline band just above water
+    // the shoreline band also auto-greens when there's water
+    if (hasWater && terGreen[i] === 0 && vy > oy - 0.5 && vy < oy + GREEN_BAND) terGreen[i] = 0.001;
+    if (terGreen[i] > 0 && terGreen[i] < 1) {
       const gv = terGreen[i] = Math.min(1, terGreen[i] + step);
       terColAttr.setXYZ(i, 1 + (GREEN_MUL[0] - 1) * gv, 1 + (GREEN_MUL[1] - 1) * gv, 1 + (GREEN_MUL[2] - 1) * gv);
       changed = true;
@@ -1738,15 +1781,16 @@ function updateSurface(dt) {
   updateWeather(dt);
   updatePlants(dt);
   updateGreening(dt);
+  updateMining(dt);
   updateTerraformWorld();
   checkMilestones();
-  if (STATE.terraformIndex >= 30000) triggerWin('index');   // reaching 30,000 ends the game
+  if (STATE.terraformIndex >= 20000) triggerWin('index');   // reaching 20,000 ends the game
   if (buildPlacing) {
     updateGhost();
     showPrompt('<span class="key">Click</span> place ' + BUILDABLES[selectedBuild].name + ' · <span class="key">Esc</span> cancel');
   } else if (toolEquipped) {
     const m = aimRock();
-    if (m) { const t = m.userData.rock.type; showPrompt('<span class="key">Click</span> mine ' + ROCK[t].emoji + ' ' + ROCK[t].label); }
+    if (m) { const t = m.userData.rock.type; showPrompt('<span class="key">Hold click</span> mine ' + ROCK[t].emoji + ' ' + ROCK[t].label + ' (5s)'); }
     else { const c = aimObject(build.chests.map(x => x.mesh)); showPrompt(c ? '<span class="key">F</span> open chest' : ''); }
   } else {
     const c = aimObject(build.chests.map(x => x.mesh)); showPrompt(c ? '<span class="key">F</span> open chest' : '');
@@ -1844,7 +1888,7 @@ el('creativeBtn').addEventListener('click', () => {
   el('modeMenu').style.display = 'none'; el('start').style.display = 'none';
   teleportToSurface();
   el('objText').innerHTML = '✦ Creative — everything unlocked, unlimited resources. Build drills to raise the Index, ' +
-                            'and Plant Generators for life. Reach <b>30,000 Index</b> to win.';
+                            'and Plant Generators for life. Reach <b>20,000 Index</b> to win.';
   showBanner('✦ CREATIVE MODE', 'Everything unlocked · terraform Mars your way');
   setTimeout(hideBanner, 3800);
   requestLock();

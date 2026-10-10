@@ -59,14 +59,18 @@ everywhere**, free to roam without a capsule or base. 🌬️
 | Key / input | Action |
 |---|---|
 | **X** | Pull out / put away the **mining tool** (starts at Lv 1) |
-| **Click** | Mine the rock you're aiming at (or place a building) |
+| **Hold click** | Mine the rock you're aiming at — **hold ~5 seconds** (progress bar) |
+| **Click** | Place a building (when one is selected) |
 | **M** | **Material map** — top-down view of where each rock is |
 | **B** | **Build menu** — craft & place structures |
 | **Scroll wheel** | Rotate the building you're about to place |
 | **F** | Open a nearby **storage chest** |
 
-**Rocks** (mining-tool only): 🪨 Iron (gray, 1–2), ⚙️ Titanium (dark gray, 1–2),
-🔷 Silicon (blue, for glass, 1–3), and uncommon 💎 Quartz (found in valleys).
+**Rocks** (mining-tool only): 🪨 Iron (gray, 1–2) — now **by far the most common**,
+⚙️ Titanium (dark gray, 1–2), 🔷 Silicon (blue, for glass, 1–3), and 💎 Quartz
+(found in valleys, now **a bit more common** than before). **Mining takes about
+5 seconds** — aim a rock and **hold** the mine button; a progress bar fills, and
+the rock breaks when it's full.
 
 **Buildables** — Tier 1 is available from the start; Tier 2 and the Rain
 Generator **unlock by Terraformation Index** (the build menu shows a 🔒 with the
@@ -110,26 +114,30 @@ Trees from Plant Generators now sprout **anywhere on dry land** across the map
   suit timer. 🌬️
 - **3000** → **Plant Generators** unlock. Build them to grow grass and trees.
 - **4250** → **T3 Chest** and **T2 Rain Generator** unlock.
-- **4500** → the **ground turns green** around the water's edge over time
-  (needs a **Plant Generator**, and grass only spreads where water has actually
-  appeared, creeping outward as the oceans rise).
+- **4500** → the **ground turns green** in **random spots across the dry land**
+  (and along the water's edge) over time — needs a **Plant Generator** built.
 - **5000** → **Tier 3** unlocks: T3 Drill, T3 Solar, T3 Base.
-- **🏆 Win / end the game:** reach **30,000 Terraformation Index**. You're
+- **🏆 Win / end the game:** reach **20,000 Terraformation Index**. You're
   teleported back to the space station, and looking out the window you see a
   living, blue-and-green terraformed Mars (10-second look, then back to the
   menu). Trees and grass are now just for life/decoration — they don't end the
   game.
 
 > **v0.5 big update:** Tier 3 everything (drill, solar, chest, habitat base) +
-> a T2 Rain Generator, trees now sprout anywhere on the map (max 20), a
-> 30,000-Index ending, and the shoreline grass (a little darker) spreads from
-> Index 4,500 once you've built a Plant Generator.
+> a T2 Rain Generator, trees now sprout anywhere on the map (max 20), and the
+> grass (a little darker) spreads from Index 4,500 once you've built a Plant
+> Generator.
+>
+> **Latest tuning:** 🪨 iron is now by far the most common rock (quartz a little
+> more common too), mining a rock takes **~5 seconds of holding** (progress bar),
+> grass now appears as **random spots across the land** at Index 4,500, and the
+> game now ends at **20,000 Index**.
 
 ### 🎛️ Two ways to play (menu at the start)
 
 - **🚀 Survival** — the full story: station → lasers → mine & build your way up.
 - **✦ Creative** — everything unlocked, **unlimited resources**. Mars still
-  starts barren, so you still have to terraform it (reach 30,000 Index to win) —
+  starts barren, so you still have to terraform it (reach 20,000 Index to win) —
   just without the grind.
 
 ### 📱 Mobile / touch
