@@ -53,6 +53,7 @@ Every **5 minutes, two random rock types respawn** so you never run dry.
 | **Click** | Mine the rock you're aiming at (or place a building) |
 | **M** | **Material map** — top-down view of where each rock is |
 | **B** | **Build menu** — craft & place structures |
+| **Scroll wheel** | Rotate the building you're about to place |
 | **F** | Open a nearby **storage chest** |
 
 **Rocks** (mining-tool only): 🪨 Iron (gray, 1–2), ⚙️ Titanium (dark gray, 1–2),
@@ -64,6 +65,7 @@ number until you reach it):
 
 | Item | Cost | Unlocks at | Does |
 |---|---|---|---|
+| 🔥 T1 Heater | 2 iron | start | Starter build — warms Mars: **+2 Index every 8s** |
 | 🛠️ T1 Pressure Drill | 2 iron · 1 titanium | start | **+1 Index every 10s** (always, no power needed) + mines nearby rocks |
 | 🔋 T1 Solar Panel | 2 silicon · 1 iron | start | Produces 10⚡ |
 | 🏠 T1 Habitation Module | 5 iron · 1 silicon | start | Solid dome (can't walk through) · unlimited oxygen |
@@ -71,6 +73,8 @@ number until you reach it):
 | 📦 T1 Storage Chest | 1 iron | start | 20 storage slots |
 | ⛏️ T2 Pressure Drill | 4 iron · 2 titanium | **500** | **+2 Index every 8s** · bigger, steel look |
 | 🧰 T2 Storage Chest | 2 iron · 1 silicon | **500** | 40 storage slots · bigger |
+| ♨️ T2 Heater | 3 iron · 1 silicon | **500** | +4 Index every 7s |
+| 🌋 T3 Heater | 5 iron · 2 silicon · 1 titanium | **1350** | +6 Index every 6s |
 | 🏛️ T2 Habitation Base | 5 iron · 2 silicon · 2 titanium | **500** | Even bigger glassy dome |
 | 🌧️ T1 Rain Generator | 2 quartz · 2 iron · 2 silicon | **1500** | Each adds **+5% rain chance** — rain speeds terraforming |
 | 🔆 T2 Solar Panel | 5 silicon · 2 iron | **1500** | Produces 25⚡ · bigger, darker |
@@ -99,13 +103,11 @@ Trees from Plant Generators now sprout **anywhere on dry land** across the map
   (needs a **Plant Generator**, and grass only spreads where water has actually
   appeared, creeping outward as the oceans rise).
 - **5000** → **Tier 3** unlocks: T3 Drill, T3 Solar, T3 Base.
-- **🏆 Two ways to win / end the game:**
-  - **Grow 10 full-size trees**, or
-  - **Reach 30,000 Terraformation Index**.
-
-  Either one ends the game: you're teleported back to the space station, and
-  looking out the window you see a living, blue-and-green terraformed Mars
-  (10-second look, then back to the menu).
+- **🏆 Win / end the game:** reach **30,000 Terraformation Index**. You're
+  teleported back to the space station, and looking out the window you see a
+  living, blue-and-green terraformed Mars (10-second look, then back to the
+  menu). Trees and grass are now just for life/decoration — they don't end the
+  game.
 
 > **v0.5 big update:** Tier 3 everything (drill, solar, chest, habitat base) +
 > a T2 Rain Generator, trees now sprout anywhere on the map (max 20), a
@@ -116,7 +118,7 @@ Trees from Plant Generators now sprout **anywhere on dry land** across the map
 
 - **🚀 Survival** — the full story: station → lasers → mine & build your way up.
 - **✦ Creative** — everything unlocked, **unlimited resources**. Mars still
-  starts barren, so you still have to terraform it (and grow 10 trees to win) —
+  starts barren, so you still have to terraform it (reach 30,000 Index to win) —
   just without the grind.
 
 ### 📱 Mobile / touch
