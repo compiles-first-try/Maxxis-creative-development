@@ -85,10 +85,17 @@ number until you reach it):
 - **1500** → **Rain Generators** and the T2 Solar Panel unlock.
 - **2000** → the sky is **fully blue** and the **oceans are full** (water fills
   the valleys). 🌍
-- **3000** → **Plant Generators** unlock. Build them to grow grass and trees.
-- **🏆 Grow 10 full-size trees** → **you win!** You're teleported back to the
-  space station, and looking out the window you see a living, blue-and-green
-  terraformed Mars.
+- **3000** → **Plant Generators** unlock. Build them to grow grass and trees,
+  and the **ground turns green** around the water's edge over time (the grass
+  only spreads where water has actually appeared, and creeps outward as the
+  oceans rise).
+- **🏆 Two ways to win / end the game:**
+  - **Grow 10 full-size trees**, or
+  - **Reach 20,000 Terraformation Index**.
+
+  Either one ends the game: you're teleported back to the space station, and
+  looking out the window you see a living, blue-and-green terraformed Mars
+  (10-second look, then back to the menu).
 
 ### 🎛️ Two ways to play (menu at the start)
 

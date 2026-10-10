@@ -659,8 +659,15 @@ terGeo.rotateX(-Math.PI / 2);
   for (let i = 0; i < p.count; i++) p.setY(i, surfH(p.getX(i), p.getZ(i)));
   terGeo.computeVertexNormals(); }
 const terTex = marsBarrenTexture(); terTex.wrapS = terTex.wrapT = THREE.RepeatWrapping; terTex.repeat.set(24, 24);
-const terrain = new THREE.Mesh(terGeo, new THREE.MeshStandardMaterial({ map: terTex, roughness: 1 }));
+const terrain = new THREE.Mesh(terGeo, new THREE.MeshStandardMaterial({ map: terTex, roughness: 1, vertexColors: true }));
 surface.add(terrain);
+// vertex colours let the shoreline turn green over time (near water, only once plant gens exist)
+const terCount = terGeo.attributes.position.count;
+const terY = new Float32Array(terCount);
+for (let i = 0; i < terCount; i++) terY[i] = terGeo.attributes.position.getY(i);
+const terGreen = new Float32Array(terCount);                 // 0 = barren red, 1 = lush
+const terColAttr = new THREE.BufferAttribute(new Float32Array(terCount * 3).fill(1), 3);
+terGeo.setAttribute('color', terColAttr);                    // start all white → texture unchanged
 
 // valleys stay dry at first — low ground below this height is "valley" (where quartz hides);
 // oceans fill these back in as the Terraformation Index climbs past 500 toward 2000.
@@ -1501,9 +1508,9 @@ function marsTerraformedTexture() {
   }
   return new THREE.CanvasTexture(c);
 }
-let marsTerraformedTex = null;
-function triggerWin() {
-  if (winTriggered) return; winTriggered = true;
+let marsTerraformedTex = null, winReason = 'trees';
+function triggerWin(reason) {
+  if (winTriggered) return; winTriggered = true; winReason = reason || 'trees';
   if (pointerLocked) document.exitPointerLock();
   el('fade').classList.add('on');
   setTimeout(() => { goToWonStation(); el('fade').classList.remove('on'); }, 1100);
@@ -1522,14 +1529,35 @@ function goToWonStation() {
   el('indexHud').style.display = 'none'; showPrompt('');
   // keep the message near the top so it never blocks the view of Mars
   el('banner').style.top = '14%';
+  const title = winReason === 'index' ? '🌍 MARS FULLY TERRAFORMED!' : '🌍 YOU TERRAFORMED MARS!';
+  const how = winReason === 'index' ? '20,000 Terraformation Index reached — ' : 'Life has taken hold — ';
   let left = 10;
-  showBanner('🌍 YOU TERRAFORMED MARS!', 'Look out the window — returning to menu in ' + left + 's');
+  showBanner(title, how + 'returning to menu in ' + left + 's');
   const iv = setInterval(() => {
     left--;
     if (left <= 0) { clearInterval(iv); location.reload(); return; }   // back to the mode menu
     const s = el('banner').querySelector('.s');
-    if (s) s.textContent = 'Look out the window — returning to menu in ' + left + 's';
+    if (s) s.textContent = how + 'returning to menu in ' + left + 's';
   }, 1000);
+}
+
+/* ---- shoreline greening: near water, over time, only once water exists + plant gens built ---- */
+let greenTimer = 0;
+const GREEN_MUL = [0.5, 2.7, 0.3], GREEN_BAND = 4;   // how green, and how far above the water line
+function updateGreening(dt) {
+  if (!build.plantgens.length || ocean.position.y <= -8) return;  // need plant gens AND water present
+  greenTimer += dt; if (greenTimer < 0.4) return;
+  const step = greenTimer / 30; greenTimer = 0;       // ~30s from bare to lush
+  const oy = ocean.position.y; let changed = false;
+  for (let i = 0; i < terCount; i++) {
+    const vy = terY[i];
+    if (vy > oy - 0.5 && vy < oy + GREEN_BAND && terGreen[i] < 1) {   // shoreline band just above water
+      const gv = terGreen[i] = Math.min(1, terGreen[i] + step);
+      terColAttr.setXYZ(i, 1 + (GREEN_MUL[0] - 1) * gv, 1 + (GREEN_MUL[1] - 1) * gv, 1 + (GREEN_MUL[2] - 1) * gv);
+      changed = true;
+    }
+  }
+  if (changed) terColAttr.needsUpdate = true;
 }
 
 /* ---- per-frame surface update ---- */
@@ -1546,8 +1574,10 @@ function updateSurface(dt) {
   }
   updateWeather(dt);
   updatePlants(dt);
+  updateGreening(dt);
   updateTerraformWorld();
   checkMilestones();
+  if (STATE.terraformIndex >= 20000) triggerWin('index');   // reaching 20,000 ends the game
   if (buildPlacing) {
     updateGhost();
     showPrompt('<span class="key">Click</span> place ' + BUILDABLES[selectedBuild].name + ' · <span class="key">Esc</span> cancel');
