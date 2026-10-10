@@ -59,7 +59,7 @@ everywhere**, free to roam without a capsule or base. 🌬️
 | Key / input | Action |
 |---|---|
 | **X** | Pull out / put away the **mining tool** (starts at Lv 1) |
-| **Hold click** | Mine the rock you're aiming at — **hold ~5 seconds** (progress bar) |
+| **Hold click** | Mine the rock you're aiming at — **hold ~2.5 seconds** (progress bar) |
 | **Click** | Place a building (when one is selected) |
 | **M** | **Material map** — top-down view of where each rock is |
 | **B** | **Build menu** — craft & place structures |
@@ -69,7 +69,7 @@ everywhere**, free to roam without a capsule or base. 🌬️
 **Rocks** (mining-tool only): 🪨 Iron (gray, 1–2) — now **by far the most common**,
 ⚙️ Titanium (dark gray, 1–2), 🔷 Silicon (blue, for glass, 1–3), and 💎 Quartz
 (found in valleys, now **a bit more common** than before). **Mining takes about
-5 seconds** — aim a rock and **hold** the mine button; a progress bar fills, and
+2.5 seconds** — aim a rock and **hold** the mine button; a progress bar fills, and
 the rock breaks when it's full.
 
 **Buildables** — Tier 1 is available from the start; Tier 2 and the Rain
@@ -129,7 +129,7 @@ Trees from Plant Generators now sprout **anywhere on dry land** across the map
 > Generator.
 >
 > **Latest tuning:** 🪨 iron is now by far the most common rock (quartz a little
-> more common too), mining a rock takes **~5 seconds of holding** (progress bar),
+> more common too), mining a rock takes **~2.5 seconds of holding** (progress bar),
 > grass now appears as **random spots across the land** at Index 4,500, and the
 > game now ends at **20,000 Index**.
 

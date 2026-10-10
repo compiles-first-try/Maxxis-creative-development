@@ -1237,7 +1237,7 @@ function completeMine(m) {
   removeRock(m);
 }
 // hold-to-mine: aim a rock and hold USE for MINE_TIME seconds to break it
-const MINE_TIME = 5;
+const MINE_TIME = 2.5;
 let mining = null;   // { mesh, t }
 function updateMining(dt) {
   const active = STATE.phase === 'surface' && toolEquipped && useHeld && !buildPlacing && !anyOverlay();
@@ -1790,7 +1790,7 @@ function updateSurface(dt) {
     showPrompt('<span class="key">Click</span> place ' + BUILDABLES[selectedBuild].name + ' · <span class="key">Esc</span> cancel');
   } else if (toolEquipped) {
     const m = aimRock();
-    if (m) { const t = m.userData.rock.type; showPrompt('<span class="key">Hold click</span> mine ' + ROCK[t].emoji + ' ' + ROCK[t].label + ' (5s)'); }
+    if (m) { const t = m.userData.rock.type; showPrompt('<span class="key">Hold click</span> mine ' + ROCK[t].emoji + ' ' + ROCK[t].label + ' (2.5s)'); }
     else { const c = aimObject(build.chests.map(x => x.mesh)); showPrompt(c ? '<span class="key">F</span> open chest' : ''); }
   } else {
     const c = aimObject(build.chests.map(x => x.mesh)); showPrompt(c ? '<span class="key">F</span> open chest' : '');
