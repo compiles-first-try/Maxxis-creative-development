@@ -81,7 +81,8 @@
   #invPanel h2 { color: #ffd27a; font-size: 20px; margin-bottom: 4px; }
   #invPanel .sub { font-size: 13px; opacity: 0.8; margin-bottom: 16px; }
   #handRow, #bagGrid { display: flex; gap: 8px; flex-wrap: wrap; }
-  #bagGrid { margin-top: 14px; max-height: 46vh; overflow-y: auto; }
+  #bagGrid { margin-top: 14px; max-height: 46vh; overflow-y: auto; overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch; touch-action: pan-y; }
   .slot {
     width: 72px; height: 72px; border-radius: 12px; background: #1a0804;
     border: 2px solid #5a2414; display: flex; align-items: center; justify-content: center;
@@ -163,7 +164,9 @@
   .maplegend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-size: 13px; }
   .maplegend span { display: inline-flex; align-items: center; gap: 6px; }
   .dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
-  .buildlist { display: flex; flex-direction: column; gap: 10px; width: 460px; max-width: 92vw; }
+  .buildlist { display: flex; flex-direction: column; gap: 10px; width: 460px; max-width: 92vw;
+    max-height: 68vh; overflow-y: auto; padding-right: 8px; overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch; touch-action: pan-y; }
   .builditem { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #5a2414;
     border-radius: 10px; background: #1a0804; cursor: pointer; }
   .builditem:hover { border-color: #ffd54f; background: #2a1108; }
