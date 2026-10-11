@@ -83,6 +83,16 @@ everywhere**, free to roam without a capsule or base. 🌬️
 2.5 seconds** — aim a rock and **hold** the mine button; a progress bar fills, and
 the rock breaks when it's full.
 
+**🎒 Mined ore goes into your inventory (no stacking).** Every ore you mine takes
+its **own slot** in the bag — just like Minecraft blocks, they don't pile up into
+one stack. The bag has **24 slots**; when it's **full you can't mine** until you
+build something or drop ores into a 📦 storage chest to free space. The resource
+counters (top-right) just show how many of each ore are in your bag.
+
+**🏗️ The build menu is organized into labeled sections** — ⭐ Starter · 🔓 Tier 2 ·
+🔥 Heat/Rain/Power · 🌱 Plant Life · 📦 Late-game · 🏙️ Tier 3 — so it's easy to
+scan instead of one long list.
+
 **Buildables** — Tier 1 is available from the start; Tier 2 and the Rain
 Generator **unlock by Terraformation Index** (the build menu shows a 🔒 with the
 number until you reach it):

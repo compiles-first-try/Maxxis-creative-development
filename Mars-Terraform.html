@@ -80,10 +80,10 @@
   }
   #invPanel h2 { color: #ffd27a; font-size: 20px; margin-bottom: 4px; }
   #invPanel .sub { font-size: 13px; opacity: 0.8; margin-bottom: 16px; }
-  #handRow, #bagGrid { display: flex; gap: 10px; flex-wrap: wrap; }
-  #bagGrid { margin-top: 14px; }
+  #handRow, #bagGrid { display: flex; gap: 8px; flex-wrap: wrap; }
+  #bagGrid { margin-top: 14px; max-height: 46vh; overflow-y: auto; }
   .slot {
-    width: 92px; height: 92px; border-radius: 12px; background: #1a0804;
+    width: 72px; height: 72px; border-radius: 12px; background: #1a0804;
     border: 2px solid #5a2414; display: flex; align-items: center; justify-content: center;
     position: relative; cursor: default; flex: 0 0 auto;
   }
@@ -94,13 +94,15 @@
   }
   .slot.drophover { border-color: #ffd54f; background: #33180a; }
   .item {
-    width: 70px; height: 70px; border-radius: 10px; display: flex; flex-direction: column;
+    width: 56px; height: 56px; border-radius: 10px; display: flex; flex-direction: column;
     align-items: center; justify-content: center; cursor: grab; user-select: none;
-    font-size: 30px; line-height: 1;
+    font-size: 24px; line-height: 1;
   }
-  .item .nm { font-size: 10px; margin-top: 3px; opacity: 0.9; }
+  .item .nm { font-size: 9px; margin-top: 2px; opacity: 0.9; }
   .item.battery { background: radial-gradient(circle at 40% 30%, #6dffae, #0b7a43); color: #04381f;
                   box-shadow: 0 0 12px rgba(80,255,170,0.5); }
+  .item.iron, .item.titanium, .item.silicon, .item.quartz {
+    background: radial-gradient(circle at 40% 30%, #4a2e1e, #1c0f08); box-shadow: 0 0 8px rgba(0,0,0,0.5); }
   #invHint { margin-top: 18px; font-size: 13px; opacity: 0.85; text-align: center; }
   #dragGhost { position: fixed; pointer-events: none; z-index: 40; opacity: 0.9;
                transform: translate(-50%,-50%); display: none; }
@@ -171,6 +173,9 @@
   .builditem .bdesc { font-size: 12px; opacity: 0.75; }
   .builditem .bcost { margin-left: auto; font-size: 14px; text-align: right; white-space: nowrap; }
   .bcost .ok { color: #6dffae; } .bcost .no { color: #ff6a4a; }
+  .buildsec { margin: 16px 2px 7px; font-size: 13px; font-weight: bold; letter-spacing: 0.5px;
+    color: #ffd27a; border-bottom: 1px solid #5a2414; padding-bottom: 5px; }
+  .buildsec:first-child { margin-top: 2px; }
   #chestSlots { display: grid; grid-template-columns: repeat(5, 64px); gap: 8px; margin-top: 12px;
     max-height: 48vh; overflow-y: auto; }
   .cslot { width: 64px; height: 64px; border: 2px solid #5a2414; border-radius: 10px; background: #1a0804;
@@ -290,10 +295,10 @@
 <div id="invOverlay">
   <div id="invPanel">
     <h2>🎒 Inventory</h2>
-    <div class="sub">Drag items with the mouse. An item only <b>works</b> while it sits in the ✋ HAND slot.</div>
+    <div class="sub">Mined <b>ores</b> fill the bag — <b>one per slot, no stacking</b>. Drag items with the mouse; a <b>battery</b> only works in the ✋ HAND slot.</div>
     <div id="handRow"></div>
     <div id="bagGrid"></div>
-    <div id="invHint">Put a <b>battery</b> in the ✋ hand slot, close with <span class="key">E</span>, then walk to the Power Box and press <span class="key">F</span>.</div>
+    <div id="invHint">🪨 Each ore takes its own slot (24 bag slots). If the bag is <b>full</b> you can't mine — build something or drop ores in a 📦 chest to free space.</div>
   </div>
 </div>
 <div id="dragGhost"></div>
@@ -652,7 +657,7 @@ const STATE = {
   costMul: 1,        // build-cost multiplier (per mode)
 };
 // Inventory: 10 slots. Slot 0 = HAND. Each slot is null or { type:'battery' }.
-const INV = new Array(10).fill(null);
+const INV = new Array(25).fill(null);   // slot 0 = ✋ hand, slots 1–24 = bag (mined ores, non-stacking)
 const ROOM = { w: 26, h: 7, d: 18 };   // interior half-extents used below
 
 /* =======================================================================
@@ -1187,7 +1192,10 @@ function itemIcon(item) {
   if (!item) return null;
   const d = document.createElement('div');
   d.className = 'item ' + item.type;
-  d.innerHTML = (item.type === 'battery' ? '🔋' : '❓') + '<span class="nm">' + item.type + '</span>';
+  let emoji = '❓', nm = item.type;
+  if (item.type === 'battery') { emoji = '🔋'; nm = 'battery'; }
+  else if (typeof ROCK !== 'undefined' && ROCK[item.type]) { emoji = ROCK[item.type].emoji; nm = ROCK[item.type].label; }
+  d.innerHTML = emoji + '<span class="nm">' + nm + '</span>';
   d.draggable = false;
   return d;
 }
@@ -1340,8 +1348,28 @@ function effCost(cost) {
   for (const k in cost) out[k] = mul > 1 ? Math.ceil(cost[k] * mul) : Math.max(1, Math.floor(cost[k] * mul));
   return out;
 }
+/* ---- bag is the real ore storage; RES mirrors it so build/chests still work ---- */
+const ORE_TYPES = ['iron', 'titanium', 'silicon', 'quartz'];
+function bagCount(type) { let n = 0; for (let i = 0; i < INV.length; i++) if (INV[i] && INV[i].type === type) n++; return n; }
+function addOreToBag(type, n) {                         // non-stacking: one ore per slot (slots 1+)
+  let added = 0;
+  for (let i = 1; i < INV.length && added < n; i++) if (!INV[i]) { INV[i] = { type }; added++; }
+  return added;
+}
+function removeOreFromBag(type, n) {
+  let removed = 0;
+  for (let i = 0; i < INV.length && removed < n; i++) if (INV[i] && INV[i].type === type) { INV[i] = null; removed++; }
+  return removed;
+}
+function bagFreeSlots() { let n = 0; for (let i = 1; i < INV.length; i++) if (!INV[i]) n++; return n; }
+function recountRES() {                                  // RES = how many of each ore sit in the bag
+  for (const k of ORE_TYPES) RES[k] = bagCount(k);
+  refreshResHUD(build.solars.reduce((s, x) => s + (x.out || 10), 0));
+  if (invOpen) renderInventory();
+  if (chestOpen) renderChest();
+}
 function canAfford(cost) { if (STATE.creative) return true; for (const k in cost) if (RES[k] < cost[k]) return false; return true; }
-function pay(cost) { if (STATE.creative) return; for (const k in cost) RES[k] -= cost[k]; }
+function pay(cost) { if (STATE.creative) return; for (const k in cost) removeOreFromBag(k, cost[k]); recountRES(); }
 
 let popTimer = 0;
 function popup(text, color) {
@@ -1370,8 +1398,14 @@ function removeRock(m) {
 }
 function completeMine(m) {
   const rk = m.userData.rock;
-  RES[rk.type] += rk.amount; addTerraformIndex(1);
-  popup('+' + rk.amount + ' ' + ROCK[rk.type].emoji + ' ' + ROCK[rk.type].label);
+  if (!STATE.creative) {
+    if (bagFreeSlots() <= 0) { popup('🎒 Inventory full — make space (press E)!', '#ff6a4a'); return; }  // can't pick it up
+    const added = addOreToBag(rk.type, rk.amount); recountRES();
+    popup('+' + added + ' ' + ROCK[rk.type].emoji + ' ' + ROCK[rk.type].label + (added < rk.amount ? ' (bag full)' : ''));
+  } else {
+    popup('+' + rk.amount + ' ' + ROCK[rk.type].emoji + ' ' + ROCK[rk.type].label);
+  }
+  addTerraformIndex(1);
   removeRock(m);
 }
 // hold-to-mine: aim a rock and hold USE for MINE_TIME seconds to break it
@@ -1400,22 +1434,34 @@ function toggleBuild() {
   buildOpen = !buildOpen; el('buildOverlay').style.display = buildOpen ? 'block' : 'none';
   if (buildOpen) { if (pointerLocked) document.exitPointerLock(); renderBuild(); } else requestLock();
 }
+// the build menu is grouped into labeled sections
+const BUILD_SECTIONS = [
+  { title: '⭐ STARTER — build anytime',            keys: ['drill', 'solar', 'habitat', 'door', 'chest', 'heater'] },
+  { title: '🔓 TIER 2 — unlocks at 500 Index',      keys: ['heater2', 'drill2', 'chest2', 'habitat2'] },
+  { title: '🔥 HEAT · RAIN · POWER',                keys: ['heater3', 'raingen', 'solar2'] },
+  { title: '🌱 PLANT LIFE — grow grass & trees',    keys: ['plantgen', 'plantgen2', 'plantgen3'] },
+  { title: '📦 LATE-GAME STORAGE & RAIN — 4250 Index', keys: ['chest3', 'raingen2'] },
+  { title: '🏙️ TIER 3 — unlocks at 5000 Index',     keys: ['drill3', 'solar3', 'habitat3'] },
+];
 function renderBuild() {
   const list = el('buildList'); list.innerHTML = '';
-  for (const key in BUILDABLES) {
-    const b = BUILDABLES[key];
-    const ec = effCost(b.cost);
-    const locked = !STATE.creative && STATE.terraformIndex < (b.unlock || 0);
-    const ok = !locked && canAfford(ec);
-    const costStr = Object.keys(ec).map(k =>
-      '<span class="' + (RES[k] >= ec[k] ? 'ok' : 'no') + '">' + ec[k] + ' ' + ROCK[k].emoji + '</span>').join('  ');
-    const right = locked ? '<span class="bcost"><span class="no">🔒 ' + b.unlock + ' Index</span></span>'
-                         : '<span class="bcost">' + costStr + '</span>';
-    const d = document.createElement('div'); d.className = 'builditem' + (ok ? '' : ' cant');
-    d.innerHTML = '<span class="bemoji">' + b.emoji + '</span>' +
-      '<span><span class="bname">' + b.name + '</span><br><span class="bdesc">' + b.desc + '</span></span>' + right;
-    if (ok) d.onclick = () => chooseBuild(key);
-    list.appendChild(d);
+  for (const sec of BUILD_SECTIONS) {
+    const h = document.createElement('div'); h.className = 'buildsec'; h.textContent = sec.title; list.appendChild(h);
+    for (const key of sec.keys) {
+      const b = BUILDABLES[key]; if (!b) continue;
+      const ec = effCost(b.cost);
+      const locked = !STATE.creative && STATE.terraformIndex < (b.unlock || 0);
+      const ok = !locked && canAfford(ec);
+      const costStr = Object.keys(ec).map(k =>
+        '<span class="' + (RES[k] >= ec[k] ? 'ok' : 'no') + '">' + ec[k] + ' ' + ROCK[k].emoji + '</span>').join('  ');
+      const right = locked ? '<span class="bcost"><span class="no">🔒 ' + b.unlock + ' Index</span></span>'
+                           : '<span class="bcost">' + costStr + '</span>';
+      const d = document.createElement('div'); d.className = 'builditem' + (ok ? '' : ' cant');
+      d.innerHTML = '<span class="bemoji">' + b.emoji + '</span>' +
+        '<span><span class="bname">' + b.name + '</span><br><span class="bdesc">' + b.desc + '</span></span>' + right;
+      if (ok) d.onclick = () => chooseBuild(key);
+      list.appendChild(d);
+    }
   }
 }
 function structureGeo(key) {
@@ -1571,7 +1617,7 @@ function nearestRock(pos, radius) {
 }
 function drillTick(d) {
   const tgt = nearestRock(d.mesh.position, 28); if (!tgt) return;  // index is added by the caller
-  RES[tgt.type] += 1;
+  if (!STATE.creative && addOreToBag(tgt.type, 1) > 0) recountRES();  // drops ore if the bag is full
   tgt.amount -= 1; tgt.mesh.userData.rock.amount = tgt.amount;
   if (tgt.amount <= 0) removeRock(tgt.mesh);
 }
@@ -1622,16 +1668,20 @@ function renderChest() {
   }
 }
 function depositAll(type) {
-  if (RES[type] <= 0) return;
+  const count = bagCount(type); if (count <= 0) return;
   let slot = activeChest.storage.findIndex(s => s && s.type === type);
   if (slot < 0) slot = activeChest.storage.findIndex(s => !s);
   if (slot < 0) { popup('Chest full', '#ff6a4a'); return; }
   if (!activeChest.storage[slot]) activeChest.storage[slot] = { type, count: 0 };
-  activeChest.storage[slot].count += RES[type]; RES[type] = 0; renderChest();
+  activeChest.storage[slot].count += count;
+  removeOreFromBag(type, count); recountRES();        // recountRES re-renders the chest too
 }
 function withdraw(i) {
   const it = activeChest.storage[i]; if (!it) return;
-  RES[it.type] += it.count; activeChest.storage[i] = null; renderChest();
+  const added = addOreToBag(it.type, it.count);
+  if (added === 0) { popup('🎒 Inventory full', '#ff6a4a'); return; }
+  it.count -= added; if (it.count <= 0) activeChest.storage[i] = null;
+  recountRES();
 }
 
 /* ---- habitat dome collision (keep the player out unless it has a door) ---- */
