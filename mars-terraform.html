@@ -506,6 +506,78 @@ function marsBarrenTexture() {
   try { t.anisotropy = renderer.capabilities.getMaxAnisotropy(); } catch (e) {}   // crisper at grazing angles
   return t;
 }
+// Full-planet Mars (seen from the station window): a 2:1 equirectangular map —
+// rusty base, big dark albedo regions, a Valles-Marineris canyon streak, and craters.
+function marsPlanetTexture() {
+  const W = 2048, H = 1024;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  const TAU = Math.PI * 2, clamp = v => v < 0 ? 0 : v > 255 ? 255 : v, rnd = (a, b) => a + Math.random() * (b - a);
+  // warm base noise (x wraps around the globe)
+  const oct = [[3, 2, 0, 0.5], [6, 5, 1.1, 0.28], [12, 9, 2.0, 0.15], [23, 18, 0.6, 0.08]];
+  const SX = oct.map(() => new Float32Array(W)), CY = oct.map(() => new Float32Array(H));
+  oct.forEach(([kx, ky, ph], o) => {
+    for (let i = 0; i < W; i++) SX[o][i] = Math.sin(TAU * kx * i / W + ph);
+    for (let j = 0; j < H; j++) CY[o][j] = Math.cos(TAU * ky * j / H + ph * 0.7);
+  });
+  const dark = [120, 52, 28], mid = [178, 86, 48], light = [216, 132, 84];
+  const img = g.createImageData(W, H), d = img.data;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    let n = 0; for (let o = 0; o < oct.length; o++) n += oct[o][3] * SX[o][x] * CY[o][y];
+    let t = Math.max(0, Math.min(1, (n + 1) / 2)), r, gg, b;
+    if (t < 0.5) { const u = t * 2; r = dark[0] + (mid[0] - dark[0]) * u; gg = dark[1] + (mid[1] - dark[1]) * u; b = dark[2] + (mid[2] - dark[2]) * u; }
+    else { const u = (t - 0.5) * 2; r = mid[0] + (light[0] - mid[0]) * u; gg = mid[1] + (light[1] - mid[1]) * u; b = mid[2] + (light[2] - mid[2]) * u; }
+    const grain = (Math.random() - 0.5) * 12, i = (y * W + x) * 4;
+    d[i] = clamp(r + grain); d[i + 1] = clamp(gg + grain * 0.8); d[i + 2] = clamp(b + grain * 0.6); d[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  const stampX = (x, m, fn) => { fn(x); if (x < m) fn(x + W); if (x > W - m) fn(x - W); };   // wrap horizontally
+  // large dark albedo regions (Syrtis-like) — clusters of soft dark blobs
+  for (let i = 0; i < 22; i++) {
+    const cx = Math.random() * W, cy = rnd(H * 0.18, H * 0.82), R = rnd(70, 240);
+    const dr = rnd(40, 72) | 0, dg = rnd(22, 42) | 0, db = rnd(12, 26) | 0, a = rnd(0.12, 0.3);
+    stampX(cx, R, x => { for (let k = 0; k < 11; k++) {
+      const bx = x + rnd(-R, R), by = cy + rnd(-R * 0.6, R * 0.6), br = rnd(R * 0.3, R * 0.7);
+      const grd = g.createRadialGradient(bx, by, 0, bx, by, br);
+      grd.addColorStop(0, 'rgba(' + dr + ',' + dg + ',' + db + ',' + a + ')'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = grd; g.beginPath(); g.arc(bx, by, br, 0, 7); g.fill();
+    } });
+  }
+  // lighter dusty regions
+  for (let i = 0; i < 14; i++) {
+    const cx = Math.random() * W, cy = rnd(H * 0.15, H * 0.85), R = rnd(60, 180);
+    stampX(cx, R, x => { for (let k = 0; k < 8; k++) {
+      const bx = x + rnd(-R, R), by = cy + rnd(-R * 0.6, R * 0.6), br = rnd(R * 0.3, R * 0.6);
+      const grd = g.createRadialGradient(bx, by, 0, bx, by, br);
+      grd.addColorStop(0, 'rgba(226,162,112,' + rnd(0.08, 0.18) + ')'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = grd; g.beginPath(); g.arc(bx, by, br, 0, 7); g.fill();
+    } });
+  }
+  // Valles Marineris — a long dark canyon gash near the equator (drawn at 3 offsets to wrap)
+  for (const ox of [-W, 0, W]) {
+    g.save(); g.translate(ox, 0); g.lineCap = 'round'; g.strokeStyle = 'rgba(58,28,16,0.5)';
+    let xx = W * 0.06, yy = H * 0.56; g.beginPath(); g.moveTo(xx, yy);
+    for (let s = 0; s < 24; s++) { xx += W * 0.034; yy += Math.sin(s * 0.6) * 6 + (Math.random() - 0.5) * 9;
+      g.lineWidth = 3 + Math.random() * 8; g.lineTo(xx, yy); g.stroke(); g.beginPath(); g.moveTo(xx, yy); }
+    g.restore();
+  }
+  // craters with sunlit rims
+  for (let i = 0; i < 130; i++) {
+    const x = Math.random() * W, y = Math.random() * H, r = rnd(3, 16);
+    stampX(x, r + 2, xx => { const grd = g.createRadialGradient(xx, y, r * 0.2, xx, y, r);
+      grd.addColorStop(0, 'rgba(28,13,7,0.35)'); grd.addColorStop(0.8, 'rgba(28,13,7,0.08)');
+      grd.addColorStop(0.92, 'rgba(226,166,116,0.18)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = grd; g.beginPath(); g.arc(xx, y, r, 0, 7); g.fill(); });
+  }
+  // faint polar lightening top & bottom
+  const pg = g.createLinearGradient(0, 0, 0, H);
+  pg.addColorStop(0, 'rgba(232,182,142,0.18)'); pg.addColorStop(0.12, 'rgba(0,0,0,0)');
+  pg.addColorStop(0.88, 'rgba(0,0,0,0)'); pg.addColorStop(1, 'rgba(232,182,142,0.15)');
+  g.fillStyle = pg; g.fillRect(0, 0, W, H);
+  const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping;
+  try { t.anisotropy = renderer.capabilities.getMaxAnisotropy(); } catch (e) {}
+  return t;
+}
 function marsHotTexture() {
   const c = document.createElement('canvas'); c.width = c.height = 512;
   const g = c.getContext('2d');
@@ -627,7 +699,7 @@ const glass = new THREE.Mesh(new THREE.PlaneGeometry(holeHW * 2, holeT - holeB),
 glass.position.set(0, (holeT + holeB) / 2, -HD + 0.1); station.add(glass);
 
 // Mars — two layers so we can crossfade barren → hot
-const marsBarren = marsBarrenTexture();
+const marsBarren = marsPlanetTexture();   // full-planet look for the orbital view
 const marsHot = marsHotTexture();
 const marsMat = new THREE.MeshStandardMaterial({ map: marsBarren, roughness: 1, metalness: 0,
                                                  emissive: 0x3a1203, emissiveIntensity: 0.18 });

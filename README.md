@@ -148,6 +148,10 @@ Trees from Plant Generators now sprout **anywhere on dry land** across the map
 > dusty reddish-tan soil densely studded with thousands of little stones (pale
 > dust-rocks + dark basalt specks, each with a sunlit highlight and a shadow),
 > seamless/tileable, matching a real Mars close-up.
+>
+> **Realistic orbital Mars:** the planet you see through the station window now has
+> its own full-planet texture — rusty base, big dark albedo regions, a Valles-
+> Marineris canyon streak and craters (equirectangular, wraps seamlessly).
 
 ### 🎛️ Four ways to play (menu at the start)
 
