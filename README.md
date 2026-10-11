@@ -144,9 +144,10 @@ Trees from Plant Generators now sprout **anywhere on dry land** across the map
 > grass now appears as **random spots across the land** at Index 4,500, and the
 > game now ends at **20,000 Index**.
 >
-> **Nicer ground:** the Mars surface texture is rebuilt — multi-octave dusty noise,
-> fine grain, windblown streaks and soft craters (seamless/tileable), for a more
-> realistic rusty-ochre look.
+> **Nicer ground:** the Mars surface texture is rebuilt as **pebbly regolith** —
+> dusty reddish-tan soil densely studded with thousands of little stones (pale
+> dust-rocks + dark basalt specks, each with a sunlit highlight and a shadow),
+> seamless/tileable, matching a real Mars close-up.
 
 ### 🎛️ Four ways to play (menu at the start)
 
