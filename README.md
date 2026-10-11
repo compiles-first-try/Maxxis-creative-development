@@ -143,6 +143,10 @@ Trees from Plant Generators now sprout **anywhere on dry land** across the map
 > more common too), mining a rock takes **~2.5 seconds of holding** (progress bar),
 > grass now appears as **random spots across the land** at Index 4,500, and the
 > game now ends at **20,000 Index**.
+>
+> **Nicer ground:** the Mars surface texture is rebuilt — multi-octave dusty noise,
+> fine grain, windblown streaks and soft craters (seamless/tileable), for a more
+> realistic rusty-ochre look.
 
 ### 🎛️ Four ways to play (menu at the start)
 
